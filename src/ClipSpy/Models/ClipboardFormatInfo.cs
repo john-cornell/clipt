@@ -1,0 +1,21 @@
+namespace ClipSpy.Models;
+
+public sealed class ClipboardFormatInfo
+{
+    public required uint FormatId { get; init; }
+    public required string FormatName { get; init; }
+    public required bool IsStandard { get; init; }
+    public required long DataSize { get; init; }
+    public required MemoryInfo Memory { get; init; }
+    public required byte[] RawData { get; init; }
+
+    public string FormatIdHex => $"0x{FormatId:X4}";
+    public string DataSizeFormatted => FormatDataSize(DataSize);
+
+    private static string FormatDataSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):F2} MB",
+    };
+}

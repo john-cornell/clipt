@@ -1,0 +1,71 @@
+<Window x:Class="ClipSpy.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:ClipSpy.Views"
+        Title="ClipSpy — Clipboard Inspector"
+        Width="1100" Height="750"
+        MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="12,6">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <CheckBox Content="Auto-refresh" IsChecked="{Binding AutoRefresh}"
+                              Foreground="{DynamicResource ForegroundBrush}"
+                              VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <Button Content="Refresh Now" Command="{Binding RefreshCommand}" />
+                </StackPanel>
+
+                <TextBlock Text="ClipSpy" FontSize="16" FontWeight="Bold"
+                           Foreground="{DynamicResource AccentBrush}"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <!-- Tab area -->
+        <TabControl Grid.Row="1">
+            <TabItem Header="Text">
+                <views:TextTabView DataContext="{Binding TextTab}" />
+            </TabItem>
+            <TabItem Header="Hex">
+                <views:HexTabView DataContext="{Binding HexTab}" />
+            </TabItem>
+            <TabItem Header="Image">
+                <views:ImageTabView DataContext="{Binding ImageTab}" />
+            </TabItem>
+            <TabItem Header="Rich Content">
+                <views:RichContentTabView DataContext="{Binding RichContentTab}" />
+            </TabItem>
+            <TabItem Header="File Drop">
+                <views:FileDropTabView DataContext="{Binding FileDropTab}" />
+            </TabItem>
+            <TabItem Header="All Formats">
+                <views:FormatsTabView DataContext="{Binding FormatsTab}" />
+            </TabItem>
+            <TabItem Header="Native / Memory">
+                <views:NativeTabView DataContext="{Binding NativeTab}" />
+            </TabItem>
+        </TabControl>
+
+        <!-- Status bar -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem Content="{Binding StatusTimestamp}" />
+            <Separator Background="#40FFFFFF" />
+            <StatusBarItem Content="{Binding StatusSequence}" />
+            <Separator Background="#40FFFFFF" />
+            <StatusBarItem Content="{Binding StatusFormats}" />
+            <Separator Background="#40FFFFFF" />
+            <StatusBarItem Content="{Binding StatusOwner}" />
+        </StatusBar>
+    </Grid>
+</Window>
