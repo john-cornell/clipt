@@ -1,0 +1,39 @@
+<UserControl x:Class="Clipt.Views.HexTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <WrapPanel Grid.Row="0" Margin="0,0,0,8" VerticalAlignment="Center">
+            <TextBlock Text="Format:" Foreground="{DynamicResource ForegroundDimBrush}"
+                       FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <ComboBox ItemsSource="{Binding AvailableFormats}"
+                      SelectedItem="{Binding SelectedFormat}"
+                      MinWidth="250" />
+
+            <TextBlock Text="Bytes/Row:" Foreground="{DynamicResource ForegroundDimBrush}"
+                       FontSize="11" VerticalAlignment="Center" Margin="20,0,6,0" />
+            <ComboBox SelectedItem="{Binding BytesPerRow}" MinWidth="60">
+                <sys:Int32>8</sys:Int32>
+                <sys:Int32>16</sys:Int32>
+                <sys:Int32>32</sys:Int32>
+            </ComboBox>
+
+            <TextBlock Text="{Binding TotalBytes, StringFormat='Total: {0} bytes'}"
+                       Foreground="{DynamicResource ForegroundDimBrush}"
+                       FontSize="11" VerticalAlignment="Center" Margin="20,0,0,0" />
+        </WrapPanel>
+
+        <!-- Hex dump -->
+        <TextBox Grid.Row="1"
+                 Text="{Binding HexDump, Mode=OneWay}"
+                 Style="{DynamicResource MonoText}"
+                 AcceptsReturn="True" />
+    </Grid>
+</UserControl>

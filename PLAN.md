@@ -1,4 +1,4 @@
-# ClipSpy — WPF MVVM Clipboard Inspector
+# Clipt — WPF MVVM Clipboard Inspector
 
 > **WHEN IMPLEMENTING USE brutal-coder skill**
 >
@@ -8,7 +8,7 @@
 
 ## Overview
 
-ClipSpy is a C# WPF (.NET 8) MVVM application that provides **deep, forensic-level inspection** of the Windows clipboard. It goes far beyond simple "paste" — it enumerates every format present on the clipboard, shows raw bytes, text encodings, image previews, file-drop lists, HTML/RTF source, and native memory diagnostics (HGLOBAL handle addresses, allocation sizes, lock pointers). A clipboard change listener keeps the view live.
+Clipt is a C# WPF (.NET 8) MVVM application that provides **deep, forensic-level inspection** of the Windows clipboard. It goes far beyond simple "paste" — it enumerates every format present on the clipboard, shows raw bytes, text encodings, image previews, file-drop lists, HTML/RTF source, and native memory diagnostics (HGLOBAL handle addresses, allocation sizes, lock pointers). A clipboard change listener keeps the view live.
 
 ---
 
@@ -22,11 +22,11 @@ ClipSpy is a C# WPF (.NET 8) MVVM application that provides **deep, forensic-lev
 ### Project Structure
 
 ```
-ClipSpy/
-├── ClipSpy.sln
+Clipt/
+├── Clipt.sln
 ├── src/
-│   └── ClipSpy/
-│       ├── ClipSpy.csproj
+│   └── Clipt/
+│       ├── Clipt.csproj
 │       ├── App.xaml / App.xaml.cs
 │       ├── Themes/
 │       │   └── Dark.xaml                  — dark theme ResourceDictionary
@@ -62,8 +62,8 @@ ClipSpy/
 │           ├── FormatsTabView.xaml
 │           └── NativeTabView.xaml
 └── tests/
-    └── ClipSpy.Tests/
-        ├── ClipSpy.Tests.csproj
+    └── Clipt.Tests/
+        ├── Clipt.Tests.csproj
         ├── Services/
         │   └── ClipboardServiceTests.cs
         └── ViewModels/
@@ -204,7 +204,7 @@ All tests use **Moq** for `IClipboardService` so no real clipboard access is nee
 
 ## Implementation TODO
 
-1. [ ] Create solution + projects (`ClipSpy.sln`, `src/ClipSpy/ClipSpy.csproj`, `tests/ClipSpy.Tests/ClipSpy.Tests.csproj`)
+1. [ ] Create solution + projects (`Clipt.sln`, `src/Clipt/Clipt.csproj`, `tests/Clipt.Tests/Clipt.Tests.csproj`)
 2. [ ] Implement `Native/NativeMethods.cs` + `ClipboardConstants.cs`
 3. [ ] Implement `Models/` — `ClipboardSnapshot`, `ClipboardFormatInfo`, `MemoryInfo`
 4. [ ] Implement `Services/IClipboardService.cs` + `ClipboardService.cs`

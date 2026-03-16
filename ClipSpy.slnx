@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/ClipSpy/ClipSpy.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/ClipSpy.Tests/ClipSpy.Tests.csproj" />
-  </Folder>
-</Solution>

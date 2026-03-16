@@ -1,0 +1,74 @@
+<UserControl x:Class="Clipt.Views.RichContentTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Clipt.Converters">
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- HTML Headers -->
+        <TextBlock Grid.Row="0" Text="HTML FORMAT — HEADERS"
+                   Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
+                   FontWeight="SemiBold" Margin="0,0,0,4"
+                   Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}" />
+        <TextBox Grid.Row="1"
+                 Text="{Binding HtmlHeaders, Mode=OneWay}"
+                 Style="{DynamicResource MonoText}"
+                 MaxHeight="120"
+                 AcceptsReturn="True"
+                 Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}" />
+
+        <!-- HTML Source -->
+        <DockPanel Grid.Row="2" Margin="0,8,0,0"
+                   Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}">
+            <TextBlock DockPanel.Dock="Top" Text="HTML SOURCE"
+                       Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
+                       FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding HtmlSource, Mode=OneWay}"
+                     Style="{DynamicResource MonoText}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap" />
+        </DockPanel>
+
+        <!-- RTF Source -->
+        <TextBlock Grid.Row="3" Text="RTF SOURCE"
+                   Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
+                   FontWeight="SemiBold" Margin="0,8,0,4"
+                   Visibility="{Binding HasRtf, Converter={StaticResource BoolToVis}}" />
+        <TextBox Grid.Row="4"
+                 Text="{Binding RtfSource, Mode=OneWay}"
+                 Style="{DynamicResource MonoText}"
+                 AcceptsReturn="True"
+                 Visibility="{Binding HasRtf, Converter={StaticResource BoolToVis}}" />
+
+        <!-- No content -->
+        <TextBlock Grid.Row="2" Text="No HTML or RTF data on clipboard"
+                   Foreground="{DynamicResource ForegroundDimBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="14">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HasHtml}" Value="False" />
+                                <Condition Binding="{Binding HasRtf}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </Grid>
+</UserControl>
