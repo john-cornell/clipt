@@ -4,8 +4,6 @@ namespace ClipSpy.Native;
 
 internal static partial class NativeMethods
 {
-    public const int WM_CLIPBOARDUPDATE = 0x031D;
-
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool OpenClipboard(nint hWndNewOwner);

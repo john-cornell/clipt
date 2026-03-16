@@ -2,7 +2,7 @@ using ClipSpy.Models;
 
 namespace ClipSpy.Tests.Services;
 
-public class ClipboardFormatInfoTests
+public class ClipboardServiceTests
 {
     [Theory]
     [InlineData(100, "100 B")]

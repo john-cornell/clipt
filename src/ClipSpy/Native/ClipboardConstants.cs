@@ -4,6 +4,8 @@ namespace ClipSpy.Native;
 
 internal static class ClipboardConstants
 {
+    public const int WM_CLIPBOARDUPDATE = 0x031D;
+
     public const uint CF_TEXT = 1;
     public const uint CF_BITMAP = 2;
     public const uint CF_METAFILEPICT = 3;

@@ -14,6 +14,8 @@ public sealed class ClipboardListenerService : IDisposable
 
     public void Start()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (_hwndSource is not null)
             return;
 
@@ -37,7 +39,7 @@ public sealed class ClipboardListenerService : IDisposable
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
-        if (msg == NativeMethods.WM_CLIPBOARDUPDATE)
+        if (msg == ClipboardConstants.WM_CLIPBOARDUPDATE)
         {
             ClipboardChanged?.Invoke(this, EventArgs.Empty);
             handled = true;

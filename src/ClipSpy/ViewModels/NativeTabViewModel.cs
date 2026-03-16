@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using ClipSpy.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -73,7 +72,9 @@ public sealed partial class NativeTabViewModel : ObservableObject
         HandleHex = format.Memory.HandleHex;
         LockPointerHex = format.Memory.LockPointerHex;
         GlobalSizeDisplay = $"{format.Memory.AllocationSize} bytes ({format.DataSizeFormatted})";
-        MemoryHexDump = BuildCompactHexDump(format.Memory.FirstBytes);
+        MemoryHexDump = format.Memory.FirstBytes.Length > 0
+            ? Formatting.BuildHexDump(format.Memory.FirstBytes, 16)
+            : "(no data)";
     }
 
     private void ClearDetails()
@@ -82,48 +83,5 @@ public sealed partial class NativeTabViewModel : ObservableObject
         LockPointerHex = string.Empty;
         GlobalSizeDisplay = string.Empty;
         MemoryHexDump = string.Empty;
-    }
-
-    private static string BuildCompactHexDump(byte[] data)
-    {
-        if (data.Length == 0)
-            return "(no data)";
-
-        const int bpr = 16;
-        var sb = new StringBuilder();
-
-        for (int offset = 0; offset < data.Length; offset += bpr)
-        {
-            int count = Math.Min(bpr, data.Length - offset);
-            sb.Append(offset.ToString("X4"));
-            sb.Append("  ");
-
-            for (int i = 0; i < bpr; i++)
-            {
-                if (i < count)
-                {
-                    sb.Append(data[offset + i].ToString("X2"));
-                    sb.Append(' ');
-                }
-                else
-                {
-                    sb.Append("   ");
-                }
-
-                if (i == 7)
-                    sb.Append(' ');
-            }
-
-            sb.Append(' ');
-            for (int i = 0; i < count; i++)
-            {
-                byte b = data[offset + i];
-                sb.Append(b is >= 0x20 and < 0x7F ? (char)b : '.');
-            }
-
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
     }
 }

@@ -10,12 +10,5 @@ public sealed class ClipboardFormatInfo
     public required byte[] RawData { get; init; }
 
     public string FormatIdHex => $"0x{FormatId:X4}";
-    public string DataSizeFormatted => FormatDataSize(DataSize);
-
-    private static string FormatDataSize(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        _ => $"{bytes / (1024.0 * 1024.0):F2} MB",
-    };
+    public string DataSizeFormatted => Formatting.FormatDataSize(DataSize);
 }

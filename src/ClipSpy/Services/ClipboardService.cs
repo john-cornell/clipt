@@ -13,7 +13,6 @@ public sealed class ClipboardService : IClipboardService
 
     public ClipboardSnapshot CaptureSnapshot(nint hwnd)
     {
-        uint sequenceNumber = NativeMethods.GetClipboardSequenceNumber();
         (string ownerName, int ownerPid) = GetClipboardOwnerInfo();
 
         if (!NativeMethods.OpenClipboard(hwnd))
@@ -21,7 +20,7 @@ public sealed class ClipboardService : IClipboardService
             return new ClipboardSnapshot
             {
                 Timestamp = DateTime.UtcNow,
-                SequenceNumber = sequenceNumber,
+                SequenceNumber = NativeMethods.GetClipboardSequenceNumber(),
                 OwnerProcessName = ownerName,
                 OwnerProcessId = ownerPid,
                 Formats = ImmutableArray<ClipboardFormatInfo>.Empty,
@@ -30,6 +29,7 @@ public sealed class ClipboardService : IClipboardService
 
         try
         {
+            uint sequenceNumber = NativeMethods.GetClipboardSequenceNumber();
             var formats = EnumerateFormats();
             return new ClipboardSnapshot
             {

@@ -22,15 +22,27 @@ public sealed partial class FileDropTabViewModel : ObservableObject
     [RelayCommand]
     private void OpenInExplorer(FileDropEntry? entry)
     {
-        if (entry is null || !File.Exists(entry.FullPath))
+        if (entry is null)
             return;
 
-        Process.Start(new ProcessStartInfo
+        if (entry.IsDirectory && Directory.Exists(entry.FullPath))
         {
-            FileName = "explorer.exe",
-            Arguments = $"/select,\"{entry.FullPath}\"",
-            UseShellExecute = true,
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{entry.FullPath}\"",
+                UseShellExecute = true,
+            });
+        }
+        else if (File.Exists(entry.FullPath))
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{entry.FullPath}\"",
+                UseShellExecute = true,
+            });
+        }
     }
 
     public void Update(ClipboardSnapshot snapshot)
@@ -124,7 +136,7 @@ public sealed partial class FileDropTabViewModel : ObservableObject
                     fi.FullName,
                     fi.Name,
                     fi.Length,
-                    FormatSize(fi.Length),
+                    Formatting.FormatDataSize(fi.Length),
                     fi.LastWriteTime,
                     false);
             }
@@ -148,20 +160,4 @@ public sealed partial class FileDropTabViewModel : ObservableObject
 
         return new FileDropEntry(path, Path.GetFileName(path), 0, "(unknown)", DateTime.MinValue, false);
     }
-
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024.0):F2} MB",
-        _ => $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB",
-    };
 }
-
-public sealed record FileDropEntry(
-    string FullPath,
-    string FileName,
-    long SizeBytes,
-    string SizeFormatted,
-    DateTime LastModified,
-    bool IsDirectory);

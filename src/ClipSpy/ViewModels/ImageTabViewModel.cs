@@ -70,7 +70,7 @@ public sealed partial class ImageTabViewModel : ObservableObject
             DpiX = bmp.DpiX;
             DpiY = bmp.DpiY;
             PixelFormat = bmp.Format.ToString();
-            Stride = (bmp.PixelWidth * bmp.Format.BitsPerPixel + 7) / 8;
+            Stride = ((bmp.PixelWidth * bmp.Format.BitsPerPixel + 31) / 32) * 4;
             BitsPerPixel = bmp.Format.BitsPerPixel;
             PaletteInfo = bmp.Palette is not null
                 ? $"{bmp.Palette.Colors.Count} colors"
@@ -141,8 +141,13 @@ public sealed partial class ImageTabViewModel : ObservableObject
 
         int compression = BitConverter.ToInt32(dib, 16);
         int maskSize = 0;
-        if (compression == 3 && headerSize == 40)
-            maskSize = 12;
+        if (headerSize == 40)
+        {
+            if (compression == 3)
+                maskSize = 12;
+            else if (compression == 6)
+                maskSize = 16;
+        }
 
         return headerSize + paletteSize + maskSize;
     }

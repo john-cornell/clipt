@@ -143,6 +143,17 @@ public sealed partial class TextTabViewModel : ObservableObject
         }
     }
 
-    private static int CountLines(string text) =>
-        text.Length == 0 ? 0 : text.Split('\n').Length;
+    private static int CountLines(string text)
+    {
+        if (text.Length == 0)
+            return 0;
+
+        int count = 1;
+        foreach (char c in text)
+        {
+            if (c == '\n')
+                count++;
+        }
+        return count;
+    }
 }

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using ClipSpy.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -63,57 +62,9 @@ public sealed partial class HexTabViewModel : ObservableObject
         }
 
         TotalBytes = format.RawData.Length;
-        HexDump = BuildHexDump(format.RawData, BytesPerRow);
+        HexDump = Formatting.BuildHexDump(format.RawData, BytesPerRow);
     }
 
-    internal static string BuildHexDump(byte[] data, int bytesPerRow)
-    {
-        if (data.Length == 0)
-            return string.Empty;
-
-        int bpr = Math.Clamp(bytesPerRow, 1, 64);
-        int offsetWidth = data.Length > 0xFFFF ? 8 : 4;
-        var sb = new StringBuilder((data.Length / bpr + 1) * (offsetWidth + 3 + bpr * 3 + 2 + bpr + 2));
-
-        for (int offset = 0; offset < data.Length; offset += bpr)
-        {
-            int count = Math.Min(bpr, data.Length - offset);
-
-            sb.Append(offset.ToString($"X{offsetWidth}"));
-            sb.Append("  ");
-
-            for (int i = 0; i < bpr; i++)
-            {
-                if (i < count)
-                {
-                    sb.Append(data[offset + i].ToString("X2"));
-                    sb.Append(' ');
-                }
-                else
-                {
-                    sb.Append("   ");
-                }
-
-                if (i == bpr / 2 - 1)
-                    sb.Append(' ');
-            }
-
-            sb.Append(' ');
-
-            for (int i = 0; i < count; i++)
-            {
-                byte b = data[offset + i];
-                sb.Append(b is >= 0x20 and < 0x7F ? (char)b : '.');
-            }
-
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-}
-
-public sealed record FormatSelection(uint FormatId, string Name, long Size)
-{
-    public override string ToString() => $"{Name} ({Size} bytes)";
+    internal static string BuildHexDump(byte[] data, int bytesPerRow) =>
+        Formatting.BuildHexDump(data, bytesPerRow);
 }
