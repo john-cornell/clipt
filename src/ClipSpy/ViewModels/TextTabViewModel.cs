@@ -7,6 +7,11 @@ namespace ClipSpy.ViewModels;
 
 public sealed partial class TextTabViewModel : ObservableObject
 {
+    static TextTabViewModel()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     [ObservableProperty]
     private string _unicodeText = string.Empty;
 
@@ -129,11 +134,10 @@ public sealed partial class TextTabViewModel : ObservableObject
         int len = end >= 0 ? end : data.Length;
         try
         {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             var oem = Encoding.GetEncoding(437);
             return oem.GetString(data, 0, len);
         }
-        catch
+        catch (NotSupportedException)
         {
             return Encoding.ASCII.GetString(data, 0, len);
         }

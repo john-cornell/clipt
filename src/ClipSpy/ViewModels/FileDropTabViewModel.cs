@@ -29,7 +29,7 @@ public sealed partial class FileDropTabViewModel : ObservableObject
         {
             FileName = "explorer.exe",
             Arguments = $"/select,\"{entry.FullPath}\"",
-            UseShellExecute = false,
+            UseShellExecute = true,
         });
     }
 
@@ -141,7 +141,7 @@ public sealed partial class FileDropTabViewModel : ObservableObject
                     true);
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             // fall through to unknown entry
         }
