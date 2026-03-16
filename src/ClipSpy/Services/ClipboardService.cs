@@ -80,6 +80,23 @@ public sealed class ClipboardService : IClipboardService
             };
         }
 
+        if (ClipboardConstants.IsGdiHandleFormat(formatId))
+        {
+            return new ClipboardFormatInfo
+            {
+                FormatId = formatId,
+                FormatName = name,
+                IsStandard = isStandard,
+                DataSize = 0,
+                Memory = new MemoryInfo(
+                    $"0x{handle:X16}",
+                    "(GDI handle — not lockable)",
+                    0,
+                    []),
+                RawData = [],
+            };
+        }
+
         nuint rawSize = NativeMethods.GlobalSize(handle);
         long dataSize = (long)rawSize;
 

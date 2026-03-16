@@ -53,8 +53,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void Refresh()
     {
-        var snapshot = _clipboardService.CaptureSnapshot(_listenerService.Hwnd);
-        ApplySnapshot(snapshot);
+        try
+        {
+            var snapshot = _clipboardService.CaptureSnapshot(_listenerService.Hwnd);
+            ApplySnapshot(snapshot);
+        }
+        catch (Exception ex)
+        {
+            StatusTimestamp = DateTime.UtcNow.ToLocalTime().ToString("HH:mm:ss.fff");
+            StatusFormats = $"Error: {ex.Message}";
+        }
     }
 
     private void OnClipboardChanged(object? sender, EventArgs e)
@@ -62,7 +70,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!AutoRefresh)
             return;
 
-        System.Windows.Application.Current?.Dispatcher.Invoke(Refresh);
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(Refresh);
     }
 
     private void ApplySnapshot(ClipboardSnapshot snapshot)

@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ClipSpy.Models;
 using ClipSpy.Native;
@@ -79,7 +78,7 @@ public sealed partial class ImageTabViewModel : ObservableObject
             HasImage = true;
             ImageSummary = $"{PixelWidth}×{PixelHeight} @ {BitsPerPixel}bpp, {DpiX:F0}×{DpiY:F0} DPI";
         }
-        catch
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException or ArgumentException)
         {
             ClearImage();
         }

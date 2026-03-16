@@ -76,4 +76,9 @@ internal static class ClipboardConstants
 
     public static bool IsStandardFormat(uint formatId) =>
         StandardFormatNames.ContainsKey(formatId);
+
+    public static bool IsGdiHandleFormat(uint formatId) =>
+        formatId is CF_BITMAP or CF_PALETTE or CF_ENHMETAFILE or CF_METAFILEPICT
+            or CF_DSPBITMAP or CF_DSPMETAFILEPICT or CF_DSPENHMETAFILE
+        || (formatId >= CF_GDIOBJFIRST && formatId <= CF_GDIOBJLAST);
 }
