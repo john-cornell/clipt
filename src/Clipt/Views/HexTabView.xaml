@@ -127,11 +127,11 @@
                              BorderBrush="{DynamicResource BorderBrush}"
                              Padding="4"
                              IsReadOnly="{Binding IsEditing, Converter={StaticResource InverseBool}}"
+                             IsInactiveSelectionHighlightEnabled="True"
                              TextWrapping="NoWrap"
                              AcceptsReturn="True"
                              HorizontalScrollBarVisibility="Disabled"
-                             VerticalScrollBarVisibility="Disabled"
-                             SelectionChanged="HexTextBox_SelectionChanged" />
+                             VerticalScrollBarVisibility="Disabled" />
 
                     <!-- ASCII column -->
                     <TextBox x:Name="AsciiTextBox"
@@ -143,11 +143,11 @@
                              BorderThickness="0"
                              Padding="4"
                              IsReadOnly="True"
+                             IsInactiveSelectionHighlightEnabled="True"
                              TextWrapping="NoWrap"
                              AcceptsReturn="True"
                              HorizontalScrollBarVisibility="Disabled"
-                             VerticalScrollBarVisibility="Disabled"
-                             SelectionChanged="AsciiTextBox_SelectionChanged" />
+                             VerticalScrollBarVisibility="Disabled" />
                 </Grid>
             </ScrollViewer>
         </Border>

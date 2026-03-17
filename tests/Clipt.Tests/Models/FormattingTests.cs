@@ -179,4 +179,122 @@ public class FormattingTests
     {
         Assert.Equal("1.00 GB", Formatting.FormatDataSize(1024L * 1024 * 1024));
     }
+
+    [Fact]
+    public void CharRangeToByteRangeUtf16_ZeroLength_ReturnsZeroCount()
+    {
+        var (startByte, byteCount) = Formatting.CharRangeToByteRangeUtf16(5, 0);
+        Assert.Equal(10, startByte);
+        Assert.Equal(0, byteCount);
+    }
+
+    [Fact]
+    public void CharRangeToByteRangeUtf16_FiveChars_ReturnsTenBytes()
+    {
+        var (startByte, byteCount) = Formatting.CharRangeToByteRangeUtf16(0, 5);
+        Assert.Equal(0, startByte);
+        Assert.Equal(10, byteCount);
+    }
+
+    [Fact]
+    public void CharRangeToByteRangeUtf16_OffsetAndLength()
+    {
+        var (startByte, byteCount) = Formatting.CharRangeToByteRangeUtf16(3, 4);
+        Assert.Equal(6, startByte);
+        Assert.Equal(8, byteCount);
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeUtf16_EvenBoundaries()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeUtf16(4, 6);
+        Assert.Equal(2, charStart);
+        Assert.Equal(3, charCount);
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeUtf16_OddByteStart_ClampsDown()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeUtf16(3, 4);
+        Assert.Equal(1, charStart);
+        Assert.Equal(3, charCount);
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeUtf16_ZeroCount_ReturnsZero()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeUtf16(6, 0);
+        Assert.Equal(3, charStart);
+        Assert.Equal(0, charCount);
+    }
+
+    [Fact]
+    public void CharRangeToByteRangeSingleByte_Identity()
+    {
+        var (startByte, byteCount) = Formatting.CharRangeToByteRangeSingleByte(7, 3);
+        Assert.Equal(7, startByte);
+        Assert.Equal(3, byteCount);
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeSingleByte_Identity()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeSingleByte(10, 5);
+        Assert.Equal(10, charStart);
+        Assert.Equal(5, charCount);
+    }
+
+    [Theory]
+    [InlineData(0, 10, 0, 20)]
+    [InlineData(2, 4, 4, 8)]
+    [InlineData(0, 0, 0, 0)]
+    public void CharRangeToByteRangeUtf16_RoundtripWithByteRangeToChar(
+        int charStart, int charCount, int expectedByteStart, int expectedByteCount)
+    {
+        var (bs, bc) = Formatting.CharRangeToByteRangeUtf16(charStart, charCount);
+        Assert.Equal(expectedByteStart, bs);
+        Assert.Equal(expectedByteCount, bc);
+
+        if (bc > 0)
+        {
+            var (cs, cc) = Formatting.ByteRangeToCharRangeUtf16(bs, bc);
+            Assert.Equal(charStart, cs);
+            Assert.Equal(charCount, cc);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 10, 0, 10)]
+    [InlineData(5, 3, 5, 3)]
+    [InlineData(0, 0, 0, 0)]
+    public void CharRangeToByteRangeSingleByte_RoundtripWithByteRangeToChar(
+        int charStart, int charCount, int expectedByteStart, int expectedByteCount)
+    {
+        var (bs, bc) = Formatting.CharRangeToByteRangeSingleByte(charStart, charCount);
+        Assert.Equal(expectedByteStart, bs);
+        Assert.Equal(expectedByteCount, bc);
+
+        if (bc > 0)
+        {
+            var (cs, cc) = Formatting.ByteRangeToCharRangeSingleByte(bs, bc);
+            Assert.Equal(charStart, cs);
+            Assert.Equal(charCount, cc);
+        }
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeUtf16_SingleByteSelection_StillYieldsOneChar()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeUtf16(0, 1);
+        Assert.Equal(0, charStart);
+        Assert.Equal(1, charCount);
+    }
+
+    [Fact]
+    public void ByteRangeToCharRangeUtf16_TwoBytesFromZero_YieldsOneChar()
+    {
+        var (charStart, charCount) = Formatting.ByteRangeToCharRangeUtf16(0, 2);
+        Assert.Equal(0, charStart);
+        Assert.Equal(1, charCount);
+    }
 }

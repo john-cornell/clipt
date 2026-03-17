@@ -80,10 +80,12 @@
                        Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
                        FontWeight="SemiBold" Margin="0,0,0,4"
                        ToolTip="{x:Static help:HelpContent.CfUnicodeTextTooltip}" />
-            <TextBox Text="{Binding UnicodeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <TextBox x:Name="UnicodeTextBox"
+                     Text="{Binding UnicodeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      Style="{DynamicResource MonoText}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
+                     IsInactiveSelectionHighlightEnabled="True"
                      IsReadOnly="{Binding IsEditing, Converter={StaticResource InverseBool}}" />
         </DockPanel>
 
@@ -93,10 +95,12 @@
                    FontWeight="SemiBold" Margin="0,8,0,4"
                    ToolTip="{x:Static help:HelpContent.CfTextTooltip}" />
 
-        <TextBox Grid.Row="5" Text="{Binding AnsiText, Mode=OneWay}"
+        <TextBox x:Name="AnsiTextBox"
+                 Grid.Row="5" Text="{Binding AnsiText, Mode=OneWay}"
                  Style="{DynamicResource MonoText}"
                  AcceptsReturn="True"
-                 TextWrapping="Wrap" />
+                 TextWrapping="Wrap"
+                 IsInactiveSelectionHighlightEnabled="True" />
 
         <!-- OEM header -->
         <TextBlock Grid.Row="6" Text="CF_OEMTEXT (OEM / CP437)"
@@ -104,9 +108,11 @@
                    FontWeight="SemiBold" Margin="0,8,0,4"
                    ToolTip="{x:Static help:HelpContent.CfOemTextTooltip}" />
 
-        <TextBox Grid.Row="7" Text="{Binding OemText, Mode=OneWay}"
+        <TextBox x:Name="OemTextBox"
+                 Grid.Row="7" Text="{Binding OemText, Mode=OneWay}"
                  Style="{DynamicResource MonoText}"
                  AcceptsReturn="True"
-                 TextWrapping="Wrap" />
+                 TextWrapping="Wrap"
+                 IsInactiveSelectionHighlightEnabled="True" />
     </Grid>
 </UserControl>

@@ -73,11 +73,8 @@
 
         <!-- Tab area -->
         <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex}">
-            <TabItem Header="Text">
-                <views:TextTabView DataContext="{Binding TextTab}" />
-            </TabItem>
-            <TabItem Header="Hex">
-                <views:HexTabView DataContext="{Binding HexTab}" />
+            <TabItem Header="Text / Hex">
+                <views:TextHexTabView />
             </TabItem>
             <TabItem Header="Image">
                 <views:ImageTabView DataContext="{Binding ImageTab}" />

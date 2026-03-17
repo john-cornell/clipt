@@ -272,4 +272,98 @@ public class HexTabViewModelTests
         Assert.NotNull(result);
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void ProgrammaticFormatSwitch_RebuildsDump()
+    {
+        var vm = new HexTabViewModel();
+        byte[] unicodeData = [0x48, 0x00, 0x69, 0x00];
+        byte[] ansiData = [0x48, 0x69];
+        var snapshot = MakeSnapshotWithData(
+            MakeFormatWithData(13, "CF_UNICODETEXT", true, unicodeData),
+            MakeFormatWithData(1, "CF_TEXT", true, ansiData));
+
+        vm.Update(snapshot);
+        Assert.Equal(13u, vm.SelectedFormat!.FormatId);
+        string hexBefore = vm.HexColumn;
+
+        vm.SelectedFormat = vm.AvailableFormats[1];
+        Assert.Equal(1u, vm.SelectedFormat.FormatId);
+        Assert.NotEqual(hexBefore, vm.HexColumn);
+        Assert.Equal(ansiData.Length, vm.CurrentRawData.Length);
+    }
+
+    [Fact]
+    public void ProgrammaticFormatSwitch_ResetsSelection()
+    {
+        var vm = new HexTabViewModel();
+        var snapshot = MakeSnapshot(
+            MakeFormat(13, "CF_UNICODETEXT", true, 16),
+            MakeFormat(1, "CF_TEXT", true, 8));
+
+        vm.Update(snapshot);
+        vm.SelectedByteOffset = 4;
+        vm.SelectedByteCount = 2;
+
+        vm.SelectedFormat = vm.AvailableFormats[1];
+        Assert.Equal(-1, vm.SelectedByteOffset);
+        Assert.Equal(0, vm.SelectedByteCount);
+    }
+
+    [Fact]
+    public void AvailableFormats_ContainsAllSnapshotFormats()
+    {
+        var vm = new HexTabViewModel();
+        var snapshot = MakeSnapshot(
+            MakeFormat(13, "CF_UNICODETEXT", true, 16),
+            MakeFormat(1, "CF_TEXT", true, 8),
+            MakeFormat(7, "CF_OEMTEXT", true, 8),
+            MakeFormat(0xC001, "HTML Format", false, 100));
+
+        vm.Update(snapshot);
+        Assert.Equal(4, vm.AvailableFormats.Count);
+    }
+
+    [Fact]
+    public void FindFormatById_ReturnsCorrectEntry()
+    {
+        var vm = new HexTabViewModel();
+        var snapshot = MakeSnapshot(
+            MakeFormat(0xC001, "HTML Format", false, 100),
+            MakeFormat(13, "CF_UNICODETEXT", true, 16),
+            MakeFormat(1, "CF_TEXT", true, 8));
+
+        vm.Update(snapshot);
+
+        var unicodeEntry = vm.AvailableFormats.FirstOrDefault(f => f.FormatId == 13);
+        Assert.NotNull(unicodeEntry);
+        Assert.Equal("CF_UNICODETEXT", unicodeEntry.Name);
+
+        var textEntry = vm.AvailableFormats.FirstOrDefault(f => f.FormatId == 1);
+        Assert.NotNull(textEntry);
+
+        var missing = vm.AvailableFormats.FirstOrDefault(f => f.FormatId == 999);
+        Assert.Null(missing);
+    }
+
+    private static ClipboardSnapshot MakeSnapshotWithData(params ClipboardFormatInfo[] formats) =>
+        new()
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = [.. formats],
+        };
+
+    private static ClipboardFormatInfo MakeFormatWithData(uint id, string name, bool isStandard, byte[] data) =>
+        new()
+        {
+            FormatId = id,
+            FormatName = name,
+            IsStandard = isStandard,
+            DataSize = data.Length,
+            Memory = new MemoryInfo("0x0", "0x0", data.Length, []),
+            RawData = data,
+        };
 }

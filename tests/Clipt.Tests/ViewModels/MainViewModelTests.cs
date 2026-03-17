@@ -198,7 +198,7 @@ public class MainViewModelTests
         vm.SelectedTabIndex = 1;
 
         Assert.NotEmpty(vm.CurrentHelpEntries);
-        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "Hex Dump");
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "Bits Per Pixel (bpp)");
     }
 
     [Fact]
@@ -222,13 +222,29 @@ public class MainViewModelTests
         Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "CF_UNICODETEXT");
     }
 
+    [Fact]
+    public void DefaultTab_ContainsBothTextAndHexHelpEntries()
+    {
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        vm.SelectedTabIndex = 1;
+        vm.SelectedTabIndex = 0;
+
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "CF_UNICODETEXT");
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "Hex Dump");
+    }
+
     [Theory]
-    [InlineData(1, "Hex Dump")]
-    [InlineData(2, "Stride")]
-    [InlineData(3, "Rich Text Format (RTF)")]
-    [InlineData(4, "CF_HDROP (File Drop)")]
-    [InlineData(5, "HGLOBAL Handle")]
-    [InlineData(6, "GlobalLock Pointer")]
+    [InlineData(1, "Stride")]
+    [InlineData(2, "Rich Text Format (RTF)")]
+    [InlineData(3, "CF_HDROP (File Drop)")]
+    [InlineData(4, "HGLOBAL Handle")]
+    [InlineData(5, "GlobalLock Pointer")]
     public void SelectedTabIndex_ContainsExpectedTermForTab(int tabIndex, string expectedTerm)
     {
         _clipboardServiceMock

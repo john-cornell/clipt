@@ -20,6 +20,7 @@ Clipt goes far beyond simple paste — it enumerates every format present on the
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.1.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.1/CliptSetup.exe) | Hex editor selection model, text tab improvements, expanded test coverage |
 | 1.0.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.0.0/CliptSetup.exe) | Initial release — full clipboard inspection with light/dark themes |
 
 ### System Requirements
@@ -32,6 +33,10 @@ Clipt goes far beyond simple paste — it enumerates every format present on the
 1. Download `CliptSetup.exe` from the table above or from the [Releases](https://github.com/john-cornell/clipt/releases) page
 2. Run the installer — it will install to Program Files
 3. Launch Clipt from the Start Menu or desktop shortcut
+
+## Known Issues
+
+- Hex editor text selection can be a little flakey — this is known and being worked on.
 
 ## Building from Source
 

@@ -181,6 +181,35 @@ internal static class Formatting
         return absIdx < dataLength ? absIdx : -1;
     }
 
+    public static (int startByte, int byteCount) CharRangeToByteRangeUtf16(int charStart, int charCount)
+    {
+        if (charCount <= 0)
+            return (charStart * 2, 0);
+
+        return (charStart * 2, charCount * 2);
+    }
+
+    public static (int charStart, int charCount) ByteRangeToCharRangeUtf16(int byteStart, int byteCount)
+    {
+        if (byteCount <= 0)
+            return (byteStart / 2, 0);
+
+        int alignedStart = byteStart / 2;
+        int endByte = byteStart + byteCount;
+        int alignedEnd = (endByte + 1) / 2;
+        return (alignedStart, alignedEnd - alignedStart);
+    }
+
+    public static (int startByte, int byteCount) CharRangeToByteRangeSingleByte(int charStart, int charCount)
+    {
+        return (charStart, charCount);
+    }
+
+    public static (int charStart, int charCount) ByteRangeToCharRangeSingleByte(int byteStart, int byteCount)
+    {
+        return (byteStart, byteCount);
+    }
+
     private static void AppendHexBytes(StringBuilder sb, byte[] data, int offset, int count, int bpr)
     {
         for (int i = 0; i < bpr; i++)
