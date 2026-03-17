@@ -2,16 +2,16 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- Palette -->
-    <Color x:Key="BackgroundColor">#1E1E1E</Color>
-    <Color x:Key="SurfaceColor">#252526</Color>
-    <Color x:Key="SurfaceLightColor">#2D2D30</Color>
-    <Color x:Key="BorderColor">#3F3F46</Color>
-    <Color x:Key="ForegroundColor">#D4D4D4</Color>
-    <Color x:Key="ForegroundDimColor">#808080</Color>
+    <Color x:Key="BackgroundColor">#F5F5F5</Color>
+    <Color x:Key="SurfaceColor">#FFFFFF</Color>
+    <Color x:Key="SurfaceLightColor">#E8E8E8</Color>
+    <Color x:Key="BorderColor">#D0D0D0</Color>
+    <Color x:Key="ForegroundColor">#1E1E1E</Color>
+    <Color x:Key="ForegroundDimColor">#6E6E6E</Color>
     <Color x:Key="AccentColor">#007ACC</Color>
     <Color x:Key="AccentLightColor">#1C97EA</Color>
-    <Color x:Key="ErrorColor">#F44747</Color>
-    <Color x:Key="SuccessColor">#6A9955</Color>
+    <Color x:Key="ErrorColor">#D32F2F</Color>
+    <Color x:Key="SuccessColor">#2E7D32</Color>
 
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
@@ -25,9 +25,9 @@
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
 
     <!-- Hex highlight -->
-    <Color x:Key="HighlightColor">#3399CCFF</Color>
+    <Color x:Key="HighlightColor">#440078D7</Color>
     <SolidColorBrush x:Key="HighlightBrush" Color="{StaticResource HighlightColor}" />
-    <SolidColorBrush x:Key="HighlightForegroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="HighlightForegroundBrush" Color="#000000" />
 
     <!-- Fonts -->
     <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>

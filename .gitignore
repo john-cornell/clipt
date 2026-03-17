@@ -6,3 +6,6 @@ obj/
 *.cache
 *.log
 TestResults/
+installer/Output/
+*.lnk
+UpgradeLog.htm

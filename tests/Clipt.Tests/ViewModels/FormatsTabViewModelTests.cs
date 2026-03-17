@@ -74,6 +74,56 @@ public class FormatsTabViewModelTests
         Assert.Equal("CF_DIB", vm.Formats[0].Name);
     }
 
+    [Fact]
+    public void SelectedFormatRow_Null_ByDefault()
+    {
+        var vm = new FormatsTabViewModel();
+
+        Assert.Null(vm.SelectedFormatRow);
+        Assert.Equal(string.Empty, vm.SelectedFormatDescription);
+    }
+
+    [Fact]
+    public void SelectedFormatRow_PopulatesDescription()
+    {
+        var vm = new FormatsTabViewModel();
+        vm.Update(MakeSnapshot(
+            MakeFormat(13, "CF_UNICODETEXT", true, 100),
+            MakeFormat(1, "CF_TEXT", true, 50)));
+
+        vm.SelectedFormatRow = vm.Formats[0];
+
+        Assert.False(string.IsNullOrWhiteSpace(vm.SelectedFormatDescription));
+        Assert.Contains("UTF-16", vm.SelectedFormatDescription);
+    }
+
+    [Fact]
+    public void SelectedFormatRow_ClearedOnUpdate()
+    {
+        var vm = new FormatsTabViewModel();
+        vm.Update(MakeSnapshot(MakeFormat(13, "CF_UNICODETEXT", true, 100)));
+        vm.SelectedFormatRow = vm.Formats[0];
+
+        Assert.NotNull(vm.SelectedFormatRow);
+
+        vm.Update(MakeSnapshot(MakeFormat(1, "CF_TEXT", true, 50)));
+
+        Assert.Null(vm.SelectedFormatRow);
+        Assert.Equal(string.Empty, vm.SelectedFormatDescription);
+    }
+
+    [Fact]
+    public void SelectedFormatRow_UnknownFormat_UsesFallback()
+    {
+        var vm = new FormatsTabViewModel();
+        vm.Update(MakeSnapshot(MakeFormat(0xC123, "SomeRandomAppFormat", false, 64)));
+
+        vm.SelectedFormatRow = vm.Formats[0];
+
+        Assert.False(string.IsNullOrWhiteSpace(vm.SelectedFormatDescription));
+        Assert.Contains("registered at runtime", vm.SelectedFormatDescription);
+    }
+
     private static ClipboardSnapshot MakeSnapshot(params ClipboardFormatInfo[] formats)
     {
         return new ClipboardSnapshot

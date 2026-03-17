@@ -18,12 +18,16 @@ public partial class App : Application
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
 
+        var themeService = _serviceProvider.GetRequiredService<IThemeService>();
+        themeService.ApplyTheme(themeService.LoadSavedTheme());
+
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
     }
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<MainViewModel>();

@@ -1,7 +1,9 @@
 using System.Text;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Clipt.ViewModels;
 
@@ -11,6 +13,9 @@ public sealed partial class TextTabViewModel : ObservableObject
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
+
+    private readonly IClipboardService? _clipboardService;
+    private readonly Func<nint>? _hwndProvider;
 
     [ObservableProperty]
     private string _unicodeText = string.Empty;
@@ -39,8 +44,55 @@ public sealed partial class TextTabViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasText;
 
+    [ObservableProperty]
+    private bool _isEditing;
+
+    [ObservableProperty]
+    private string _editStatusMessage = string.Empty;
+
+    public TextTabViewModel()
+    {
+    }
+
+    public TextTabViewModel(IClipboardService clipboardService, Func<nint> hwndProvider)
+    {
+        _clipboardService = clipboardService;
+        _hwndProvider = hwndProvider;
+    }
+
+    [RelayCommand]
+    private void ApplyTextToClipboard()
+    {
+        if (_clipboardService is null || _hwndProvider is null)
+        {
+            EditStatusMessage = "Clipboard service unavailable.";
+            return;
+        }
+
+        try
+        {
+            _clipboardService.SetClipboardText(UnicodeText, _hwndProvider());
+            EditStatusMessage = "Applied to clipboard.";
+            IsEditing = false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            EditStatusMessage = $"Failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleEditing()
+    {
+        IsEditing = !IsEditing;
+        EditStatusMessage = IsEditing ? "Editing — auto-refresh paused." : string.Empty;
+    }
+
     public void Update(ClipboardSnapshot snapshot)
     {
+        if (IsEditing)
+            return;
+
         var unicodeFormat = snapshot.Formats
             .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
         var ansiFormat = snapshot.Formats
@@ -105,9 +157,11 @@ public sealed partial class TextTabViewModel : ObservableObject
         {
             LocaleInfo = "No locale data";
         }
+
+        EditStatusMessage = string.Empty;
     }
 
-    private static string DecodeUtf16(byte[] data, out int nullTermPos)
+    internal static string DecodeUtf16(byte[] data, out int nullTermPos)
     {
         nullTermPos = -1;
         for (int i = 0; i + 1 < data.Length; i += 2)
@@ -121,14 +175,14 @@ public sealed partial class TextTabViewModel : ObservableObject
         return Encoding.Unicode.GetString(data);
     }
 
-    private static string DecodeAnsi(byte[] data)
+    internal static string DecodeAnsi(byte[] data)
     {
         int end = Array.IndexOf(data, (byte)0);
         int len = end >= 0 ? end : data.Length;
         return Encoding.Default.GetString(data, 0, len);
     }
 
-    private static string DecodeOem(byte[] data)
+    internal static string DecodeOem(byte[] data)
     {
         int end = Array.IndexOf(data, (byte)0);
         int len = end >= 0 ? end : data.Length;
@@ -143,7 +197,7 @@ public sealed partial class TextTabViewModel : ObservableObject
         }
     }
 
-    private static int CountLines(string text)
+    internal static int CountLines(string text)
     {
         if (text.Length == 0)
             return 0;

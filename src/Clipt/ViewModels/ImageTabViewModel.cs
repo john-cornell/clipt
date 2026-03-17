@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Media.Imaging;
 using Clipt.Models;
 using Clipt.Native;
@@ -41,6 +42,12 @@ public sealed partial class ImageTabViewModel : ObservableObject
     [ObservableProperty]
     private string _imageSummary = string.Empty;
 
+    [ObservableProperty]
+    private string _errorMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasError;
+
     public void Update(ClipboardSnapshot snapshot)
     {
         var dibv5 = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIBV5);
@@ -50,6 +57,9 @@ public sealed partial class ImageTabViewModel : ObservableObject
 
         if (imageFormat is null || imageFormat.RawData.Length < 40)
         {
+            if (TryWpfClipboardFallback())
+                return;
+
             ClearImage();
             return;
         }
@@ -59,29 +69,73 @@ public sealed partial class ImageTabViewModel : ObservableObject
             var bmp = DecodeDeviceIndependentBitmap(imageFormat.RawData);
             if (bmp is null)
             {
+                if (TryWpfClipboardFallback())
+                    return;
+
                 ClearImage();
                 return;
             }
 
-            bmp.Freeze();
-            ImageSource = bmp;
-            PixelWidth = bmp.PixelWidth;
-            PixelHeight = bmp.PixelHeight;
-            DpiX = bmp.DpiX;
-            DpiY = bmp.DpiY;
-            PixelFormat = bmp.Format.ToString();
-            Stride = ((bmp.PixelWidth * bmp.Format.BitsPerPixel + 31) / 32) * 4;
-            BitsPerPixel = bmp.Format.BitsPerPixel;
-            PaletteInfo = bmp.Palette is not null
-                ? $"{bmp.Palette.Colors.Count} colors"
-                : "No palette (direct color)";
-            HasImage = true;
-            ImageSummary = $"{PixelWidth}×{PixelHeight} @ {BitsPerPixel}bpp, {DpiX:F0}×{DpiY:F0} DPI";
+            ApplyBitmapSource(bmp);
         }
-        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException or ArgumentException)
+        catch (Exception ex) when (
+            ex is NotSupportedException
+              or InvalidOperationException
+              or IOException
+              or ArgumentException
+              or ExternalException
+              or OverflowException
+              or FileFormatException)
         {
+            if (TryWpfClipboardFallback())
+                return;
+
             ClearImage();
+            ErrorMessage = $"Decode failed: {ex.Message}";
+            HasError = true;
         }
+    }
+
+    private bool TryWpfClipboardFallback()
+    {
+        try
+        {
+            var bmp = System.Windows.Clipboard.GetImage();
+            if (bmp is null)
+                return false;
+
+            ApplyBitmapSource(bmp);
+            return true;
+        }
+        catch (Exception ex) when (
+            ex is ExternalException
+              or InvalidOperationException
+              or ThreadStateException)
+        {
+            return false;
+        }
+    }
+
+    private void ApplyBitmapSource(BitmapSource bmp)
+    {
+        if (!bmp.IsFrozen)
+            bmp.Freeze();
+
+        ImageSource = bmp;
+        PixelWidth = bmp.PixelWidth;
+        PixelHeight = bmp.PixelHeight;
+        DpiX = bmp.DpiX;
+        DpiY = bmp.DpiY;
+        PixelFormat = bmp.Format.ToString();
+        Stride = ((bmp.PixelWidth * bmp.Format.BitsPerPixel + 31) / 32) * 4;
+        BitsPerPixel = bmp.Format.BitsPerPixel;
+        PaletteInfo = bmp.Palette is not null
+            ? $"{bmp.Palette.Colors.Count} colors"
+            : "No palette (direct color)";
+        HasImage = true;
+        HasError = false;
+        ErrorMessage = string.Empty;
+        ImageSummary = $"{PixelWidth}×{PixelHeight} @ {BitsPerPixel}bpp, {DpiX:F0}×{DpiY:F0} DPI";
     }
 
     private void ClearImage()
@@ -96,12 +150,17 @@ public sealed partial class ImageTabViewModel : ObservableObject
         BitsPerPixel = 0;
         PaletteInfo = string.Empty;
         HasImage = false;
+        HasError = false;
+        ErrorMessage = string.Empty;
         ImageSummary = string.Empty;
     }
 
-    private static BitmapSource? DecodeDeviceIndependentBitmap(byte[] dibData)
+    internal static BitmapSource? DecodeDeviceIndependentBitmap(byte[] dibData)
     {
         const int BitmapFileHeaderSize = 14;
+        if (dibData.Length < 40)
+            return null;
+
         int headerSize = BitConverter.ToInt32(dibData, 0);
         if (headerSize < 40)
             return null;

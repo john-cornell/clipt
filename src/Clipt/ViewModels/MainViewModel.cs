@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using Clipt.Help;
 using Clipt.Models;
 using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,7 +11,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IClipboardService _clipboardService;
     private readonly ClipboardListenerService _listenerService;
+    private readonly IThemeService _themeService;
     private bool _disposed;
+    private bool _suppressThemeCallback;
 
     [ObservableProperty]
     private ClipboardSnapshot _currentSnapshot = ClipboardSnapshot.Empty;
@@ -29,25 +33,85 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _autoRefresh = true;
 
-    public TextTabViewModel TextTab { get; } = new();
-    public HexTabViewModel HexTab { get; } = new();
+    [ObservableProperty]
+    private bool _isDarkMode;
+
+    [ObservableProperty]
+    private bool _isHelpVisible;
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
+    [ObservableProperty]
+    private ObservableCollection<HelpEntry> _currentHelpEntries = [];
+
+    public TextTabViewModel TextTab { get; }
+    public HexTabViewModel HexTab { get; }
     public ImageTabViewModel ImageTab { get; } = new();
     public RichContentTabViewModel RichContentTab { get; } = new();
     public FileDropTabViewModel FileDropTab { get; } = new();
     public FormatsTabViewModel FormatsTab { get; } = new();
     public NativeTabViewModel NativeTab { get; } = new();
 
-    public MainViewModel(IClipboardService clipboardService, ClipboardListenerService listenerService)
+    public MainViewModel(
+        IClipboardService clipboardService,
+        ClipboardListenerService listenerService,
+        IThemeService themeService)
     {
         _clipboardService = clipboardService;
         _listenerService = listenerService;
+        _themeService = themeService;
         _listenerService.ClipboardChanged += OnClipboardChanged;
+
+        TextTab = new TextTabViewModel(clipboardService, () => _listenerService.Hwnd);
+        HexTab = new HexTabViewModel(clipboardService, () => _listenerService.Hwnd);
     }
 
     public void Initialize()
     {
+        _suppressThemeCallback = true;
+        IsDarkMode = _themeService.LoadSavedTheme() == AppTheme.Dark;
+        _suppressThemeCallback = false;
+
+        UpdateHelpEntries(SelectedTabIndex);
         _listenerService.Start();
         Refresh();
+    }
+
+    partial void OnIsDarkModeChanged(bool value)
+    {
+        if (_suppressThemeCallback)
+            return;
+
+        _themeService.ApplyTheme(value ? AppTheme.Dark : AppTheme.Normal);
+    }
+
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        UpdateHelpEntries(value);
+    }
+
+    private void UpdateHelpEntries(int tabIndex)
+    {
+        var tabName = HelpContent.GetTabNameByIndex(tabIndex);
+        var entries = new ObservableCollection<HelpEntry>();
+
+        if (!string.IsNullOrEmpty(tabName)
+            && HelpContent.TabTerms.TryGetValue(tabName, out var termKeys))
+        {
+            foreach (var key in termKeys)
+            {
+                if (HelpContent.DetailedHelp.TryGetValue(key, out var description))
+                {
+                    var displayName = HelpContent.DisplayNames.TryGetValue(key, out var name)
+                        ? name
+                        : key;
+                    entries.Add(new HelpEntry(displayName, description));
+                }
+            }
+        }
+
+        CurrentHelpEntries = entries;
     }
 
     [RelayCommand]
@@ -70,7 +134,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!AutoRefresh)
             return;
 
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(Refresh);
+        var app = System.Windows.Application.Current;
+        if (app?.Dispatcher is { HasShutdownStarted: false } dispatcher)
+            dispatcher.BeginInvoke(Refresh);
     }
 
     private void ApplySnapshot(ClipboardSnapshot snapshot)

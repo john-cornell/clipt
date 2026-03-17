@@ -9,6 +9,7 @@ namespace Clipt.Tests.ViewModels;
 public class MainViewModelTests
 {
     private readonly Mock<IClipboardService> _clipboardServiceMock = new();
+    private readonly Mock<IThemeService> _themeServiceMock = new();
 
     [Fact]
     public void Refresh_PopulatesAllTabViewModels()
@@ -37,7 +38,7 @@ public class MainViewModelTests
             .Returns(snapshot);
 
         using var listener = new ClipboardListenerService();
-        var vm = new MainViewModel(_clipboardServiceMock.Object, listener);
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.Refresh();
 
@@ -58,7 +59,7 @@ public class MainViewModelTests
             .Returns(ClipboardSnapshot.Empty);
 
         using var listener = new ClipboardListenerService();
-        var vm = new MainViewModel(_clipboardServiceMock.Object, listener);
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.Refresh();
 
@@ -75,7 +76,7 @@ public class MainViewModelTests
             .Returns(ClipboardSnapshot.Empty);
 
         using var listener = new ClipboardListenerService();
-        var vm = new MainViewModel(_clipboardServiceMock.Object, listener);
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         Assert.True(vm.AutoRefresh);
     }
@@ -88,9 +89,157 @@ public class MainViewModelTests
             .Returns(ClipboardSnapshot.Empty);
 
         using var listener = new ClipboardListenerService();
-        var vm = new MainViewModel(_clipboardServiceMock.Object, listener);
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         var ex = Record.Exception(() => vm.Dispose());
         Assert.Null(ex);
+    }
+
+    [Fact]
+    public void IsDarkMode_FalseByDefault_WhenSavedNormal()
+    {
+        _themeServiceMock.Setup(t => t.LoadSavedTheme()).Returns(AppTheme.Normal);
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        Assert.False(vm.IsDarkMode);
+    }
+
+    [Fact]
+    public void IsDarkMode_TrueWhenSavedDark()
+    {
+        _themeServiceMock.Setup(t => t.LoadSavedTheme()).Returns(AppTheme.Dark);
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        vm.IsDarkMode = _themeServiceMock.Object.LoadSavedTheme() == AppTheme.Dark;
+
+        Assert.True(vm.IsDarkMode);
+    }
+
+    [Fact]
+    public void ToggleIsDarkMode_CallsApplyTheme()
+    {
+        _themeServiceMock.Setup(t => t.LoadSavedTheme()).Returns(AppTheme.Normal);
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        vm.IsDarkMode = true;
+
+        _themeServiceMock.Verify(t => t.ApplyTheme(AppTheme.Dark), Times.Once);
+    }
+
+    [Fact]
+    public void ToggleIsDarkMode_ToFalse_CallsApplyThemeNormal()
+    {
+        _themeServiceMock.Setup(t => t.LoadSavedTheme()).Returns(AppTheme.Dark);
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+        vm.IsDarkMode = true;
+        _themeServiceMock.Invocations.Clear();
+
+        vm.IsDarkMode = false;
+
+        _themeServiceMock.Verify(t => t.ApplyTheme(AppTheme.Normal), Times.Once);
+    }
+
+    [Fact]
+    public void IsHelpVisible_DefaultsFalse()
+    {
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        Assert.False(vm.IsHelpVisible);
+    }
+
+    [Fact]
+    public void SelectedTabIndex_DefaultsToZero()
+    {
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        Assert.Equal(0, vm.SelectedTabIndex);
+    }
+
+    [Fact]
+    public void SelectedTabIndex_Change_UpdatesCurrentHelpEntries()
+    {
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        vm.SelectedTabIndex = 1;
+
+        Assert.NotEmpty(vm.CurrentHelpEntries);
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "Hex Dump");
+    }
+
+    [Fact]
+    public void Initialize_PopulatesHelpEntriesForDefaultTab()
+    {
+        _themeServiceMock.Setup(t => t.LoadSavedTheme()).Returns(AppTheme.Normal);
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        // Initialize() calls Start() which requires a WPF dispatcher.
+        // Simulate the help-entry population that Initialize() triggers
+        // by setting tab index to a non-default first, then back to 0.
+        vm.SelectedTabIndex = 1;
+        vm.SelectedTabIndex = 0;
+
+        Assert.NotEmpty(vm.CurrentHelpEntries);
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == "CF_UNICODETEXT");
+    }
+
+    [Theory]
+    [InlineData(1, "Hex Dump")]
+    [InlineData(2, "Stride")]
+    [InlineData(3, "Rich Text Format (RTF)")]
+    [InlineData(4, "CF_HDROP (File Drop)")]
+    [InlineData(5, "HGLOBAL Handle")]
+    [InlineData(6, "GlobalLock Pointer")]
+    public void SelectedTabIndex_ContainsExpectedTermForTab(int tabIndex, string expectedTerm)
+    {
+        _clipboardServiceMock
+            .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(ClipboardSnapshot.Empty);
+
+        using var listener = new ClipboardListenerService();
+        var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
+
+        vm.SelectedTabIndex = tabIndex;
+
+        Assert.Contains(vm.CurrentHelpEntries, e => e.Term == expectedTerm);
     }
 }

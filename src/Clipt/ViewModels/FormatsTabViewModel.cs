@@ -12,6 +12,17 @@ public sealed partial class FormatsTabViewModel : ObservableObject
     [ObservableProperty]
     private int _totalFormats;
 
+    [ObservableProperty]
+    private FormatRow? _selectedFormatRow;
+
+    [ObservableProperty]
+    private string _selectedFormatDescription = string.Empty;
+
+    partial void OnSelectedFormatRowChanged(FormatRow? value)
+    {
+        SelectedFormatDescription = value?.DetailedDescription ?? string.Empty;
+    }
+
     public void Update(ClipboardSnapshot snapshot)
     {
         Formats.Clear();
@@ -27,5 +38,7 @@ public sealed partial class FormatsTabViewModel : ObservableObject
                 f.IsStandard));
         }
         TotalFormats = Formats.Count;
+
+        SelectedFormatRow = null;
     }
 }
