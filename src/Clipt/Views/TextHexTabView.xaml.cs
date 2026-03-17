@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Native;
 using Clipt.ViewModels;
@@ -9,8 +11,16 @@ namespace Clipt.Views;
 
 public partial class TextHexTabView : UserControl
 {
-    private bool _suppressSelectionFeedback;
+    private int _suppressionDepth;
     private bool _eventsSubscribed;
+
+    private bool IsSuppressed => _suppressionDepth > 0;
+
+    private static readonly HashSet<string> _textContentProps =
+        [nameof(TextTabViewModel.UnicodeText), nameof(TextTabViewModel.AnsiText), nameof(TextTabViewModel.OemText)];
+
+    private static readonly HashSet<string> _hexContentProps =
+        [nameof(HexTabViewModel.HexColumn), nameof(HexTabViewModel.AsciiColumn)];
 
     public TextHexTabView()
     {
@@ -41,9 +51,40 @@ public partial class TextHexTabView : UserControl
             hexBox.SelectionChanged += HexTextBox_SelectionChanged;
         if (asciiBox is not null)
             asciiBox.SelectionChanged += AsciiTextBox_SelectionChanged;
+
+        if (TextPane.DataContext is TextTabViewModel textVm)
+            textVm.PropertyChanged += OnTextVmPropertyChanged;
+        if (HexPane.DataContext is HexTabViewModel hexVm)
+            hexVm.PropertyChanged += OnHexVmPropertyChanged;
     }
 
     private HexTabViewModel? HexViewModel => HexPane.DataContext as HexTabViewModel;
+
+    private void OnTextVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not null && _textContentProps.Contains(e.PropertyName))
+        {
+            _suppressionDepth++;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                if (_suppressionDepth > 0)
+                    _suppressionDepth--;
+            });
+        }
+    }
+
+    private void OnHexVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not null && _hexContentProps.Contains(e.PropertyName))
+        {
+            _suppressionDepth++;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                if (_suppressionDepth > 0)
+                    _suppressionDepth--;
+            });
+        }
+    }
 
     private bool TrySwitchHexFormat(uint targetFormatId)
     {
@@ -64,13 +105,13 @@ public partial class TextHexTabView : UserControl
 
     private void HandleTextPaneSelection(TextBox? textBox, uint targetFormatId, SelectionSource source, bool isUtf16)
     {
-        if (_suppressSelectionFeedback)
+        if (IsSuppressed)
             return;
 
         if (textBox is null || textBox.SelectionLength <= 0)
             return;
 
-        _suppressSelectionFeedback = true;
+        _suppressionDepth++;
         try
         {
             if (!TrySwitchHexFormat(targetFormatId))
@@ -88,7 +129,7 @@ public partial class TextHexTabView : UserControl
         }
         finally
         {
-            _suppressSelectionFeedback = false;
+            _suppressionDepth--;
         }
     }
 
@@ -121,7 +162,7 @@ public partial class TextHexTabView : UserControl
 
     private void HexTextBox_SelectionChanged(object sender, RoutedEventArgs e)
     {
-        if (_suppressSelectionFeedback)
+        if (IsSuppressed)
             return;
 
         var vm = HexViewModel;
@@ -156,7 +197,7 @@ public partial class TextHexTabView : UserControl
         vm.SelectedByteOffset = startByte;
         vm.SelectedByteCount = count;
 
-        _suppressSelectionFeedback = true;
+        _suppressionDepth++;
         try
         {
             ApplyCrossHighlight(
@@ -164,13 +205,13 @@ public partial class TextHexTabView : UserControl
         }
         finally
         {
-            _suppressSelectionFeedback = false;
+            _suppressionDepth--;
         }
     }
 
     private void AsciiTextBox_SelectionChanged(object sender, RoutedEventArgs e)
     {
-        if (_suppressSelectionFeedback)
+        if (IsSuppressed)
             return;
 
         var vm = HexViewModel;
@@ -204,7 +245,7 @@ public partial class TextHexTabView : UserControl
         vm.SelectedByteOffset = startByte;
         vm.SelectedByteCount = count;
 
-        _suppressSelectionFeedback = true;
+        _suppressionDepth++;
         try
         {
             ApplyCrossHighlight(
@@ -212,7 +253,7 @@ public partial class TextHexTabView : UserControl
         }
         finally
         {
-            _suppressSelectionFeedback = false;
+            _suppressionDepth--;
         }
     }
 
