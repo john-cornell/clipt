@@ -6,7 +6,8 @@ public static class HelpContent
 {
     private static readonly string[] TabNames =
     [
-        "TextHex",
+        "Text",
+        "Hex",
         "Image",
         "RichContent",
         "FileDrop",
@@ -271,10 +272,13 @@ public static class HelpContent
     private static readonly FrozenDictionary<string, string[]> TabTermMap =
         new Dictionary<string, string[]>
         {
-            ["TextHex"] =
+            ["Text"] =
             [
                 "CF_UNICODETEXT", "UTF-16", "CF_TEXT", "ANSI",
                 "CF_OEMTEXT", "OEM/CP437", "NullTerminator", "Locale/LCID", "EncodingStats",
+            ],
+            ["Hex"] =
+            [
                 "HexDump", "BytesPerRow", "FormatInfo",
             ],
             ["Image"] = ["bpp", "DPI", "Stride", "PixelFormat", "Palette"],

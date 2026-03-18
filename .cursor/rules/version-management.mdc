@@ -1,0 +1,31 @@
+---
+description: Version management rules for Clipt - always bump version and display it on title bars
+alwaysApply: true
+---
+
+# Version Management
+
+## Single Source of Truth
+
+The app version is defined in `src/Clipt/Clipt.csproj` via the `<Version>` property. This is the ONLY place the version number lives in source code.
+
+The Inno Setup installer at `installer/Clipt.iss` has its own `#define MyAppVersion` that MUST be kept in sync manually.
+
+## Rules
+
+1. **Every feature, fix, or meaningful change MUST include a version bump** in both:
+   - `src/Clipt/Clipt.csproj` — the `<Version>` property
+   - `installer/Clipt.iss` — the `#define MyAppVersion` line
+
+2. **Versioning scheme**: `MAJOR.MINOR.PATCH` (SemVer)
+   - MAJOR: breaking changes
+   - MINOR: new features
+   - PATCH: bug fixes, tweaks
+
+3. **Title bars MUST show the version**. The `MainWindow` title is set in code-behind from the assembly version. If adding new windows, include the version in their title too.
+
+4. **Read version at runtime** via:
+   ```csharp
+   var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+   var versionStr = $"{version.Major}.{version.Minor}.{version.Build}";
+   ```

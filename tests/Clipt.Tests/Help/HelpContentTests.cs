@@ -64,12 +64,13 @@ public class HelpContentTests
     }
 
     [Theory]
-    [InlineData(0, "TextHex")]
-    [InlineData(1, "Image")]
-    [InlineData(2, "RichContent")]
-    [InlineData(3, "FileDrop")]
-    [InlineData(4, "AllFormats")]
-    [InlineData(5, "Native")]
+    [InlineData(0, "Text")]
+    [InlineData(1, "Hex")]
+    [InlineData(2, "Image")]
+    [InlineData(3, "RichContent")]
+    [InlineData(4, "FileDrop")]
+    [InlineData(5, "AllFormats")]
+    [InlineData(6, "Native")]
     public void GetTabNameByIndex_ReturnsExpectedName(int index, string expectedName)
     {
         Assert.Equal(expectedName, HelpContent.GetTabNameByIndex(index));
@@ -77,7 +78,7 @@ public class HelpContentTests
 
     [Theory]
     [InlineData(-1)]
-    [InlineData(6)]
+    [InlineData(7)]
     [InlineData(100)]
     public void GetTabNameByIndex_OutOfRange_ReturnsEmpty(int index)
     {

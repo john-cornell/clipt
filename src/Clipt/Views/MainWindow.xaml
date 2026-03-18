@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:Clipt.Views"
         xmlns:converters="clr-namespace:Clipt.Converters"
         xmlns:help="clr-namespace:Clipt.Help"
-        Title="Clipt — Clipboard Inspector"
+        Title="Clipt"
         Icon="pack://application:,,,/Icons/icon.ico"
         Width="1100" Height="750"
         MinWidth="800" MinHeight="500"
@@ -73,8 +73,11 @@
 
         <!-- Tab area -->
         <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex}">
-            <TabItem Header="Text / Hex">
-                <views:TextHexTabView />
+            <TabItem Header="Text">
+                <views:TextTabView DataContext="{Binding TextTab}" />
+            </TabItem>
+            <TabItem Header="Hex">
+                <views:HexTabView DataContext="{Binding HexTab}" />
             </TabItem>
             <TabItem Header="Image">
                 <views:ImageTabView DataContext="{Binding ImageTab}" />

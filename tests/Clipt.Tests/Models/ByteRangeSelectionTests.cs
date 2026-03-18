@@ -26,21 +26,21 @@ public class ByteRangeSelectionTests
     [Fact]
     public void EndByteExclusive_ReturnsStartPlusCount()
     {
-        var sel = new ByteRangeSelection(4, 8, SelectionSource.UnicodeText);
+        var sel = new ByteRangeSelection(4, 8, SelectionSource.HexColumn);
         Assert.Equal(12, sel.EndByteExclusive);
     }
 
     [Fact]
     public void IsEmpty_TrueWhenCountZero()
     {
-        var sel = new ByteRangeSelection(5, 0, SelectionSource.AnsiText);
+        var sel = new ByteRangeSelection(5, 0, SelectionSource.None);
         Assert.True(sel.IsEmpty);
     }
 
     [Fact]
     public void IsEmpty_TrueWhenCountNegative()
     {
-        var sel = new ByteRangeSelection(5, -1, SelectionSource.OemText);
+        var sel = new ByteRangeSelection(5, -1, SelectionSource.AsciiColumn);
         Assert.True(sel.IsEmpty);
     }
 
@@ -71,9 +71,6 @@ public class ByteRangeSelectionTests
     [InlineData(SelectionSource.None)]
     [InlineData(SelectionSource.HexColumn)]
     [InlineData(SelectionSource.AsciiColumn)]
-    [InlineData(SelectionSource.UnicodeText)]
-    [InlineData(SelectionSource.AnsiText)]
-    [InlineData(SelectionSource.OemText)]
     public void AllSelectionSourceValues_AreDistinct(SelectionSource source)
     {
         var sel = new ByteRangeSelection(0, 1, source);

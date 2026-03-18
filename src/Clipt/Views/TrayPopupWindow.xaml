@@ -1,0 +1,123 @@
+<Window x:Class="Clipt.Views.TrayPopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:Clipt.Converters"
+        Title="Clipt"
+        Width="360" Height="420"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        AllowsTransparency="True"
+        Background="Transparent">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
+
+    <Border Background="{DynamicResource BackgroundBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                    Padding="10,6" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="&#x2197;"
+                            ToolTip="Expand to full window"
+                            Command="{Binding ExpandToFullCommand}"
+                            Width="28" Height="28" Padding="0"
+                            FontSize="16" />
+                    <TextBlock x:Name="TitleText" FontSize="14" FontWeight="Bold"
+                               Foreground="{DynamicResource AccentBrush}"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- Tabs -->
+            <TabControl Grid.Row="1" Margin="0">
+                <TabItem Header="Clipboard">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8">
+                        <StackPanel>
+                            <!-- Summary -->
+                            <TextBlock Text="{Binding ClipboardSummary}"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       FontSize="12" Margin="0,0,0,8" />
+
+                            <!-- Empty state -->
+                            <TextBlock Text="Nothing on the clipboard."
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       FontSize="12" FontStyle="Italic"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
+                                       Margin="0,16,0,0"
+                                       HorizontalAlignment="Center" />
+
+                            <!-- Text preview -->
+                            <StackPanel Visibility="{Binding HasText, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Text" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{DynamicResource AccentLightBrush}"
+                                           Margin="0,0,0,4" />
+                                <TextBox Text="{Binding PreviewText, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         MaxHeight="140"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontSize="12"
+                                         Margin="0,0,0,8" />
+                            </StackPanel>
+
+                            <!-- Image preview -->
+                            <StackPanel Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Image" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{DynamicResource AccentLightBrush}"
+                                           Margin="0,0,0,4" />
+                                <Border BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1" MaxHeight="160"
+                                        Margin="0,0,0,8">
+                                    <Image Source="{Binding PreviewImage}"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Border>
+                            </StackPanel>
+
+                            <!-- File preview -->
+                            <StackPanel Visibility="{Binding HasFiles, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Files" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{DynamicResource AccentLightBrush}"
+                                           Margin="0,0,0,4" />
+                                <ItemsControl ItemsSource="{Binding PreviewFiles}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}"
+                                                       Foreground="{DynamicResource ForegroundBrush}"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Margin="0,1" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="History">
+                    <Grid>
+                        <TextBlock Text="Clipboard history — coming soon"
+                                   Foreground="{DynamicResource ForegroundDimBrush}"
+                                   FontSize="12" FontStyle="Italic"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Border>
+</Window>
