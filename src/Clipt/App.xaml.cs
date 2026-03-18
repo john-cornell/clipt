@@ -57,12 +57,21 @@ public partial class App : Application
         {
         }
 
+        var settings = _serviceProvider.GetRequiredService<ISettingsService>();
+        if (settings.LoadPurgeHistoryOnStartup())
+        {
+            try
+            {
+                await _historyService.ClearAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException) { }
+        }
+
         Dispatcher.Invoke(() =>
         {
             PerformInitialTrayRefresh();
 
-            var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
-            var startupMode = settingsService.LoadStartupMode();
+            var startupMode = settings.LoadStartupMode();
 
             if (startupMode == StartupMode.FullWindow)
                 ShowMainWindow();

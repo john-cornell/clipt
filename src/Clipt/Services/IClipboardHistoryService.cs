@@ -11,6 +11,7 @@ public interface IClipboardHistoryService : IDisposable
     Task LoadAsync();
     Task AddAsync(ClipboardSnapshot snapshot);
     Task RemoveAsync(string entryId);
+    Task RenameAsync(string entryId, string newName);
     Task PromoteAsync(string entryId);
     Task ClearAsync();
     Task<ClipboardSnapshot?> RestoreAsync(string entryId);

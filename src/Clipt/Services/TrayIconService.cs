@@ -11,6 +11,8 @@ public sealed class TrayIconService : ITrayIconService
     private readonly Icon _hasDataIcon;
     private WinForms.NotifyIcon? _notifyIcon;
     private WinForms.ToolStripMenuItem? _startModeItem;
+    private WinForms.ToolStripMenuItem? _runOnStartupItem;
+    private WinForms.ToolStripMenuItem? _purgeHistoryItem;
     private bool _disposed;
 
     private static readonly int[] MaxEntriesOptions = [5, 10, 25, 50];
@@ -21,6 +23,14 @@ public sealed class TrayIconService : ITrayIconService
         ("250 MB", 250L * 1024 * 1024),
         ("500 MB", 500L * 1024 * 1024),
         ("Unlimited", 0),
+    ];
+
+    private static readonly ContentType[] ToggleableContentTypes =
+    [
+        ContentType.Text,
+        ContentType.Image,
+        ContentType.Files,
+        ContentType.Other,
     ];
 
     public event EventHandler? TrayIconClicked;
@@ -81,6 +91,24 @@ public sealed class TrayIconService : ITrayIconService
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
 
+        _runOnStartupItem = new WinForms.ToolStripMenuItem("Run on Startup")
+        {
+            Checked = _settingsService.LoadRunOnStartup(),
+        };
+        _runOnStartupItem.Click += OnRunOnStartupToggle;
+        menu.Items.Add(_runOnStartupItem);
+
+        _purgeHistoryItem = new WinForms.ToolStripMenuItem("Purge History on Startup")
+        {
+            Checked = _settingsService.LoadPurgeHistoryOnStartup(),
+        };
+        _purgeHistoryItem.Click += OnPurgeHistoryToggle;
+        menu.Items.Add(_purgeHistoryItem);
+
+        menu.Items.Add(BuildHistoryTypeSubmenu());
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+
         menu.Items.Add(BuildMaxEntriesSubmenu());
         menu.Items.Add(BuildMaxSizeSubmenu());
 
@@ -95,6 +123,25 @@ public sealed class TrayIconService : ITrayIconService
         menu.Items.Add(exitItem);
 
         return menu;
+    }
+
+    private WinForms.ToolStripMenuItem BuildHistoryTypeSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Enable History for Type");
+        var disabled = _settingsService.LoadDisabledHistoryTypes();
+
+        foreach (ContentType ct in ToggleableContentTypes)
+        {
+            var item = new WinForms.ToolStripMenuItem(ct.ToString())
+            {
+                Checked = !disabled.Contains(ct),
+                Tag = ct,
+            };
+            item.Click += OnHistoryTypeToggle;
+            parent.DropDownItems.Add(item);
+        }
+
+        return parent;
     }
 
     private WinForms.ToolStripMenuItem BuildMaxEntriesSubmenu()
@@ -133,6 +180,42 @@ public sealed class TrayIconService : ITrayIconService
         }
 
         return parent;
+    }
+
+    private void OnRunOnStartupToggle(object? sender, EventArgs e)
+    {
+        if (_runOnStartupItem is null)
+            return;
+
+        bool next = !_runOnStartupItem.Checked;
+        _settingsService.SaveRunOnStartup(next);
+        _runOnStartupItem.Checked = next;
+    }
+
+    private void OnPurgeHistoryToggle(object? sender, EventArgs e)
+    {
+        if (_purgeHistoryItem is null)
+            return;
+
+        bool next = !_purgeHistoryItem.Checked;
+        _settingsService.SavePurgeHistoryOnStartup(next);
+        _purgeHistoryItem.Checked = next;
+    }
+
+    private void OnHistoryTypeToggle(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not ContentType ct)
+            return;
+
+        var disabled = new HashSet<ContentType>(_settingsService.LoadDisabledHistoryTypes());
+
+        if (disabled.Contains(ct))
+            disabled.Remove(ct);
+        else
+            disabled.Add(ct);
+
+        _settingsService.SaveDisabledHistoryTypes(disabled);
+        clicked.Checked = !disabled.Contains(ct);
     }
 
     private void OnMaxEntriesOptionClicked(object? sender, EventArgs e)

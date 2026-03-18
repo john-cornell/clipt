@@ -12,4 +12,13 @@ public interface ISettingsService
 
     long LoadMaxHistorySizeBytes();
     void SaveMaxHistorySizeBytes(long bytes);
+
+    bool LoadPurgeHistoryOnStartup();
+    void SavePurgeHistoryOnStartup(bool enabled);
+
+    IReadOnlySet<ContentType> LoadDisabledHistoryTypes();
+    void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
+
+    bool LoadRunOnStartup();
+    void SaveRunOnStartup(bool enabled);
 }

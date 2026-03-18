@@ -3,6 +3,7 @@ namespace Clipt.Models;
 public sealed class ClipboardHistoryEntry
 {
     public required string Id { get; init; }
+    public required string Name { get; set; }
     public required DateTime TimestampUtc { get; init; }
     public required uint SequenceNumber { get; init; }
     public required string OwnerProcess { get; init; }

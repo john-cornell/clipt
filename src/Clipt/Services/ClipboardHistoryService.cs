@@ -98,6 +98,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 _entries.Add(new ClipboardHistoryEntry
                 {
                     Id = ie.Id,
+                    Name = ie.Name ?? BuildDefaultNameFromIndex(ie),
                     TimestampUtc = ie.TimestampUtc,
                     SequenceNumber = ie.SequenceNumber,
                     OwnerProcess = ie.OwnerProcess ?? "(unknown)",
@@ -144,11 +145,17 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                     return;
             }
 
+            ContentType newContentType = DetermineContentType(snapshot);
+
+            var disabledTypes = _settingsService.LoadDisabledHistoryTypes();
+            if (disabledTypes.Contains(newContentType))
+                return;
+
             string id = Guid.NewGuid().ToString("N");
+
             EnsureDirectoriesExist();
 
             byte[] blobData = SerializeSnapshot(snapshot);
-            ContentType newContentType = DetermineContentType(snapshot);
 
             if (_entries.Count > 0)
             {
@@ -167,6 +174,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             var entry = new ClipboardHistoryEntry
             {
                 Id = id,
+                Name = BuildDefaultName(snapshot, newContentType),
                 TimestampUtc = snapshot.Timestamp,
                 SequenceNumber = snapshot.SequenceNumber,
                 OwnerProcess = snapshot.OwnerProcessName,
@@ -203,6 +211,30 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
 
             DeleteBlobQuietly(_entries[idx].Id);
             _entries.RemoveAt(idx);
+            await WriteIndexAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task RenameAsync(string entryId, string newName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(entryId);
+        ArgumentNullException.ThrowIfNull(newName);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var entry = _entries.FirstOrDefault(e => e.Id == entryId);
+            if (entry is null)
+                return;
+
+            entry.Name = newName;
             await WriteIndexAsync().ConfigureAwait(false);
         }
         finally
@@ -351,6 +383,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             Entries = _entries.Select(e => new IndexEntry
             {
                 Id = e.Id,
+                Name = e.Name,
                 TimestampUtc = e.TimestampUtc,
                 SequenceNumber = e.SequenceNumber,
                 OwnerProcess = e.OwnerProcess,
@@ -500,6 +533,79 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             return "Image";
 
         return $"{snapshot.Formats.Length} format(s)";
+    }
+
+    internal static string BuildDefaultName(ClipboardSnapshot snapshot, ContentType contentType)
+    {
+        const int maxNameLength = 40;
+
+        switch (contentType)
+        {
+            case ContentType.Text:
+                var unicodeFormat = snapshot.Formats
+                    .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
+                if (unicodeFormat is not null && unicodeFormat.RawData.Length > 0)
+                {
+                    string text = DecodeUtf16Truncated(unicodeFormat.RawData, maxNameLength + 1).Trim();
+                    string firstLine = text.Split('\n', 2)[0].Trim();
+                    if (firstLine.Length > maxNameLength)
+                        return string.Concat(firstLine.AsSpan(0, maxNameLength), "\u2026");
+                    return firstLine.Length > 0 ? firstLine : "Text clip";
+                }
+                return "Text clip";
+
+            case ContentType.Image:
+                var dibv5 = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIBV5);
+                var dib = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIB);
+                ClipboardFormatInfo? imageFormat = dibv5 ?? dib;
+                if (imageFormat is not null && imageFormat.RawData.Length >= 16)
+                {
+                    string dims = ExtractImageDimensions(imageFormat.RawData);
+                    if (dims.Length > 0)
+                        return $"Image {dims}";
+                }
+                return "Image";
+
+            case ContentType.Files:
+                var hdropFormat = snapshot.Formats
+                    .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_HDROP);
+                if (hdropFormat is not null && hdropFormat.RawData.Length >= 20)
+                {
+                    var names = ParseDropFileNames(hdropFormat.RawData);
+                    if (names.Count == 1)
+                    {
+                        string fileName = Path.GetFileName(names[0]);
+                        return fileName.Length > 0 ? fileName : "File";
+                    }
+                    if (names.Count > 1)
+                        return $"{names.Count} files";
+                }
+                return "File drop";
+
+            default:
+                return $"Clip ({snapshot.Formats.Length} format{(snapshot.Formats.Length == 1 ? "" : "s")})";
+        }
+    }
+
+    private static string BuildDefaultNameFromIndex(IndexEntry ie)
+    {
+        return ie.ContentType switch
+        {
+            ContentType.Text => TruncateForName(ie.Summary) ?? "Text clip",
+            ContentType.Image => ie.Summary is { Length: > 0 } s ? $"Image {s}" : "Image",
+            ContentType.Files => ie.Summary is { Length: > 0 } s ? s : "File drop",
+            _ => "Clip",
+        };
+
+        static string? TruncateForName(string? summary)
+        {
+            if (string.IsNullOrWhiteSpace(summary))
+                return null;
+            string firstLine = summary.Split('\n', 2)[0].Trim();
+            if (firstLine.Length > 40)
+                return string.Concat(firstLine.AsSpan(0, 40), "\u2026");
+            return firstLine.Length > 0 ? firstLine : null;
+        }
     }
 
     internal static List<string> ParseDropFileNames(byte[] data)
@@ -654,6 +760,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     private sealed class IndexEntry
     {
         public string Id { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public DateTime TimestampUtc { get; set; }
         public uint SequenceNumber { get; set; }
         public string? OwnerProcess { get; set; }

@@ -32,6 +32,7 @@ public class HistoryTabViewModelTests
         return new ClipboardHistoryEntry
         {
             Id = id,
+            Name = summary,
             TimestampUtc = DateTime.UtcNow.AddMinutes(-minutesAgo),
             SequenceNumber = 1,
             OwnerProcess = "test",
@@ -203,16 +204,187 @@ public class HistoryTabViewModelTests
     {
         var entries = new List<ClipboardHistoryEntry>
         {
-            CreateEntry("del1", "ToDelete", ContentType.Text),
+            CreateEntry("keep1", "First", ContentType.Text),
+            CreateEntry("del1", "ToDelete", ContentType.Text, minutesAgo: 10),
         };
         _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("del1"))
+            .Callback(() => entries.RemoveAll(e => e.Id == "del1"))
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[1].DeleteCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.RemoveAsync("del1"), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCommand_ActiveEntry_WithNextEntry_RestoresNextToClipboard()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("active1", "Active", ContentType.Text),
+            CreateEntry("next1", "Next", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("active1"))
+            .Callback(() => entries.RemoveAll(e => e.Id == "active1"))
+            .Returns(Task.CompletedTask);
+
+        var nextSnapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 2,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = System.Collections.Immutable.ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = 14,
+                Memory = new MemoryInfo("0x0", "0x0", 14, []),
+                RawData = System.Text.Encoding.Unicode.GetBytes("Next\0"),
+            }),
+        };
+        _historyMock.Setup(h => h.RestoreAsync("next1")).ReturnsAsync(nextSnapshot);
 
         var vm = CreateVm();
         vm.Refresh();
 
         await vm.DisplayEntries[0].DeleteCommand.ExecuteAsync(null);
 
+        _historyMock.Verify(h => h.RemoveAsync("active1"), Times.Once);
+        _historyMock.Verify(h => h.RestoreAsync("next1"), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText("Next", It.IsAny<nint>()), Times.Once);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCommand_ActiveEntry_NoNextEntry_ClearsClipboard()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("only1", "OnlyEntry", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("only1"))
+            .Callback(() => entries.Clear())
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].DeleteCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.RemoveAsync("only1"), Times.Once);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCommand_NonActiveEntry_DoesNotTouchClipboard()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("keep1", "Active", ContentType.Text),
+            CreateEntry("del1", "Older", ContentType.Text, minutesAgo: 10),
+            CreateEntry("del2", "Oldest", ContentType.Text, minutesAgo: 20),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("del1"))
+            .Callback(() => entries.RemoveAll(e => e.Id == "del1"))
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[1].DeleteCommand.ExecuteAsync(null);
+
         _historyMock.Verify(h => h.RemoveAsync("del1"), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
+        _clipboardMock.Verify(c => c.SetMultipleClipboardData(It.IsAny<IReadOnlyList<(uint, byte[])>>(), It.IsAny<nint>()), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCommand_ActiveEntry_SuppressesDuringRestore()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("active1", "Active", ContentType.Text),
+            CreateEntry("next1", "Next", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("active1"))
+            .Callback(() => entries.RemoveAll(e => e.Id == "active1"))
+            .Returns(Task.CompletedTask);
+
+        var nextSnapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 2,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = System.Collections.Immutable.ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = 14,
+                Memory = new MemoryInfo("0x0", "0x0", 14, []),
+                RawData = System.Text.Encoding.Unicode.GetBytes("Next\0"),
+            }),
+        };
+        _historyMock.Setup(h => h.RestoreAsync("next1")).ReturnsAsync(nextSnapshot);
+
+        bool wasSuppressedDuringSet = false;
+        _clipboardMock.Setup(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()))
+            .Callback(() => wasSuppressedDuringSet = _historyMock.Object.IsSuppressed);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].DeleteCommand.ExecuteAsync(null);
+
+        Assert.True(wasSuppressedDuringSet);
+        await Task.Delay(600);
+        Assert.False(_historyMock.Object.IsSuppressed);
+    }
+
+    [Fact]
+    public async Task DeleteCommand_ActiveEntry_RestoreReturnsNull_NoClipboardWrite()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("active1", "Active", ContentType.Text),
+            CreateEntry("next1", "Next", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.RemoveAsync("active1"))
+            .Callback(() => entries.RemoveAll(e => e.Id == "active1"))
+            .Returns(Task.CompletedTask);
+
+        _historyMock.Setup(h => h.RestoreAsync("next1")).ReturnsAsync((ClipboardSnapshot?)null);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].DeleteCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.RestoreAsync("next1"), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
     }
 
     [Fact]
@@ -521,5 +693,86 @@ public class HistoryTabViewModelTests
         _clipboardMock.Verify(
             c => c.SetClipboardData(It.IsAny<uint>(), It.IsAny<byte[]>(), It.IsAny<nint>()),
             Times.Never);
+    }
+
+    [Fact]
+    public void Refresh_PopulatesNameFromEntry()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.Equal("Hello", vm.DisplayEntries[0].Name);
+    }
+
+    [Fact]
+    public void Refresh_SetsRenameCommand()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.NotNull(vm.DisplayEntries[0].RenameCommand);
+    }
+
+    [Fact]
+    public async Task RenameCommand_CallsServiceRename()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].RenameCommand!.ExecuteAsync("New Name");
+
+        _historyMock.Verify(h => h.RenameAsync("a", "New Name"), Times.Once);
+    }
+
+    [Fact]
+    public async Task RenameCommand_EmptyName_DoesNotCallService()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].RenameCommand!.ExecuteAsync("   ");
+
+        _historyMock.Verify(h => h.RenameAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RenameCommand_TrimsWhitespace()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].RenameCommand!.ExecuteAsync("  Trimmed  ");
+
+        _historyMock.Verify(h => h.RenameAsync("a", "Trimmed"), Times.Once);
     }
 }

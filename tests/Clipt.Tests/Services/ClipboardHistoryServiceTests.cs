@@ -20,6 +20,7 @@ public class ClipboardHistoryServiceTests : IDisposable
         _settingsMock = new Mock<ISettingsService>();
         _settingsMock.Setup(s => s.LoadMaxHistoryEntries()).Returns(10);
         _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
     }
 
     public void Dispose()
@@ -297,6 +298,7 @@ public class ClipboardHistoryServiceTests : IDisposable
         var entry = new ClipboardHistoryEntry
         {
             Id = "test",
+            Name = "RoundTrip",
             TimestampUtc = snapshot.Timestamp,
             SequenceNumber = 42,
             OwnerProcess = "test",
@@ -818,5 +820,207 @@ public class ClipboardHistoryServiceTests : IDisposable
         string result = ClipboardHistoryService.FormatFileNames([
             @"C:\a.txt", @"C:\b.txt", @"C:\c.txt"]);
         Assert.Equal("a.txt +2 more", result);
+    }
+
+    [Fact]
+    public async Task AddAsync_DisabledContentType_SkipsEntry()
+    {
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
+            .Returns(new HashSet<ContentType> { ContentType.Text });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Blocked", seqNum: 1));
+
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task AddAsync_EnabledContentType_AddsEntry()
+    {
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
+            .Returns(new HashSet<ContentType> { ContentType.Image });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Allowed", seqNum: 1));
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Allowed", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_DisabledImageType_SkipsImageEntry()
+    {
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
+            .Returns(new HashSet<ContentType> { ContentType.Image });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateImageSnapshot(seqNum: 1));
+
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task AddAsync_DisabledContentType_DoesNotRaiseEvent()
+    {
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
+            .Returns(new HashSet<ContentType> { ContentType.Text });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        bool raised = false;
+        svc.EntriesChanged += (_, _) => raised = true;
+
+        await svc.AddAsync(CreateTextSnapshot("Blocked", seqNum: 1));
+
+        Assert.False(raised);
+    }
+
+    [Fact]
+    public void BuildDefaultName_TextSnapshot_FirstLineOfText()
+    {
+        var snapshot = CreateTextSnapshot("First line\nSecond line");
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Text);
+        Assert.Equal("First line", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_TextSnapshot_LongText_Truncates()
+    {
+        var snapshot = CreateTextSnapshot(new string('X', 100));
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Text);
+        Assert.Equal(41, name.Length);
+        Assert.EndsWith("\u2026", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_TextSnapshot_EmptyText_FallsBack()
+    {
+        var snapshot = CreateTextSnapshot(" ");
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Text);
+        Assert.Equal("Text clip", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_ImageSnapshot_WithDimensions()
+    {
+        var snapshot = CreateImageSnapshotWithDimensions(1920, 1080);
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Image);
+        Assert.Equal("Image 1920\u00D71080", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_ImageSnapshot_NoDimensions_FallsBack()
+    {
+        var snapshot = CreateImageSnapshot();
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Image);
+        Assert.Equal("Image", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_SingleFile_ReturnsFileName()
+    {
+        byte[] hdrop = BuildHdropWide(@"C:\Documents\readme.md");
+        var snapshot = CreateFileDropSnapshot(hdrop);
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Files);
+        Assert.Equal("readme.md", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_MultipleFiles_ReturnsCount()
+    {
+        byte[] hdrop = BuildHdropWide(@"C:\a.txt", @"C:\b.txt", @"C:\c.txt");
+        var snapshot = CreateFileDropSnapshot(hdrop);
+        string name = ClipboardHistoryService.BuildDefaultName(snapshot, ContentType.Files);
+        Assert.Equal("3 files", name);
+    }
+
+    [Fact]
+    public void BuildDefaultName_OtherType_ReturnsFormatCount()
+    {
+        string name = ClipboardHistoryService.BuildDefaultName(CreateTextSnapshot("x"), ContentType.Other);
+        Assert.Equal("Clip (1 format)", name);
+    }
+
+    [Fact]
+    public async Task AddAsync_SetsDefaultName()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Hello World", seqNum: 1));
+
+        Assert.Equal("Hello World", svc.Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameAsync_ChangesName()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Original", seqNum: 1));
+        string id = svc.Entries[0].Id;
+
+        await svc.RenameAsync(id, "Custom Name");
+
+        Assert.Equal("Custom Name", svc.Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameAsync_PersistsAcrossReload()
+    {
+        string id;
+        {
+            using var svc1 = CreateService();
+            await svc1.LoadAsync();
+            await svc1.AddAsync(CreateTextSnapshot("Original", seqNum: 1));
+            id = svc1.Entries[0].Id;
+            await svc1.RenameAsync(id, "Renamed");
+        }
+
+        using var svc2 = CreateService();
+        await svc2.LoadAsync();
+
+        Assert.Equal("Renamed", svc2.Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameAsync_UnknownId_DoesNotThrow()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.RenameAsync("nonexistent", "Name");
+    }
+
+    [Fact]
+    public async Task RenameAsync_RaisesEntriesChanged()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("Test", seqNum: 1));
+
+        bool raised = false;
+        svc.EntriesChanged += (_, _) => raised = true;
+
+        await svc.RenameAsync(svc.Entries[0].Id, "New Name");
+        Assert.True(raised);
+    }
+
+    [Fact]
+    public async Task LoadAsync_OldIndex_WithoutName_GeneratesDefault()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Migrate Me", seqNum: 1));
+        Assert.Equal("Migrate Me", svc.Entries[0].Name);
     }
 }

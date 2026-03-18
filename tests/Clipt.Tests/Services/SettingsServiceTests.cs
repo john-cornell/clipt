@@ -109,4 +109,100 @@ public class SettingsServiceTests
         long loaded = service.LoadMaxHistorySizeBytes();
         Assert.True(loaded >= 0, "Should fall back to a non-negative default");
     }
+
+    [Fact]
+    public void LoadPurgeHistoryOnStartup_DefaultsFalse()
+    {
+        var service = new SettingsService();
+        service.SavePurgeHistoryOnStartup(false);
+        bool loaded = service.LoadPurgeHistoryOnStartup();
+        Assert.False(loaded);
+    }
+
+    [Fact]
+    public void SaveAndLoadPurgeHistoryOnStartup_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SavePurgeHistoryOnStartup(true);
+        Assert.True(service.LoadPurgeHistoryOnStartup());
+
+        service.SavePurgeHistoryOnStartup(false);
+        Assert.False(service.LoadPurgeHistoryOnStartup());
+    }
+
+    [Fact]
+    public void LoadDisabledHistoryTypes_DefaultsEmpty()
+    {
+        var service = new SettingsService();
+        service.SaveDisabledHistoryTypes(new HashSet<ContentType>());
+        var loaded = service.LoadDisabledHistoryTypes();
+        Assert.Empty(loaded);
+    }
+
+    [Fact]
+    public void SaveAndLoadDisabledHistoryTypes_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        var disabled = new HashSet<ContentType> { ContentType.Image };
+        service.SaveDisabledHistoryTypes(disabled);
+
+        var loaded = service.LoadDisabledHistoryTypes();
+        Assert.Single(loaded);
+        Assert.Contains(ContentType.Image, loaded);
+    }
+
+    [Fact]
+    public void SaveAndLoadDisabledHistoryTypes_MultipleTypes()
+    {
+        var service = new SettingsService();
+
+        var disabled = new HashSet<ContentType> { ContentType.Text, ContentType.Files, ContentType.Other };
+        service.SaveDisabledHistoryTypes(disabled);
+
+        var loaded = service.LoadDisabledHistoryTypes();
+        Assert.Equal(3, loaded.Count);
+        Assert.Contains(ContentType.Text, loaded);
+        Assert.Contains(ContentType.Files, loaded);
+        Assert.Contains(ContentType.Other, loaded);
+    }
+
+    [Fact]
+    public void SaveAndLoadDisabledHistoryTypes_IgnoresEmpty()
+    {
+        var service = new SettingsService();
+
+        var disabled = new HashSet<ContentType> { ContentType.Empty, ContentType.Text };
+        service.SaveDisabledHistoryTypes(disabled);
+
+        var loaded = service.LoadDisabledHistoryTypes();
+        Assert.Single(loaded);
+        Assert.Contains(ContentType.Text, loaded);
+        Assert.DoesNotContain(ContentType.Empty, loaded);
+    }
+
+    [Fact]
+    public void LoadRunOnStartup_ReturnsBoolean()
+    {
+        var service = new SettingsService();
+        bool loaded = service.LoadRunOnStartup();
+        Assert.IsType<bool>(loaded);
+    }
+
+    [Fact]
+    public void SaveRunOnStartup_True_ThenLoad_ReturnsTrue()
+    {
+        var service = new SettingsService();
+        service.SaveRunOnStartup(true);
+        Assert.True(service.LoadRunOnStartup());
+    }
+
+    [Fact]
+    public void SaveRunOnStartup_False_ThenLoad_ReturnsFalse()
+    {
+        var service = new SettingsService();
+        service.SaveRunOnStartup(false);
+        Assert.False(service.LoadRunOnStartup());
+    }
 }

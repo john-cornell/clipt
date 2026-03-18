@@ -60,12 +60,14 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             var item = new HistoryEntryDisplayItem
             {
                 Id = entry.Id,
+                Name = entry.Name,
                 Summary = entry.Summary,
                 ContentTypeLabel = FormatContentType(entry.ContentType),
                 ContentType = entry.ContentType,
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
+                RenameCommand = new AsyncRelayCommand<string>(newName => RenameEntryAsync(entry.Id, newName!)),
                 IsCurrent = i == 0,
             };
 
@@ -97,6 +99,43 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     private async Task RestoreEntryAsync(string entryId)
     {
+        await RestoreSnapshotToClipboard(entryId).ConfigureAwait(false);
+        await _historyService.PromoteAsync(entryId).ConfigureAwait(false);
+        ClipboardRestored?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task DeleteEntryAsync(string entryId)
+    {
+        bool wasActive = _historyService.Entries.Count > 0
+            && _historyService.Entries[0].Id == entryId;
+
+        await _historyService.RemoveAsync(entryId).ConfigureAwait(false);
+
+        if (!wasActive)
+            return;
+
+        if (_historyService.Entries.Count > 0)
+        {
+            string nextId = _historyService.Entries[0].Id;
+            await RestoreSnapshotToClipboard(nextId).ConfigureAwait(false);
+        }
+        else
+        {
+            await ClearSystemClipboardAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task RenameEntryAsync(string entryId, string newName)
+    {
+        string trimmed = newName.Trim();
+        if (trimmed.Length == 0)
+            return;
+
+        await _historyService.RenameAsync(entryId, trimmed).ConfigureAwait(false);
+    }
+
+    private async Task RestoreSnapshotToClipboard(string entryId)
+    {
         var snapshot = await _historyService.RestoreAsync(entryId).ConfigureAwait(false);
         if (snapshot is null)
             return;
@@ -106,40 +145,51 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         _historyService.IsSuppressed = true;
         try
         {
-            var textFormat = snapshot.Formats
-                .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
-
-            if (textFormat is not null && textFormat.RawData.Length > 0)
-            {
-                _clipboardService.SetClipboardText(
-                    System.Text.Encoding.Unicode.GetString(textFormat.RawData).TrimEnd('\0'),
-                    hwnd);
-            }
-            else
-            {
-                var restorableFormats = snapshot.Formats
-                    .Where(f => f.RawData.Length > 0 && !ClipboardConstants.IsGdiHandleFormat(f.FormatId))
-                    .Select(f => (f.FormatId, f.RawData))
-                    .ToList();
-
-                if (restorableFormats.Count > 0)
-                    _clipboardService.SetMultipleClipboardData(restorableFormats, hwnd);
-            }
+            WriteSnapshotToClipboard(snapshot, hwnd);
         }
         finally
         {
             await Task.Delay(500).ConfigureAwait(false);
             _historyService.IsSuppressed = false;
         }
-
-        await _historyService.PromoteAsync(entryId).ConfigureAwait(false);
-
-        ClipboardRestored?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task DeleteEntryAsync(string entryId)
+    private void WriteSnapshotToClipboard(ClipboardSnapshot snapshot, nint hwnd)
     {
-        await _historyService.RemoveAsync(entryId).ConfigureAwait(false);
+        var textFormat = snapshot.Formats
+            .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
+
+        if (textFormat is not null && textFormat.RawData.Length > 0)
+        {
+            _clipboardService.SetClipboardText(
+                System.Text.Encoding.Unicode.GetString(textFormat.RawData).TrimEnd('\0'),
+                hwnd);
+            return;
+        }
+
+        var restorableFormats = snapshot.Formats
+            .Where(f => f.RawData.Length > 0 && !ClipboardConstants.IsGdiHandleFormat(f.FormatId))
+            .Select(f => (f.FormatId, f.RawData))
+            .ToList();
+
+        if (restorableFormats.Count > 0)
+            _clipboardService.SetMultipleClipboardData(restorableFormats, hwnd);
+    }
+
+    private async Task ClearSystemClipboardAsync()
+    {
+        nint hwnd = _hwndProvider();
+
+        _historyService.IsSuppressed = true;
+        try
+        {
+            _clipboardService.ClearClipboard(hwnd);
+        }
+        finally
+        {
+            await Task.Delay(500).ConfigureAwait(false);
+            _historyService.IsSuppressed = false;
+        }
     }
 
     private void OnEntriesChanged(object? sender, EventArgs e)
@@ -265,6 +315,10 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 public sealed partial class HistoryEntryDisplayItem : ObservableObject
 {
     public required string Id { get; init; }
+
+    [ObservableProperty]
+    private string _name = string.Empty;
+
     public required string Summary { get; init; }
     public required string ContentTypeLabel { get; init; }
     public required ContentType ContentType { get; init; }
@@ -272,7 +326,11 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public required IAsyncRelayCommand RestoreCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }
     public IAsyncRelayCommand? PreviewCommand { get; set; }
+    public IAsyncRelayCommand? RenameCommand { get; set; }
     public bool IsCurrent { get; init; }
+
+    [ObservableProperty]
+    private bool _isEditing;
 
     [ObservableProperty]
     private ImageSource? _previewThumbnail;

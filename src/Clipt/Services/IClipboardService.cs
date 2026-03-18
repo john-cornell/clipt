@@ -8,4 +8,5 @@ public interface IClipboardService
     void SetClipboardText(string text, nint hwnd);
     void SetClipboardData(uint formatId, byte[] data, nint hwnd);
     void SetMultipleClipboardData(IReadOnlyList<(uint FormatId, byte[] Data)> formats, nint hwnd);
+    void ClearClipboard(nint hwnd);
 }

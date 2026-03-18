@@ -239,6 +239,22 @@ public sealed class ClipboardService : IClipboardService
         }
     }
 
+    public void ClearClipboard(nint hwnd)
+    {
+        if (!NativeMethods.OpenClipboard(hwnd))
+            throw new InvalidOperationException("Failed to open clipboard.");
+
+        try
+        {
+            if (!NativeMethods.EmptyClipboard())
+                throw new InvalidOperationException("Failed to empty clipboard.");
+        }
+        finally
+        {
+            NativeMethods.CloseClipboard();
+        }
+    }
+
     private static void AllocAndSetFormat(uint formatId, byte[] data)
     {
         nint hGlobal = NativeMethods.GlobalAlloc(

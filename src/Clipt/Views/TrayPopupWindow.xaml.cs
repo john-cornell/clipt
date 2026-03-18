@@ -96,4 +96,42 @@ public partial class TrayPopupWindow : Window
             previewWindow.Show();
         });
     }
+
+    private void HistoryEntryName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2 && sender is FrameworkElement { DataContext: HistoryEntryDisplayItem item })
+        {
+            item.IsEditing = true;
+            e.Handled = true;
+        }
+    }
+
+    private void CommitNameEdit(HistoryEntryDisplayItem item)
+    {
+        item.IsEditing = false;
+        item.RenameCommand?.Execute(item.Name);
+    }
+
+    private void HistoryEntryNameEdit_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: HistoryEntryDisplayItem item })
+            CommitNameEdit(item);
+    }
+
+    private void HistoryEntryNameEdit_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: HistoryEntryDisplayItem item })
+            return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitNameEdit(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsEditing = false;
+            e.Handled = true;
+        }
+    }
 }
