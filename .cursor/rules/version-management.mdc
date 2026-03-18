@@ -1,8 +1,9 @@
 ---
-description: Version management rules for Clipt - always bump version and display it on title bars
+description: 
 alwaysApply: true
 ---
 
+IMPORTANT READ THIS AND ALWASYS REMEMBER TO VERSION!
 # Version Management
 
 ## Single Source of Truth

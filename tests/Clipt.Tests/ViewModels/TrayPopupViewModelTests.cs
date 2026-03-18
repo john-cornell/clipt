@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Services;
 using Clipt.ViewModels;
 
 namespace Clipt.Tests.ViewModels;
@@ -137,7 +138,7 @@ public class TrayPopupViewModelTests
     [Fact]
     public void DecodeUtf16Truncated_EmptyData_ReturnsEmpty()
     {
-        string result = TrayPopupViewModel.DecodeUtf16Truncated([], 100);
+        string result = ClipboardHistoryService.DecodeUtf16Truncated([], 100);
         Assert.Empty(result);
     }
 
@@ -145,7 +146,7 @@ public class TrayPopupViewModelTests
     public void DecodeUtf16Truncated_NullTerminatedShortString_ReturnsUpToNull()
     {
         byte[] data = System.Text.Encoding.Unicode.GetBytes("AB\0");
-        string result = TrayPopupViewModel.DecodeUtf16Truncated(data, 100);
+        string result = ClipboardHistoryService.DecodeUtf16Truncated(data, 100);
         Assert.Equal("AB", result);
     }
 
@@ -153,8 +154,39 @@ public class TrayPopupViewModelTests
     public void DecodeUtf16Truncated_RespectsMaxChars()
     {
         byte[] data = System.Text.Encoding.Unicode.GetBytes("ABCDEF\0");
-        string result = TrayPopupViewModel.DecodeUtf16Truncated(data, 3);
+        string result = ClipboardHistoryService.DecodeUtf16Truncated(data, 3);
         Assert.Equal("ABC", result);
+    }
+
+    [Fact]
+    public void IsPinned_DefaultsToFalse()
+    {
+        var vm = new TrayPopupViewModel();
+        Assert.False(vm.IsPinned);
+    }
+
+    [Fact]
+    public void IsPinned_CanBeToggled()
+    {
+        var vm = new TrayPopupViewModel();
+
+        vm.IsPinned = true;
+        Assert.True(vm.IsPinned);
+
+        vm.IsPinned = false;
+        Assert.False(vm.IsPinned);
+    }
+
+    [Fact]
+    public void IsPinned_RaisesPropertyChanged()
+    {
+        var vm = new TrayPopupViewModel();
+        var changed = new List<string>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
+
+        vm.IsPinned = true;
+
+        Assert.Contains("IsPinned", changed);
     }
 
     private static ClipboardSnapshot CreateSnapshot(uint formatId, byte[] data)

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using Clipt.Models;
 using Clipt.Services;
@@ -13,11 +14,13 @@ public partial class App : Application
     private ITrayIconService? _trayIconService;
     private TrayPopupWindow? _trayPopupWindow;
     private TrayPopupViewModel? _trayPopupViewModel;
+    private HistoryTabViewModel? _historyTabViewModel;
     private MainWindow? _mainWindow;
     private ClipboardListenerService? _listenerService;
     private IClipboardService? _clipboardService;
+    private IClipboardHistoryService? _historyService;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -33,6 +36,10 @@ public partial class App : Application
         _clipboardService = _serviceProvider.GetRequiredService<IClipboardService>();
         _listenerService = _serviceProvider.GetRequiredService<ClipboardListenerService>();
         _trayPopupViewModel = _serviceProvider.GetRequiredService<TrayPopupViewModel>();
+        _historyService = _serviceProvider.GetRequiredService<IClipboardHistoryService>();
+        _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
+
+        _trayPopupViewModel.HistoryTab = _historyTabViewModel;
 
         _listenerService.Start();
 
@@ -41,13 +48,25 @@ public partial class App : Application
 
         _listenerService.ClipboardChanged += OnClipboardChangedForTray;
 
-        PerformInitialTrayRefresh();
+        try
+        {
+            await _historyService.LoadAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (
+            ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+        }
 
-        var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
-        var startupMode = settingsService.LoadStartupMode();
+        Dispatcher.Invoke(() =>
+        {
+            PerformInitialTrayRefresh();
 
-        if (startupMode == StartupMode.FullWindow)
-            ShowMainWindow();
+            var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+            var startupMode = settingsService.LoadStartupMode();
+
+            if (startupMode == StartupMode.FullWindow)
+                ShowMainWindow();
+        });
     }
 
     private void InitializeTray()
@@ -58,6 +77,7 @@ public partial class App : Application
         _trayIconService.TrayIconClicked += OnTrayIconClicked;
         _trayIconService.OpenFullRequested += OnOpenFullRequested;
         _trayIconService.ExitRequested += OnExitRequested;
+        _trayIconService.ClearHistoryRequested += OnClearHistoryRequested;
     }
 
     private void InitializeTrayPopup()
@@ -71,7 +91,7 @@ public partial class App : Application
         if (Dispatcher.HasShutdownStarted)
             return;
 
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.BeginInvoke(async () =>
         {
             try
             {
@@ -79,6 +99,9 @@ public partial class App : Application
                 bool hasData = snapshot.Formats.Length > 0;
                 _trayIconService?.UpdateIcon(hasData);
                 _trayPopupViewModel?.Update(snapshot);
+
+                if (hasData)
+                    await _historyService!.AddAsync(snapshot).ConfigureAwait(false);
             }
             catch (InvalidOperationException)
             {
@@ -101,6 +124,7 @@ public partial class App : Application
             return;
 
         RefreshTrayPopup();
+        _historyTabViewModel?.Refresh();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -113,6 +137,18 @@ public partial class App : Application
     }
 
     private void OnExitRequested(object? sender, EventArgs e) => Shutdown();
+
+    private async void OnClearHistoryRequested(object? sender, EventArgs e)
+    {
+        if (_historyService is null)
+            return;
+
+        try
+        {
+            await _historyService.ClearAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException) { }
+    }
 
     private void ShowMainWindow()
     {
@@ -158,8 +194,13 @@ public partial class App : Application
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<ITrayIconService, TrayIconService>();
+        services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayPopupViewModel>();
+        services.AddSingleton<HistoryTabViewModel>(sp => new HistoryTabViewModel(
+            sp.GetRequiredService<IClipboardHistoryService>(),
+            sp.GetRequiredService<IClipboardService>(),
+            () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
         services.AddSingleton<MainWindow>();
         services.AddSingleton<TrayPopupWindow>();
     }
@@ -171,6 +212,7 @@ public partial class App : Application
             _trayIconService.TrayIconClicked -= OnTrayIconClicked;
             _trayIconService.OpenFullRequested -= OnOpenFullRequested;
             _trayIconService.ExitRequested -= OnExitRequested;
+            _trayIconService.ClearHistoryRequested -= OnClearHistoryRequested;
         }
 
         if (_trayPopupViewModel is not null)

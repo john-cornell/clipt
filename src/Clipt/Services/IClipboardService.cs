@@ -7,4 +7,5 @@ public interface IClipboardService
     ClipboardSnapshot CaptureSnapshot(nint hwnd);
     void SetClipboardText(string text, nint hwnd);
     void SetClipboardData(uint formatId, byte[] data, nint hwnd);
+    void SetMultipleClipboardData(IReadOnlyList<(uint FormatId, byte[] Data)> formats, nint hwnd);
 }

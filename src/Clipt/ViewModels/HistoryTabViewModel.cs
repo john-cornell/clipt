@@ -1,0 +1,282 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Clipt.Models;
+using Clipt.Native;
+using Clipt.Services;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace Clipt.ViewModels;
+
+public sealed partial class HistoryTabViewModel : ObservableObject
+{
+    private readonly IClipboardHistoryService _historyService;
+    private readonly IClipboardService _clipboardService;
+    private readonly Func<nint> _hwndProvider;
+
+    [ObservableProperty]
+    private bool _isEmpty = true;
+
+    [ObservableProperty]
+    private string _statusText = "No history";
+
+    public ObservableCollection<HistoryEntryDisplayItem> DisplayEntries { get; } = [];
+
+    public event EventHandler? ClipboardRestored;
+    public event Action<BitmapSource>? ImagePreviewRequested;
+
+    public HistoryTabViewModel(
+        IClipboardHistoryService historyService,
+        IClipboardService clipboardService,
+        Func<nint> hwndProvider)
+    {
+        _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
+        _clipboardService = clipboardService ?? throw new ArgumentNullException(nameof(clipboardService));
+        _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
+
+        _historyService.EntriesChanged += OnEntriesChanged;
+    }
+
+    public void Refresh()
+    {
+        DisplayEntries.Clear();
+
+        var entries = _historyService.Entries;
+        if (entries.Count == 0)
+        {
+            IsEmpty = true;
+            StatusText = "No history";
+            return;
+        }
+
+        IsEmpty = false;
+        StatusText = entries.Count == 1 ? "1 entry" : $"{entries.Count} entries";
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            var item = new HistoryEntryDisplayItem
+            {
+                Id = entry.Id,
+                Summary = entry.Summary,
+                ContentTypeLabel = FormatContentType(entry.ContentType),
+                ContentType = entry.ContentType,
+                RelativeTime = FormatRelativeTime(entry.TimestampUtc),
+                RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
+                DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
+                IsCurrent = i == 0,
+            };
+
+            if (entry.ContentType == ContentType.Image)
+                item.PreviewCommand = new AsyncRelayCommand(() => ShowPreviewAsync(entry.Id));
+
+            DisplayEntries.Add(item);
+        }
+
+        _ = LoadInlineThumbnailsSafeAsync();
+    }
+
+    private async Task LoadInlineThumbnailsSafeAsync()
+    {
+        try
+        {
+            await LoadInlineThumbnailsAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    [RelayCommand]
+    private async Task ClearAllAsync()
+    {
+        await _historyService.ClearAsync().ConfigureAwait(false);
+    }
+
+    private async Task RestoreEntryAsync(string entryId)
+    {
+        var snapshot = await _historyService.RestoreAsync(entryId).ConfigureAwait(false);
+        if (snapshot is null)
+            return;
+
+        nint hwnd = _hwndProvider();
+
+        _historyService.IsSuppressed = true;
+        try
+        {
+            var textFormat = snapshot.Formats
+                .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
+
+            if (textFormat is not null && textFormat.RawData.Length > 0)
+            {
+                _clipboardService.SetClipboardText(
+                    System.Text.Encoding.Unicode.GetString(textFormat.RawData).TrimEnd('\0'),
+                    hwnd);
+            }
+            else
+            {
+                var restorableFormats = snapshot.Formats
+                    .Where(f => f.RawData.Length > 0 && !ClipboardConstants.IsGdiHandleFormat(f.FormatId))
+                    .Select(f => (f.FormatId, f.RawData))
+                    .ToList();
+
+                if (restorableFormats.Count > 0)
+                    _clipboardService.SetMultipleClipboardData(restorableFormats, hwnd);
+            }
+        }
+        finally
+        {
+            await Task.Delay(500).ConfigureAwait(false);
+            _historyService.IsSuppressed = false;
+        }
+
+        await _historyService.PromoteAsync(entryId).ConfigureAwait(false);
+
+        ClipboardRestored?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task DeleteEntryAsync(string entryId)
+    {
+        await _historyService.RemoveAsync(entryId).ConfigureAwait(false);
+    }
+
+    private void OnEntriesChanged(object? sender, EventArgs e)
+    {
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(Refresh);
+    }
+
+    internal async Task LoadThumbnailAsync(string entryId)
+    {
+        await LoadThumbnailCoreAsync(entryId, ThumbnailTarget.Tooltip).ConfigureAwait(false);
+    }
+
+    internal async Task LoadInlineThumbnailsAsync()
+    {
+        foreach (var item in DisplayEntries)
+        {
+            if (item.ContentType == ContentType.Image)
+                await LoadThumbnailCoreAsync(item.Id, ThumbnailTarget.Inline).ConfigureAwait(false);
+        }
+    }
+
+    internal enum ThumbnailTarget { Tooltip, Inline }
+
+    private async Task LoadThumbnailCoreAsync(string entryId, ThumbnailTarget target)
+    {
+        var item = DisplayEntries.FirstOrDefault(e => e.Id == entryId);
+        if (item is null || item.ContentType != ContentType.Image)
+            return;
+
+        bool alreadyLoaded = target == ThumbnailTarget.Tooltip
+            ? item.PreviewThumbnail is not null
+            : item.InlineThumbnail is not null;
+
+        if (alreadyLoaded)
+            return;
+
+        var bmp = await LoadFullResImageAsync(entryId).ConfigureAwait(false);
+        if (bmp is null)
+            return;
+
+        double maxDimension = target == ThumbnailTarget.Tooltip ? 200.0 : 32.0;
+        if (bmp.PixelWidth > maxDimension || bmp.PixelHeight > maxDimension)
+        {
+            double scale = Math.Min(maxDimension / bmp.PixelWidth, maxDimension / bmp.PixelHeight);
+            bmp = new TransformedBitmap(bmp, new ScaleTransform(scale, scale));
+        }
+
+        if (!bmp.IsFrozen)
+            bmp.Freeze();
+
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (target == ThumbnailTarget.Tooltip)
+                item.PreviewThumbnail = bmp;
+            else
+                item.InlineThumbnail = bmp;
+        });
+    }
+
+    internal async Task ShowPreviewAsync(string entryId)
+    {
+        var bmp = await LoadFullResImageAsync(entryId).ConfigureAwait(false);
+        if (bmp is null)
+            return;
+
+        if (!bmp.IsFrozen)
+            bmp.Freeze();
+
+        ImagePreviewRequested?.Invoke(bmp);
+    }
+
+    private async Task<BitmapSource?> LoadFullResImageAsync(string entryId)
+    {
+        var snapshot = await _historyService.RestoreAsync(entryId).ConfigureAwait(false);
+        if (snapshot is null)
+            return null;
+
+        var dibv5 = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIBV5);
+        var dib = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIB);
+        ClipboardFormatInfo? imageFormat = dibv5 ?? dib;
+
+        if (imageFormat is null || imageFormat.RawData.Length < 40)
+            return null;
+
+        try
+        {
+            return ImageTabViewModel.DecodeDeviceIndependentBitmap(imageFormat.RawData);
+        }
+        catch (Exception ex) when (
+            ex is NotSupportedException
+              or InvalidOperationException
+              or IOException
+              or ArgumentException
+              or System.Runtime.InteropServices.ExternalException
+              or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    internal static string FormatContentType(ContentType contentType) => contentType switch
+    {
+        ContentType.Text => "Text",
+        ContentType.Image => "Image",
+        ContentType.Files => "Files",
+        ContentType.Other => "Data",
+        _ => "",
+    };
+
+    internal static string FormatRelativeTime(DateTime utcTimestamp)
+    {
+        var elapsed = DateTime.UtcNow - utcTimestamp;
+
+        if (elapsed.TotalSeconds < 5) return "just now";
+        if (elapsed.TotalSeconds < 60) return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h ago";
+        if (elapsed.TotalDays < 7) return $"{(int)elapsed.TotalDays}d ago";
+        return utcTimestamp.ToLocalTime().ToString("MMM d");
+    }
+}
+
+public sealed partial class HistoryEntryDisplayItem : ObservableObject
+{
+    public required string Id { get; init; }
+    public required string Summary { get; init; }
+    public required string ContentTypeLabel { get; init; }
+    public required ContentType ContentType { get; init; }
+    public required string RelativeTime { get; init; }
+    public required IAsyncRelayCommand RestoreCommand { get; init; }
+    public required IAsyncRelayCommand DeleteCommand { get; init; }
+    public IAsyncRelayCommand? PreviewCommand { get; set; }
+    public bool IsCurrent { get; init; }
+
+    [ObservableProperty]
+    private ImageSource? _previewThumbnail;
+
+    [ObservableProperty]
+    private ImageSource? _inlineThumbnail;
+}

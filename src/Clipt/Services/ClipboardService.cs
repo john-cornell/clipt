@@ -203,39 +203,72 @@ public sealed class ClipboardService : IClipboardService
             if (!NativeMethods.EmptyClipboard())
                 throw new InvalidOperationException("Failed to empty clipboard.");
 
-            nint hGlobal = NativeMethods.GlobalAlloc(
-                NativeMethods.GMEM_MOVEABLE, (nuint)data.Length);
+            AllocAndSetFormat(formatId, data);
+        }
+        finally
+        {
+            NativeMethods.CloseClipboard();
+        }
+    }
 
-            if (hGlobal == 0)
-                throw new OutOfMemoryException("GlobalAlloc failed.");
+    public void SetMultipleClipboardData(IReadOnlyList<(uint FormatId, byte[] Data)> formats, nint hwnd)
+    {
+        ArgumentNullException.ThrowIfNull(formats);
+        if (formats.Count == 0)
+            throw new ArgumentException("At least one format is required.", nameof(formats));
 
-            nint lockPtr = NativeMethods.GlobalLock(hGlobal);
-            if (lockPtr == 0)
-            {
-                NativeMethods.GlobalFree(hGlobal);
-                throw new InvalidOperationException("GlobalLock failed.");
-            }
+        if (!NativeMethods.OpenClipboard(hwnd))
+            throw new InvalidOperationException("Failed to open clipboard.");
 
-            try
-            {
-                Marshal.Copy(data, 0, lockPtr, data.Length);
-            }
-            finally
-            {
-                NativeMethods.GlobalUnlock(hGlobal);
-            }
+        try
+        {
+            if (!NativeMethods.EmptyClipboard())
+                throw new InvalidOperationException("Failed to empty clipboard.");
 
-            nint result = NativeMethods.SetClipboardData(formatId, hGlobal);
-            if (result == 0)
+            foreach (var (formatId, data) in formats)
             {
-                NativeMethods.GlobalFree(hGlobal);
-                throw new InvalidOperationException(
-                    $"SetClipboardData failed for format 0x{formatId:X4}.");
+                if (data.Length == 0)
+                    continue;
+
+                AllocAndSetFormat(formatId, data);
             }
         }
         finally
         {
             NativeMethods.CloseClipboard();
+        }
+    }
+
+    private static void AllocAndSetFormat(uint formatId, byte[] data)
+    {
+        nint hGlobal = NativeMethods.GlobalAlloc(
+            NativeMethods.GMEM_MOVEABLE, (nuint)data.Length);
+
+        if (hGlobal == 0)
+            throw new OutOfMemoryException("GlobalAlloc failed.");
+
+        nint lockPtr = NativeMethods.GlobalLock(hGlobal);
+        if (lockPtr == 0)
+        {
+            NativeMethods.GlobalFree(hGlobal);
+            throw new InvalidOperationException("GlobalLock failed.");
+        }
+
+        try
+        {
+            Marshal.Copy(data, 0, lockPtr, data.Length);
+        }
+        finally
+        {
+            NativeMethods.GlobalUnlock(hGlobal);
+        }
+
+        nint result = NativeMethods.SetClipboardData(formatId, hGlobal);
+        if (result == 0)
+        {
+            NativeMethods.GlobalFree(hGlobal);
+            throw new InvalidOperationException(
+                $"SetClipboardData failed for format 0x{formatId:X4}.");
         }
     }
 }

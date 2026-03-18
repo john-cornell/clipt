@@ -8,7 +8,10 @@ Clipt goes far beyond simple paste — it enumerates every format present on the
 
 - **System Tray Icon** — Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit
 - **Compact Popup** — Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
-- **History Tab** — Placeholder tab in the compact popup, ready for clipboard history tracking in a future release
+- **Pin Popup** — Toggle pin button in the popup title bar keeps the window open when you click elsewhere
+- **Clipboard History** — Tracks clipboard entries over time with content type, summary, and timestamps. Restore or delete entries from the History tab
+- **Image Preview** — Click inline image thumbnails in history to open a full-size DPI-aware preview popup
+- **Smart Restore** — Restoring an entry writes all original clipboard formats (not just one), so paste works correctly everywhere. Restored items move to the top of the history list
 - **Expand to Full** — One-click button in the compact popup to open the full Clipt inspector window
 - **Startup Mode** — Choose between launching with the full window visible or collapsed to the system tray. Preference saved to registry
 - **Minimize to Tray** — Closing the main window hides it to the tray instead of exiting. Exit only via tray right-click menu
@@ -27,6 +30,7 @@ Clipt goes far beyond simple paste — it enumerates every format present on the
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.4.10 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.10/CliptSetup.exe) | Click-to-preview full-size images, pin popup window, fix image restore (multi-format), clipboard history with dedup, inline thumbnails, code-signed |
 | 1.3.0 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.3.0/CliptSetup.exe) | System tray icon (red/green), compact popup with Clipboard and History tabs, expand-to-full, startup mode, minimize-to-tray, version in title bar |
 | 1.2.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.1/CliptSetup.exe) | Fix hex/ASCII cross-selection reliability and highlight offset |
 | 1.2.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.0/CliptSetup.exe) | Separate Text and Hex tabs; hex-only cross-selection between hex and ASCII columns |
@@ -42,14 +46,24 @@ Clipt goes far beyond simple paste — it enumerates every format present on the
 ### Install
 
 1. Download `CliptSetup.exe` from the table above or from the [Releases](https://github.com/john-cornell/clipt/releases) page
-2. Run the installer — it will install to Program Files
+2. Run the installer — it will install to your local AppData folder (no admin required)
 3. Launch Clipt from the Start Menu or desktop shortcut
+
+### Upgrading from v1.3.0 or earlier
+
+Versions 1.3.0 and earlier installed to **Program Files** (requiring admin). Starting with v1.4.x, Clipt installs to `%LOCALAPPDATA%\Clipt` (no admin required). The new installer **cannot** remove the old Program Files installation automatically.
+
+**Before installing v1.4.10:**
+1. Uninstall the old version via **Settings > Apps** (or Control Panel > Programs)
+2. Then run the new `CliptSetup.exe`
+
+If you skip this step, you may end up with two copies installed.
 
 ## Known Issues
 
 - Hex column / ASCII column cross-selection works within the Hex tab. Selection highlighting across multi-line ranges may occasionally lag on very large clipboard data.
-- **History tab** is a placeholder — clipboard history tracking is not yet implemented but the tab is present in the compact notification popup, ready for a future release.
 - The tray icon may initially appear in the Windows overflow area (click the `^` arrow in the system tray to find it). You can drag it to the always-visible area.
+- Users upgrading from v1.3.0 or earlier must manually uninstall the old version first (see Upgrading section above).
 
 ## Building from Source
 

@@ -13,9 +13,20 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _startModeItem;
     private bool _disposed;
 
+    private static readonly int[] MaxEntriesOptions = [5, 10, 25, 50];
+    private static readonly (string Label, long Bytes)[] MaxSizeOptions =
+    [
+        ("50 MB", 50L * 1024 * 1024),
+        ("100 MB", 100L * 1024 * 1024),
+        ("250 MB", 250L * 1024 * 1024),
+        ("500 MB", 500L * 1024 * 1024),
+        ("Unlimited", 0),
+    ];
+
     public event EventHandler? TrayIconClicked;
     public event EventHandler? OpenFullRequested;
     public event EventHandler? ExitRequested;
+    public event EventHandler? ClearHistoryRequested;
 
     public TrayIconService(ISettingsService settingsService)
     {
@@ -70,11 +81,86 @@ public sealed class TrayIconService : ITrayIconService
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
 
+        menu.Items.Add(BuildMaxEntriesSubmenu());
+        menu.Items.Add(BuildMaxSizeSubmenu());
+
+        var clearHistoryItem = new WinForms.ToolStripMenuItem("Clear History");
+        clearHistoryItem.Click += (_, _) => ClearHistoryRequested?.Invoke(this, EventArgs.Empty);
+        menu.Items.Add(clearHistoryItem);
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+
         var exitItem = new WinForms.ToolStripMenuItem("Exit");
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(exitItem);
 
         return menu;
+    }
+
+    private WinForms.ToolStripMenuItem BuildMaxEntriesSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Max History Entries");
+        int current = _settingsService.LoadMaxHistoryEntries();
+
+        foreach (int value in MaxEntriesOptions)
+        {
+            var item = new WinForms.ToolStripMenuItem(value.ToString())
+            {
+                Checked = value == current,
+                Tag = value,
+            };
+            item.Click += OnMaxEntriesOptionClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        return parent;
+    }
+
+    private WinForms.ToolStripMenuItem BuildMaxSizeSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Max History Size");
+        long current = _settingsService.LoadMaxHistorySizeBytes();
+
+        foreach (var (label, bytes) in MaxSizeOptions)
+        {
+            var item = new WinForms.ToolStripMenuItem(label)
+            {
+                Checked = bytes == current,
+                Tag = bytes,
+            };
+            item.Click += OnMaxSizeOptionClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        return parent;
+    }
+
+    private void OnMaxEntriesOptionClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not int value)
+            return;
+
+        _settingsService.SaveMaxHistoryEntries(value);
+
+        if (clicked.OwnerItem is WinForms.ToolStripMenuItem parent)
+        {
+            foreach (WinForms.ToolStripMenuItem sibling in parent.DropDownItems)
+                sibling.Checked = ReferenceEquals(sibling, clicked);
+        }
+    }
+
+    private void OnMaxSizeOptionClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not long value)
+            return;
+
+        _settingsService.SaveMaxHistorySizeBytes(value);
+
+        if (clicked.OwnerItem is WinForms.ToolStripMenuItem parent)
+        {
+            foreach (WinForms.ToolStripMenuItem sibling in parent.DropDownItems)
+                sibling.Checked = ReferenceEquals(sibling, clicked);
+        }
     }
 
     private void OnNotifyIconMouseClick(object? sender, WinForms.MouseEventArgs e)

@@ -1,0 +1,24 @@
+<Window x:Class="Clipt.Views.ImagePreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        KeyDown="OnKeyDown"
+        MouseLeftButtonDown="OnMouseDown"
+        Deactivated="OnDeactivated">
+
+    <Border Background="{DynamicResource BackgroundBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="2"
+            CornerRadius="4"
+            Padding="4">
+        <Image x:Name="PreviewImage"
+               Stretch="Uniform"
+               RenderOptions.BitmapScalingMode="HighQuality" />
+    </Border>
+</Window>

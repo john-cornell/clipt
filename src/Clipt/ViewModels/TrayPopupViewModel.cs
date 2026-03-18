@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows.Media.Imaging;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -37,6 +38,12 @@ public sealed partial class TrayPopupViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isEmpty = true;
+
+    [ObservableProperty]
+    private bool _isPinned;
+
+    [ObservableProperty]
+    private HistoryTabViewModel? _historyTab;
 
     public event EventHandler? ExpandToFullRequested;
 
@@ -78,7 +85,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
             return;
         }
 
-        string decoded = DecodeUtf16Truncated(unicodeFormat.RawData, MaxPreviewLength);
+        string decoded = ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, MaxPreviewLength);
         PreviewText = decoded;
         HasText = decoded.Length > 0;
     }
@@ -176,29 +183,6 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         HasImage = false;
         HasFiles = false;
         IsEmpty = true;
-    }
-
-    internal static string DecodeUtf16Truncated(byte[] data, int maxChars)
-    {
-        int charCount = 0;
-        int byteEnd = 0;
-
-        for (int i = 0; i + 1 < data.Length; i += 2)
-        {
-            if (data[i] == 0 && data[i + 1] == 0)
-                break;
-
-            charCount++;
-            byteEnd = i + 2;
-
-            if (charCount >= maxChars)
-                break;
-        }
-
-        if (byteEnd == 0)
-            return string.Empty;
-
-        return Encoding.Unicode.GetString(data, 0, byteEnd);
     }
 
     private static List<string> ParseFilePaths(byte[] data)

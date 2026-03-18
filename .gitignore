@@ -7,5 +7,6 @@ obj/
 *.log
 TestResults/
 installer/Output/
+installer/*.pfx
 *.lnk
 UpgradeLog.htm
