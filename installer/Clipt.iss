@@ -3,12 +3,11 @@
 ; Requires: dotnet build src\Clipt\Clipt.csproj -c Release (run first)
 
 #define MyAppName "Clipt"
-#define MyAppVersion "1.4.10"
+#define MyAppVersion "1.4.11"
 #define MyAppPublisher "Clipt"
 #define MyAppExeName "Clipt.exe"
 
 [Setup]
-SignTool=CliptSign
 AppId={{B3F7E2A1-9C4D-4E8B-A6F0-1D2E3F4A5B6C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}

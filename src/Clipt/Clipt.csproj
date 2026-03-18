@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.4.10</Version>
+    <Version>1.4.11</Version>
     <ApplicationIcon>Icons\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <Resource Include="Icons\icon.ico" />
+    <EmbeddedResource Include="Icons\tray-red.ico" />
+    <EmbeddedResource Include="Icons\tray-green.ico" />
   </ItemGroup>
 
   <ItemGroup>
