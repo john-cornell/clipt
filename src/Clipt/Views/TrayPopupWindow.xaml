@@ -134,9 +134,15 @@
                         </Grid.RowDefinitions>
 
                         <DockPanel Grid.Row="0" Margin="10,6,10,4">
-                            <Button DockPanel.Dock="Right" Content="Clear All"
+                            <Button DockPanel.Dock="Right" Content="Clear history"
                                     Command="{Binding ClearAllCommand}"
-                                    FontSize="11" Padding="8,2" />
+                                    FontSize="11" Padding="8,2" Margin="8,0,0,0" />
+                            <CheckBox DockPanel.Dock="Right"
+                                      Content="Clear clipboard too"
+                                      IsChecked="{Binding AlsoClearClipboardOnClearHistory}"
+                                      FontSize="11"
+                                      VerticalAlignment="Center"
+                                      ToolTip="Also clear the system clipboard when clearing history" />
                             <TextBlock Text="{Binding StatusText}"
                                        Foreground="{DynamicResource ForegroundDimBrush}"
                                        FontSize="11" VerticalAlignment="Center" />

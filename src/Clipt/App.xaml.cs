@@ -19,6 +19,7 @@ public partial class App : Application
     private ClipboardListenerService? _listenerService;
     private IClipboardService? _clipboardService;
     private IClipboardHistoryService? _historyService;
+    private ISettingsService? _settingsService;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -57,7 +58,8 @@ public partial class App : Application
         {
         }
 
-        var settings = _serviceProvider.GetRequiredService<ISettingsService>();
+        _settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+        var settings = _settingsService;
         if (settings.LoadPurgeHistoryOnStartup())
         {
             try
@@ -82,6 +84,15 @@ public partial class App : Application
     {
         _trayIconService = _serviceProvider!.GetRequiredService<ITrayIconService>();
         _trayIconService.Initialize();
+
+        _trayIconService.SetClearClipboardPreferenceSync(next =>
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (_historyTabViewModel is not null)
+                    _historyTabViewModel.AlsoClearClipboardOnClearHistory = next;
+            });
+        });
 
         _trayIconService.TrayIconClicked += OnTrayIconClicked;
         _trayIconService.OpenFullRequested += OnOpenFullRequested;
@@ -149,12 +160,28 @@ public partial class App : Application
 
     private async void OnClearHistoryRequested(object? sender, EventArgs e)
     {
-        if (_historyService is null)
+        if (_historyService is null || _clipboardService is null || _listenerService is null || _settingsService is null)
             return;
 
         try
         {
-            await _historyService.ClearAsync().ConfigureAwait(false);
+            await Task.Delay(75).ConfigureAwait(false);
+
+            if (_settingsService.LoadClearClipboardWhenClearingHistory())
+            {
+                await _historyService.ClearAsync().ConfigureAwait(false);
+                await Dispatcher.InvokeAsync(() =>
+                    ClipboardHistoryService.ClearSystemClipboardWithSuppressionAsync(
+                        _historyService, _clipboardService, _listenerService.Hwnd));
+            }
+            else
+            {
+                await Dispatcher.InvokeAsync(() =>
+                    ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
+                        _historyService, _clipboardService, _listenerService.Hwnd));
+            }
+
+            Dispatcher.Invoke(() => _historyTabViewModel?.Refresh());
         }
         catch (ObjectDisposedException) { }
     }
@@ -209,7 +236,9 @@ public partial class App : Application
         services.AddSingleton<HistoryTabViewModel>(sp => new HistoryTabViewModel(
             sp.GetRequiredService<IClipboardHistoryService>(),
             sp.GetRequiredService<IClipboardService>(),
-            () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
+            () => sp.GetRequiredService<ClipboardListenerService>().Hwnd,
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<ITrayIconService>()));
         services.AddSingleton<MainWindow>();
         services.AddSingleton<TrayPopupWindow>();
     }

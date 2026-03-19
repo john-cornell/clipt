@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Native;
 using Clipt.Services;
@@ -14,6 +15,8 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 {
     private readonly IClipboardHistoryService _historyService;
     private readonly IClipboardService _clipboardService;
+    private readonly ISettingsService _settingsService;
+    private readonly ITrayIconService _trayIconService;
     private readonly Func<nint> _hwndProvider;
 
     [ObservableProperty]
@@ -21,6 +24,12 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     [ObservableProperty]
     private string _statusText = "No history";
+
+    /// <summary>
+    /// When true, <see cref="ClearAllCommand"/> also clears the system clipboard after clearing history (tray and popup).
+    /// </summary>
+    [ObservableProperty]
+    private bool _alsoClearClipboardOnClearHistory;
 
     public ObservableCollection<HistoryEntryDisplayItem> DisplayEntries { get; } = [];
 
@@ -30,13 +39,25 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     public HistoryTabViewModel(
         IClipboardHistoryService historyService,
         IClipboardService clipboardService,
-        Func<nint> hwndProvider)
+        Func<nint> hwndProvider,
+        ISettingsService settingsService,
+        ITrayIconService trayIconService)
     {
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
         _clipboardService = clipboardService ?? throw new ArgumentNullException(nameof(clipboardService));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _trayIconService = trayIconService ?? throw new ArgumentNullException(nameof(trayIconService));
         _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
 
         _historyService.EntriesChanged += OnEntriesChanged;
+
+        AlsoClearClipboardOnClearHistory = _settingsService.LoadClearClipboardWhenClearingHistory();
+    }
+
+    partial void OnAlsoClearClipboardOnClearHistoryChanged(bool value)
+    {
+        _settingsService.SaveClearClipboardWhenClearingHistory(value);
+        _trayIconService.SetClearClipboardWhenClearingHistoryChecked(value);
     }
 
     public void Refresh()
@@ -94,7 +115,32 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     [RelayCommand]
     private async Task ClearAllAsync()
     {
-        await _historyService.ClearAsync().ConfigureAwait(false);
+        if (AlsoClearClipboardOnClearHistory)
+        {
+            await _historyService.ClearAsync().ConfigureAwait(false);
+            await ClearSystemClipboardAsync().ConfigureAwait(false);
+        }
+        else
+        {
+            await ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
+                _historyService,
+                _clipboardService,
+                _hwndProvider()).ConfigureAwait(false);
+        }
+
+        EnsureRefreshOnUiThread();
+    }
+
+    /// <summary>
+    /// Forces the history list to sync immediately (may run off the UI thread after awaits).
+    /// </summary>
+    private void EnsureRefreshOnUiThread()
+    {
+        Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Refresh();
+        else
+            dispatcher.Invoke(Refresh);
     }
 
     private async Task RestoreEntryAsync(string entryId)
@@ -176,20 +222,22 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             _clipboardService.SetMultipleClipboardData(restorableFormats, hwnd);
     }
 
+    /// <summary>
+    /// Clipboard Win32 calls must run on the thread that owns the listener HWND (WPF dispatcher).
+    /// Clear-all uses ConfigureAwait(false) after history work, so we marshal this step back to the UI thread.
+    /// </summary>
     private async Task ClearSystemClipboardAsync()
     {
-        nint hwnd = _hwndProvider();
+        Task RunAsync() => ClipboardHistoryService.ClearSystemClipboardWithSuppressionAsync(
+            _historyService,
+            _clipboardService,
+            _hwndProvider());
 
-        _historyService.IsSuppressed = true;
-        try
-        {
-            _clipboardService.ClearClipboard(hwnd);
-        }
-        finally
-        {
-            await Task.Delay(500).ConfigureAwait(false);
-            _historyService.IsSuppressed = false;
-        }
+        Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            await RunAsync().ConfigureAwait(false);
+        else
+            await dispatcher.InvokeAsync(RunAsync);
     }
 
     private void OnEntriesChanged(object? sender, EventArgs e)

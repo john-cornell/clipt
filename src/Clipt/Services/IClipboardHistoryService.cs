@@ -14,6 +14,11 @@ public interface IClipboardHistoryService : IDisposable
     Task RenameAsync(string entryId, string newName);
     Task PromoteAsync(string entryId);
     Task ClearAsync();
+    /// <summary>
+    /// Removes entries whose <see cref="ClipboardHistoryEntry.ContentHash"/> does not match.
+    /// When <paramref name="contentHashHex"/> is null or empty, removes all entries (same as <see cref="ClearAsync"/>).
+    /// </summary>
+    Task ClearExceptMatchingContentHashAsync(string? contentHashHex);
     Task<ClipboardSnapshot?> RestoreAsync(string entryId);
 
     event EventHandler? EntriesChanged;

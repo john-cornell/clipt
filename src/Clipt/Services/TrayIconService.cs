@@ -13,6 +13,8 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _startModeItem;
     private WinForms.ToolStripMenuItem? _runOnStartupItem;
     private WinForms.ToolStripMenuItem? _purgeHistoryItem;
+    private WinForms.ToolStripMenuItem? _clearClipboardWhenClearingHistoryItem;
+    private Action<bool>? _syncClearClipboardPreference;
     private bool _disposed;
 
     private static readonly int[] MaxEntriesOptions = [5, 10, 25, 50];
@@ -74,6 +76,17 @@ public sealed class TrayIconService : ITrayIconService
             : "Clipt — Clipboard is empty";
     }
 
+    public void SetClearClipboardPreferenceSync(Action<bool>? sync)
+    {
+        _syncClearClipboardPreference = sync;
+    }
+
+    public void SetClearClipboardWhenClearingHistoryChecked(bool value)
+    {
+        if (_clearClipboardWhenClearingHistoryItem is not null)
+            _clearClipboardWhenClearingHistoryItem.Checked = value;
+    }
+
     private WinForms.ContextMenuStrip BuildContextMenu()
     {
         var menu = new WinForms.ContextMenuStrip();
@@ -104,6 +117,13 @@ public sealed class TrayIconService : ITrayIconService
         };
         _purgeHistoryItem.Click += OnPurgeHistoryToggle;
         menu.Items.Add(_purgeHistoryItem);
+
+        _clearClipboardWhenClearingHistoryItem = new WinForms.ToolStripMenuItem("Clear Clipboard When Clearing History")
+        {
+            Checked = _settingsService.LoadClearClipboardWhenClearingHistory(),
+        };
+        _clearClipboardWhenClearingHistoryItem.Click += OnClearClipboardWhenClearingHistoryToggle;
+        menu.Items.Add(_clearClipboardWhenClearingHistoryItem);
 
         menu.Items.Add(BuildHistoryTypeSubmenu());
 
@@ -200,6 +220,17 @@ public sealed class TrayIconService : ITrayIconService
         bool next = !_purgeHistoryItem.Checked;
         _settingsService.SavePurgeHistoryOnStartup(next);
         _purgeHistoryItem.Checked = next;
+    }
+
+    private void OnClearClipboardWhenClearingHistoryToggle(object? sender, EventArgs e)
+    {
+        if (_clearClipboardWhenClearingHistoryItem is null)
+            return;
+
+        bool next = !_clearClipboardWhenClearingHistoryItem.Checked;
+        _settingsService.SaveClearClipboardWhenClearingHistory(next);
+        _clearClipboardWhenClearingHistoryItem.Checked = next;
+        _syncClearClipboardPreference?.Invoke(next);
     }
 
     private void OnHistoryTypeToggle(object? sender, EventArgs e)

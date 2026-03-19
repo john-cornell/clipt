@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Text;
 using Clipt.Models;
 using Clipt.Native;
 using Clipt.Services;
@@ -10,12 +12,17 @@ public class HistoryTabViewModelTests
 {
     private readonly Mock<IClipboardHistoryService> _historyMock;
     private readonly Mock<IClipboardService> _clipboardMock;
+    private readonly Mock<ISettingsService> _settingsMock;
+    private readonly Mock<ITrayIconService> _trayMock;
 
     public HistoryTabViewModelTests()
     {
         _historyMock = new Mock<IClipboardHistoryService>();
         _historyMock.SetupProperty(h => h.IsSuppressed, false);
         _clipboardMock = new Mock<IClipboardService>();
+        _settingsMock = new Mock<ISettingsService>();
+        _settingsMock.Setup(s => s.LoadClearClipboardWhenClearingHistory()).Returns(false);
+        _trayMock = new Mock<ITrayIconService>();
     }
 
     private HistoryTabViewModel CreateVm()
@@ -23,7 +30,9 @@ public class HistoryTabViewModelTests
         return new HistoryTabViewModel(
             _historyMock.Object,
             _clipboardMock.Object,
-            () => (nint)0);
+            () => (nint)0,
+            _settingsMock.Object,
+            _trayMock.Object);
     }
 
     private static ClipboardHistoryEntry CreateEntry(
@@ -95,8 +104,18 @@ public class HistoryTabViewModelTests
     }
 
     [Fact]
-    public async Task ClearAllCommand_CallsServiceClear()
+    public async Task ClearAllCommand_EmptyClipboard_CallsClearAsync()
     {
+        _clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(new ClipboardSnapshot
+            {
+                Timestamp = DateTime.UtcNow,
+                SequenceNumber = 1,
+                OwnerProcessName = "test",
+                OwnerProcessId = 1,
+                Formats = ImmutableArray<ClipboardFormatInfo>.Empty,
+            });
+
         _historyMock.Setup(h => h.Entries)
             .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
 
@@ -104,6 +123,59 @@ public class HistoryTabViewModelTests
         await vm.ClearAllCommand.ExecuteAsync(null);
 
         _historyMock.Verify(h => h.ClearAsync(), Times.Once);
+        _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(It.IsAny<string>()), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ClearAllCommand_WithClipboard_CallsClearExceptMatchingHash()
+    {
+        byte[] data = Encoding.Unicode.GetBytes("KeepHash\0");
+        var snapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 99,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = data.Length,
+                Memory = new MemoryInfo("0x0", "0x0", data.Length, []),
+                RawData = data,
+            }),
+        };
+        string expectedHash = ClipboardHistoryService.ComputeContentHash(snapshot);
+
+        _clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>())).Returns(snapshot);
+        _historyMock.Setup(h => h.Entries)
+            .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        await vm.ClearAllCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(expectedHash), Times.Once);
+        _historyMock.Verify(h => h.ClearAsync(), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ClearAllCommand_AlsoClearClipboardTrue_CallsClearClipboardAfterHistory()
+    {
+        _historyMock.Setup(h => h.Entries)
+            .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        vm.AlsoClearClipboardOnClearHistory = true;
+        await vm.ClearAllCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.ClearAsync(), Times.Once);
+        _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(It.IsAny<string>()), Times.Never);
+        _clipboardMock.Verify(c => c.CaptureSnapshot(It.IsAny<nint>()), Times.Never);
+        await Task.Delay(600);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Once);
     }
 
     [Fact]

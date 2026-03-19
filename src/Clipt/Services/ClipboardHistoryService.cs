@@ -277,11 +277,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            foreach (var entry in _entries)
-                DeleteBlobQuietly(entry.Id);
-
-            _entries.Clear();
-            await WriteIndexAsync().ConfigureAwait(false);
+            await ClearAllEntriesUnderLockAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -289,6 +285,92 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
 
         EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task ClearExceptMatchingContentHashAsync(string? contentHashHex)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (string.IsNullOrEmpty(contentHashHex))
+            {
+                await ClearAllEntriesUnderLockAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                var toRemove = _entries.Where(e => e.ContentHash != contentHashHex).ToList();
+                foreach (var entry in toRemove)
+                {
+                    DeleteBlobQuietly(entry.Id);
+                    _entries.Remove(entry);
+                }
+
+                await WriteIndexAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task ClearAllEntriesUnderLockAsync()
+    {
+        foreach (var entry in _entries)
+            DeleteBlobQuietly(entry.Id);
+
+        _entries.Clear();
+        await WriteIndexAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Clears history except entries matching the current clipboard payload (by content hash).
+    /// When the clipboard has no formats, clears all history.
+    /// </summary>
+    public static async Task ClearHistoryMatchingCurrentClipboardAsync(
+        IClipboardHistoryService historyService,
+        IClipboardService clipboardService,
+        nint hwnd)
+    {
+        ArgumentNullException.ThrowIfNull(historyService);
+        ArgumentNullException.ThrowIfNull(clipboardService);
+
+        var snapshot = clipboardService.CaptureSnapshot(hwnd);
+        if (snapshot.Formats.Length == 0)
+        {
+            await historyService.ClearAsync().ConfigureAwait(false);
+            return;
+        }
+
+        string hash = ComputeContentHash(snapshot);
+        await historyService.ClearExceptMatchingContentHashAsync(hash).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Clears the system clipboard with the same suppression delay used after history restores/clears.
+    /// </summary>
+    public static async Task ClearSystemClipboardWithSuppressionAsync(
+        IClipboardHistoryService historyService,
+        IClipboardService clipboardService,
+        nint hwnd)
+    {
+        ArgumentNullException.ThrowIfNull(historyService);
+        ArgumentNullException.ThrowIfNull(clipboardService);
+
+        historyService.IsSuppressed = true;
+        try
+        {
+            clipboardService.ClearClipboard(hwnd);
+        }
+        finally
+        {
+            await Task.Delay(500).ConfigureAwait(false);
+            historyService.IsSuppressed = false;
+        }
     }
 
     public async Task<ClipboardSnapshot?> RestoreAsync(string entryId)
@@ -324,7 +406,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
     }
 
-    internal static string ComputeContentHash(ClipboardSnapshot snapshot)
+    public static string ComputeContentHash(ClipboardSnapshot snapshot)
     {
         if (snapshot.Formats.Length == 0)
             return string.Empty;

@@ -132,6 +132,26 @@ public class SettingsServiceTests
     }
 
     [Fact]
+    public void LoadClearClipboardWhenClearingHistory_DefaultsFalse()
+    {
+        var service = new SettingsService();
+        service.SaveClearClipboardWhenClearingHistory(false);
+        Assert.False(service.LoadClearClipboardWhenClearingHistory());
+    }
+
+    [Fact]
+    public void SaveAndLoadClearClipboardWhenClearingHistory_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveClearClipboardWhenClearingHistory(true);
+        Assert.True(service.LoadClearClipboardWhenClearingHistory());
+
+        service.SaveClearClipboardWhenClearingHistory(false);
+        Assert.False(service.LoadClearClipboardWhenClearingHistory());
+    }
+
+    [Fact]
     public void LoadDisabledHistoryTypes_DefaultsEmpty()
     {
         var service = new SettingsService();

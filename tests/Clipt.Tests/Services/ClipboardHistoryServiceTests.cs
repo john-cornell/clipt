@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Clipt.Models;
 using Clipt.Native;
@@ -287,6 +288,95 @@ public class ClipboardHistoryServiceTests : IDisposable
 
         await svc.ClearAsync();
         Assert.True(raised);
+    }
+
+    [Fact]
+    public async Task ClearExceptMatchingContentHashAsync_KeepsMatchingEntriesAndDeletesOthers()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-20);
+        await svc.AddAsync(CreateTextSnapshot("Keep", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("RemoveA", seqNum: 2, timestamp: t0.AddSeconds(3)));
+        await svc.AddAsync(CreateTextSnapshot("RemoveB", seqNum: 3, timestamp: t0.AddSeconds(6)));
+
+        Assert.Equal(3, svc.Entries.Count);
+        string keepHash = svc.Entries.First(e => e.Summary == "Keep").ContentHash;
+
+        await svc.ClearExceptMatchingContentHashAsync(keepHash);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Keep", svc.Entries[0].Summary);
+
+        string blobsDir = Path.Combine(_tempDir, "blobs");
+        Assert.Single(Directory.GetFiles(blobsDir, "*.bin"));
+    }
+
+    [Fact]
+    public async Task ClearExceptMatchingContentHashAsync_EmptyString_ClearsAll()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("X", seqNum: 1));
+
+        await svc.ClearExceptMatchingContentHashAsync(string.Empty);
+
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task ClearExceptMatchingContentHashAsync_Null_ClearsAll()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("X", seqNum: 1));
+
+        await svc.ClearExceptMatchingContentHashAsync(null!);
+
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task ClearHistoryMatchingCurrentClipboardAsync_EmptyClipboard_CallsClearAsync()
+    {
+        var historyMock = new Mock<IClipboardHistoryService>();
+        var clipboardMock = new Mock<IClipboardService>();
+        clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>())).Returns(new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray<ClipboardFormatInfo>.Empty,
+        });
+
+        await ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
+            historyMock.Object,
+            clipboardMock.Object,
+            (nint)0);
+
+        historyMock.Verify(h => h.ClearAsync(), Times.Once);
+        historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ClearHistoryMatchingCurrentClipboardAsync_WithData_CallsClearExceptMatching()
+    {
+        var snapshot = CreateTextSnapshot("ClipboardText", seqNum: 5);
+        string hash = ClipboardHistoryService.ComputeContentHash(snapshot);
+
+        var historyMock = new Mock<IClipboardHistoryService>();
+        var clipboardMock = new Mock<IClipboardService>();
+        clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>())).Returns(snapshot);
+
+        await ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
+            historyMock.Object,
+            clipboardMock.Object,
+            (nint)0);
+
+        historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(hash), Times.Once);
+        historyMock.Verify(h => h.ClearAsync(), Times.Never);
     }
 
     [Fact]

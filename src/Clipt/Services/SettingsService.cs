@@ -11,6 +11,7 @@ public sealed class SettingsService : ISettingsService
     private const string MaxHistoryEntriesValueName = "MaxHistoryEntries";
     private const string MaxHistorySizeBytesValueName = "MaxHistorySizeBytes";
     private const string PurgeHistoryOnStartupValueName = "PurgeHistoryOnStartup";
+    private const string ClearClipboardWhenClearingHistoryValueName = "ClearClipboardWhenClearingHistory";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Clipt";
@@ -145,6 +146,31 @@ public sealed class SettingsService : ISettingsService
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
             key.SetValue(PurgeHistoryOnStartupValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public bool LoadClearClipboardWhenClearingHistory()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(ClearClipboardWhenClearingHistoryValueName) is int intVal)
+                return intVal != 0;
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return false;
+    }
+
+    public void SaveClearClipboardWhenClearingHistory(bool enabled)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(ClearClipboardWhenClearingHistoryValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
         }
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }

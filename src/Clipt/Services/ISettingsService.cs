@@ -16,6 +16,12 @@ public interface ISettingsService
     bool LoadPurgeHistoryOnStartup();
     void SavePurgeHistoryOnStartup(bool enabled);
 
+    /// <summary>
+    /// When true, clearing history (tray or popup) also clears the system clipboard after the history clear.
+    /// </summary>
+    bool LoadClearClipboardWhenClearingHistory();
+    void SaveClearClipboardWhenClearingHistory(bool enabled);
+
     IReadOnlySet<ContentType> LoadDisabledHistoryTypes();
     void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
 
