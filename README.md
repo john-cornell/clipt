@@ -2,7 +2,7 @@
 
 A forensic-level Windows clipboard inspector built with WPF and .NET 8.
 
-Clipt goes far beyond simple paste — it enumerates every format present on the clipboard, shows raw bytes, text encodings, image previews, file-drop lists, HTML/RTF source, and native memory diagnostics.
+Clipt goes far beyond simple paste, it's a history manager, as well as it enumerating every format present on the clipboard, shows raw bytes, text encodings, image previews, file-drop lists, HTML/RTF source, and native memory diagnostics.
 
 ## Features
 
