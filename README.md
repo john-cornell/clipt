@@ -6,19 +6,27 @@ Clipt goes far beyond simple paste, it's a history manager, as well as it enumer
 
 ## Features
 
+### Clipboard History
+
+- **Clipboard History** — Tracks every clipboard entry over time with content type, summary, and timestamps. Restore or delete entries from the History tab in the compact popup
+- **Named Entries** — History entries get auto-generated descriptive names (first line of text, image dimensions, file names). Single-click any name to rename it inline; text is pre-selected so you can start typing immediately. "Click to edit" tooltip guides discoverability
+- **Smart Restore** — Restoring an entry writes all original clipboard formats (not just one), so paste works correctly everywhere. Restored items move to the top of the history list
+- **Delete with Auto-Advance** — Deleting the active (most recent) history entry automatically restores the next entry to the system clipboard, or clears the clipboard if history is empty
+- **Image Preview** — Click inline image thumbnails in history to open a full-size DPI-aware preview popup
+- **History Settings** — Configurable max entries (5/10/25/50), max storage size (50 MB -- unlimited), per-type filtering (text/image/files/other), and purge-on-startup option -- all from the tray right-click menu
+
+### System Tray and Window Management
+
 - **System Tray Icon** — Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit
 - **Compact Popup** — Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
 - **Pin Popup** — Toggle pin button in the popup title bar keeps the window open when you click elsewhere
-- **Clipboard History** — Tracks clipboard entries over time with content type, summary, and timestamps. Restore or delete entries from the History tab
-- **Named Entries** — History entries get auto-generated descriptive names (first line of text, image dimensions, file names). Double-click any name to rename it inline
-- **History Settings** — Configurable max entries (5/10/25/50), max storage size (50 MB–unlimited), per-type filtering (text/image/files/other), and purge-on-startup option — all from the tray right-click menu
-- **Run on Startup** — Toggle Windows startup registration from the tray menu; writes to the current-user Run registry key
-- **Delete with Auto-Advance** — Deleting the active (most recent) history entry automatically restores the next entry to the system clipboard, or clears the clipboard if history is empty
-- **Image Preview** — Click inline image thumbnails in history to open a full-size DPI-aware preview popup
-- **Smart Restore** — Restoring an entry writes all original clipboard formats (not just one), so paste works correctly everywhere. Restored items move to the top of the history list
 - **Expand to Full** — One-click button in the compact popup to open the full Clipt inspector window
+- **Run on Startup** — Toggle Windows startup registration from the tray menu; writes to the current-user Run registry key
 - **Startup Mode** — Choose between launching with the full window visible or collapsed to the system tray. Preference saved to registry
 - **Minimize to Tray** — Closing the main window hides it to the tray instead of exiting. Exit only via tray right-click menu
+
+### Clipboard Inspector
+
 - **Text** — CF_UNICODETEXT (UTF-16), CF_TEXT (ANSI), CF_OEMTEXT with character/line counts, encoding stats, locale info
 - **Hex Dump** — Configurable hex + ASCII dump for any clipboard format with selectable bytes-per-row
 - **Image** — CF_BITMAP / CF_DIB / CF_DIBV5 rendered as BitmapSource with zoom, pan, and export. Shows dimensions, DPI, pixel format, stride
@@ -34,6 +42,7 @@ Clipt goes far beyond simple paste, it's a history manager, as well as it enumer
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.6.2 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.2/CliptSetup.exe) | Single-click rename with "Click to edit" tooltip and auto-select-all, fix tooltip rendering in history items, fix first-click edit flash |
 | 1.6.0 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.0/CliptSetup.exe) | Named history entries with inline rename, per-type history filtering, run-on-startup, purge-on-startup, delete-with-auto-advance, clear clipboard, configurable limits via tray menu, DI refactor with SettingsService |
 | 1.4.11 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.11/CliptSetup.exe) | Custom clipboard-eye tray icons (red/green) replacing plain circles, multi-resolution ICO with 5 sizes |
 | 1.4.10 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.10/CliptSetup.exe) | Click-to-preview full-size images, pin popup window, fix image restore (multi-format), clipboard history with dedup, inline thumbnails, code-signed |

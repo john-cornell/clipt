@@ -775,4 +775,147 @@ public class HistoryTabViewModelTests
 
         _historyMock.Verify(h => h.RenameAsync("a", "Trimmed"), Times.Once);
     }
+
+    [Fact]
+    public void IsEditing_DefaultsFalse()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.False(vm.DisplayEntries[0].IsEditing);
+    }
+
+    [Fact]
+    public void IsEditing_TogglesAndRaisesPropertyChanged()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = vm.DisplayEntries[0];
+        var changedProperties = new List<string>();
+        item.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is not null)
+                changedProperties.Add(e.PropertyName);
+        };
+
+        item.IsEditing = true;
+
+        Assert.True(item.IsEditing);
+        Assert.Contains(nameof(HistoryEntryDisplayItem.IsEditing), changedProperties);
+    }
+
+    [Fact]
+    public void IsEditing_SetFalse_AfterTrue_RaisesPropertyChanged()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = vm.DisplayEntries[0];
+        item.IsEditing = true;
+
+        var changedProperties = new List<string>();
+        item.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is not null)
+                changedProperties.Add(e.PropertyName);
+        };
+
+        item.IsEditing = false;
+
+        Assert.False(item.IsEditing);
+        Assert.Contains(nameof(HistoryEntryDisplayItem.IsEditing), changedProperties);
+    }
+
+    [Fact]
+    public async Task RenameCommand_AfterEditingToggle_CommitsNewName()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Original", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = vm.DisplayEntries[0];
+        item.IsEditing = true;
+        item.Name = "Renamed";
+        item.IsEditing = false;
+
+        await item.RenameCommand!.ExecuteAsync("Renamed");
+
+        _historyMock.Verify(h => h.RenameAsync("a", "Renamed"), Times.Once);
+    }
+
+    [Fact]
+    public void Name_SetWhileEditing_RaisesPropertyChanged()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = vm.DisplayEntries[0];
+        item.IsEditing = true;
+
+        var changedProperties = new List<string>();
+        item.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is not null)
+                changedProperties.Add(e.PropertyName);
+        };
+
+        item.Name = "NewName";
+
+        Assert.Equal("NewName", item.Name);
+        Assert.Contains(nameof(HistoryEntryDisplayItem.Name), changedProperties);
+    }
+
+    [Fact]
+    public void DisplayEntries_AnyIsEditing_ReturnsTrueWhenItemEditing()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.DoesNotContain(vm.DisplayEntries, i => i.IsEditing);
+
+        vm.DisplayEntries[1].IsEditing = true;
+
+        Assert.Contains(vm.DisplayEntries, i => i.IsEditing);
+
+        vm.DisplayEntries[1].IsEditing = false;
+
+        Assert.DoesNotContain(vm.DisplayEntries, i => i.IsEditing);
+    }
 }

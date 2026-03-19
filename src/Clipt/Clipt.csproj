@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.6.0</Version>
+    <Version>1.6.2</Version>
     <ApplicationIcon>Icons\icon.ico</ApplicationIcon>
   </PropertyGroup>
 

@@ -48,6 +48,9 @@ public partial class TrayPopupWindow : Window
         if (((TrayPopupViewModel)DataContext).IsPinned)
             return;
 
+        if (_subscribedHistoryTab?.DisplayEntries.Any(i => i.IsEditing) == true)
+            return;
+
         _lastHiddenUtc = DateTime.UtcNow;
         Hide();
     }
@@ -99,10 +102,22 @@ public partial class TrayPopupWindow : Window
 
     private void HistoryEntryName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 2 && sender is FrameworkElement { DataContext: HistoryEntryDisplayItem item })
+        if (sender is FrameworkElement { DataContext: HistoryEntryDisplayItem item })
         {
             item.IsEditing = true;
             e.Handled = true;
+        }
+    }
+
+    private void HistoryEntryNameEdit_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.Visibility == Visibility.Visible)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                tb.Focus();
+                tb.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Input);
         }
     }
 
