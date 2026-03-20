@@ -174,8 +174,31 @@ public class HistoryTabViewModelTests
         _historyMock.Verify(h => h.ClearAsync(), Times.Once);
         _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(It.IsAny<string>()), Times.Never);
         _clipboardMock.Verify(c => c.CaptureSnapshot(It.IsAny<nint>()), Times.Never);
-        await Task.Delay(600);
         _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Once);
+        Assert.False(_historyMock.Object.IsSuppressed,
+            "Clear path must never touch IsSuppressed (suppression is only for restore)");
+    }
+
+    [Fact]
+    public async Task ClearAllCommand_AlsoClearClipboardFalse_LeavesIsNotSuppressed()
+    {
+        _clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>()))
+            .Returns(new ClipboardSnapshot
+            {
+                Timestamp = DateTime.UtcNow,
+                SequenceNumber = 1,
+                OwnerProcessName = "test",
+                OwnerProcessId = 1,
+                Formats = ImmutableArray<ClipboardFormatInfo>.Empty,
+            });
+        _historyMock.Setup(h => h.Entries)
+            .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        vm.AlsoClearClipboardOnClearHistory = false;
+        await vm.ClearAllCommand.ExecuteAsync(null);
+
+        Assert.False(_historyMock.Object.IsSuppressed, "IsSuppressed must be false after clear without clipboard option");
     }
 
     [Fact]

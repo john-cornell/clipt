@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading;
 using System.Windows;
 using Clipt.Models;
 using Clipt.Services;
@@ -20,6 +21,8 @@ public partial class App : Application
     private IClipboardService? _clipboardService;
     private IClipboardHistoryService? _historyService;
     private ISettingsService? _settingsService;
+    private IAppLogger? _appLogger;
+    private int _clipboardTrayDispatchOrdinal;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -39,6 +42,7 @@ public partial class App : Application
         _trayPopupViewModel = _serviceProvider.GetRequiredService<TrayPopupViewModel>();
         _historyService = _serviceProvider.GetRequiredService<IClipboardHistoryService>();
         _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
+        _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
 
@@ -115,7 +119,19 @@ public partial class App : Application
         {
             try
             {
+                int dispatch = Interlocked.Increment(ref _clipboardTrayDispatchOrdinal);
+                if (_appLogger?.Level >= AppLogLevel.Debug)
+                {
+                    _appLogger.Debug(
+                        $"Tray clipboard handler dispatch#{dispatch} thread={Environment.CurrentManagedThreadId}");
+                }
+
                 var snapshot = _clipboardService!.CaptureSnapshot(_listenerService!.Hwnd);
+                if (_appLogger?.Level >= AppLogLevel.Debug)
+                {
+                    _appLogger.Debug($"Tray capture: {ClipboardHistoryService.DescribeSnapshotDebug(snapshot)}");
+                }
+
                 bool hasData = snapshot.Formats.Length > 0;
                 _trayIconService?.UpdateIcon(hasData);
                 _trayPopupViewModel?.Update(snapshot);
@@ -171,14 +187,13 @@ public partial class App : Application
             {
                 await _historyService.ClearAsync().ConfigureAwait(false);
                 await Dispatcher.InvokeAsync(() =>
-                    ClipboardHistoryService.ClearSystemClipboardWithSuppressionAsync(
-                        _historyService, _clipboardService, _listenerService.Hwnd));
+                    _clipboardService.ClearClipboard(_listenerService.Hwnd));
             }
             else
             {
                 await Dispatcher.InvokeAsync(() =>
                     ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
-                        _historyService, _clipboardService, _listenerService.Hwnd));
+                        _historyService, _clipboardService, _listenerService.Hwnd)).Task.Unwrap();
             }
 
             Dispatcher.Invoke(() => _historyTabViewModel?.Refresh());
@@ -228,6 +243,7 @@ public partial class App : Application
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IAppLogger, AppLogger>();
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<ITrayIconService, TrayIconService>();
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();

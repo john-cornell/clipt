@@ -15,6 +15,7 @@ public sealed class SettingsService : ISettingsService
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Clipt";
+    private const string LogLevelValueName = "LogLevel";
     private const int DefaultMaxHistoryEntries = 10;
     private const long DefaultMaxHistorySizeBytes = 100L * 1024 * 1024;
 
@@ -250,6 +251,38 @@ public sealed class SettingsService : ISettingsService
             {
                 key.DeleteValue(RunValueName, throwOnMissingValue: false);
             }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public AppLogLevel LoadLogLevel()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(LogLevelValueName) is string value
+                && Enum.TryParse<AppLogLevel>(value, ignoreCase: true, out var level)
+                && Enum.IsDefined(level))
+            {
+                return level;
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return AppLogLevel.Off;
+    }
+
+    public void SaveLogLevel(AppLogLevel level)
+    {
+        if (!Enum.IsDefined(level))
+            level = AppLogLevel.Off;
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(LogLevelValueName, level.ToString(), RegistryValueKind.String);
         }
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }

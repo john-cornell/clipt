@@ -1,16 +1,19 @@
 using System.Windows.Interop;
-using System.Windows.Threading;
+using Clipt.Models;
 using Clipt.Native;
 
 namespace Clipt.Services;
 
 public sealed class ClipboardListenerService : IDisposable
 {
+    private readonly IAppLogger _logger;
     private HwndSource? _hwndSource;
-    private DispatcherTimer? _debounceTimer;
     private bool _disposed;
 
-    internal static readonly TimeSpan DebounceInterval = TimeSpan.FromMilliseconds(300);
+    public ClipboardListenerService(IAppLogger logger)
+    {
+        _logger = logger;
+    }
 
     public event EventHandler? ClipboardChanged;
 
@@ -39,30 +42,24 @@ public sealed class ClipboardListenerService : IDisposable
             throw new InvalidOperationException(
                 $"AddClipboardFormatListener failed with error code {error}.");
         }
-
-        _debounceTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = DebounceInterval,
-        };
-        _debounceTimer.Tick += OnDebounceElapsed;
     }
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
         if (msg == ClipboardConstants.WM_CLIPBOARDUPDATE)
         {
-            _debounceTimer?.Stop();
-            _debounceTimer?.Start();
+            if (_logger.Level >= AppLogLevel.Debug)
+            {
+                uint seq = NativeMethods.GetClipboardSequenceNumber();
+                _logger.Debug(
+                    $"WM_CLIPBOARDUPDATE nativeSeq={seq} managedThread={Environment.CurrentManagedThreadId}");
+            }
+
+            ClipboardChanged?.Invoke(this, EventArgs.Empty);
             handled = true;
         }
 
         return 0;
-    }
-
-    private void OnDebounceElapsed(object? sender, EventArgs e)
-    {
-        _debounceTimer?.Stop();
-        ClipboardChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()
@@ -71,13 +68,6 @@ public sealed class ClipboardListenerService : IDisposable
             return;
 
         _disposed = true;
-
-        if (_debounceTimer is not null)
-        {
-            _debounceTimer.Stop();
-            _debounceTimer.Tick -= OnDebounceElapsed;
-            _debounceTimer = null;
-        }
 
         if (_hwndSource is not null)
         {

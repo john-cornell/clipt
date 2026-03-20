@@ -27,4 +27,7 @@ public interface ISettingsService
 
     bool LoadRunOnStartup();
     void SaveRunOnStartup(bool enabled);
+
+    AppLogLevel LoadLogLevel();
+    void SaveLogLevel(AppLogLevel level);
 }

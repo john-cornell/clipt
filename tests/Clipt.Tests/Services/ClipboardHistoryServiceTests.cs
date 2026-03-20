@@ -13,6 +13,7 @@ public class ClipboardHistoryServiceTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly Mock<ISettingsService> _settingsMock;
+    private readonly Mock<IAppLogger> _loggerMock;
 
     public ClipboardHistoryServiceTests()
     {
@@ -22,6 +23,8 @@ public class ClipboardHistoryServiceTests : IDisposable
         _settingsMock.Setup(s => s.LoadMaxHistoryEntries()).Returns(10);
         _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
         _settingsMock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
+        _loggerMock = new Mock<IAppLogger>();
+        _loggerMock.Setup(l => l.Level).Returns(AppLogLevel.Off);
     }
 
     public void Dispose()
@@ -35,7 +38,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     private ClipboardHistoryService CreateService() =>
-        new(_settingsMock.Object, _tempDir);
+        new(_settingsMock.Object, _loggerMock.Object, _tempDir);
 
     private static ClipboardSnapshot CreateTextSnapshot(
         string text, uint seqNum = 1, DateTime? timestamp = null)
@@ -603,7 +606,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_SameContentType_WithinWindow_ReplacesHead()
+    public async Task AddAsync_RapidDistinctSameType_KeepsBoth()
     {
         using var svc = CreateService();
         await svc.LoadAsync();
@@ -612,12 +615,13 @@ public class ClipboardHistoryServiceTests : IDisposable
         Assert.Single(svc.Entries);
 
         await svc.AddAsync(CreateTextSnapshot("Second", seqNum: 2));
-        Assert.Single(svc.Entries);
+        Assert.Equal(2, svc.Entries.Count);
         Assert.Equal("Second", svc.Entries[0].Summary);
+        Assert.Equal("First", svc.Entries[1].Summary);
     }
 
     [Fact]
-    public async Task AddAsync_DifferentContentType_WithinWindow_AddsBoth()
+    public async Task AddAsync_RapidDistinctDifferentType_KeepsBoth()
     {
         using var svc = CreateService();
         await svc.LoadAsync();
@@ -631,30 +635,68 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_SameContentType_OutsideWindow_AddsBoth()
+    public async Task AddAsync_IdenticalContent_RejectedByHash()
     {
         using var svc = CreateService();
         await svc.LoadAsync();
 
-        var oldSnapshot = new ClipboardSnapshot
-        {
-            Timestamp = DateTime.UtcNow.AddSeconds(-5),
-            SequenceNumber = 1,
-            OwnerProcessName = "test",
-            OwnerProcessId = 1,
-            Formats = System.Collections.Immutable.ImmutableArray.Create(new ClipboardFormatInfo
-            {
-                FormatId = ClipboardConstants.CF_UNICODETEXT,
-                FormatName = "CF_UNICODETEXT",
-                IsStandard = true,
-                DataSize = 12,
-                Memory = new MemoryInfo("0x0", "0x0", 12, []),
-                RawData = Encoding.Unicode.GetBytes("Old\0"),
-            }),
-        };
-        await svc.AddAsync(oldSnapshot);
+        await svc.AddAsync(CreateTextSnapshot("Same", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("Same", seqNum: 2));
 
-        await svc.AddAsync(CreateTextSnapshot("New", seqNum: 2));
+        Assert.Single(svc.Entries);
+        Assert.Equal("Same", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_ImageSnapshotsWithVolatileMetadata_SuppressDuplicate()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var first = CreateSnippingToolLikeImageSnapshot(
+            dataObjectBytes: [0x70, 0xD5, 0xC7, 0xCE, 0xC0, 0x02, 0xA8, 0x4B],
+            dibBytes: BuildBitmapPayload(40, 357, 377, 0x11, 0x22, 0x33),
+            dibv5Bytes: BuildBitmapPayload(124, 357, 377, 0x44, 0x55, 0x66),
+            pngBytes: [0x89, 0x50, 0x4E, 0x47, 0x01, 0x02, 0x03],
+            seqNum: 3139);
+
+        var second = CreateSnippingToolLikeImageSnapshot(
+            dataObjectBytes: [0xAF, 0x55, 0x70, 0xF5, 0xA1, 0x81, 0x0B, 0x7A],
+            dibBytes: BuildBitmapPayload(40, 357, 377, 0x11, 0x22, 0x33),
+            dibv5Bytes: BuildBitmapPayload(124, 357, 377, 0x44, 0x55, 0x66),
+            pngBytes: [0x89, 0x50, 0x4E, 0x47, 0x01, 0x02, 0x03],
+            seqNum: 3141);
+
+        await svc.AddAsync(first);
+        await svc.AddAsync(second);
+
+        Assert.Single(svc.Entries);
+        _loggerMock.Verify(l => l.Warn(It.Is<string>(msg =>
+            msg.Contains("reason=contentHashMatch")
+            && msg.Contains("hashKind=imageCanonical")
+            && msg.Contains("sourceFormat=CF_DIBV5"))), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddAsync_DifferentCanonicalImages_AddsBoth()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateSnippingToolLikeImageSnapshot(
+            dataObjectBytes: [0x01],
+            dibBytes: BuildBitmapPayload(40, 320, 200, 0x01, 0x02, 0x03),
+            dibv5Bytes: BuildBitmapPayload(124, 320, 200, 0x10, 0x20, 0x30),
+            pngBytes: [0x89, 0x50, 0x4E, 0x47, 0x10],
+            seqNum: 1));
+
+        await svc.AddAsync(CreateSnippingToolLikeImageSnapshot(
+            dataObjectBytes: [0x02],
+            dibBytes: BuildBitmapPayload(40, 320, 200, 0x01, 0x02, 0x03),
+            dibv5Bytes: BuildBitmapPayload(124, 320, 200, 0x99, 0x88, 0x77),
+            pngBytes: [0x89, 0x50, 0x4E, 0x47, 0x10],
+            seqNum: 2));
+
         Assert.Equal(2, svc.Entries.Count);
     }
 
@@ -678,6 +720,67 @@ public class ClipboardHistoryServiceTests : IDisposable
                 RawData = dibHeader,
             }),
         };
+    }
+
+    private static ClipboardSnapshot CreateSnippingToolLikeImageSnapshot(
+        byte[] dataObjectBytes,
+        byte[] dibBytes,
+        byte[] dibv5Bytes,
+        byte[] pngBytes,
+        uint seqNum)
+    {
+        return new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = seqNum,
+            OwnerProcessName = "SnippingTool",
+            OwnerProcessId = 1,
+            Formats =
+            [
+                CreateFormat(0xC009, "DataObject", dataObjectBytes, isStandard: false),
+                CreateFormat(ClipboardConstants.CF_BITMAP, "CF_BITMAP", [], isStandard: true),
+                CreateFormat(0xC1B2, "PNG", pngBytes, isStandard: false),
+                CreateFormat(0xC1D2, "CanUploadToCloudClipboard", [1, 0, 0, 0], isStandard: false),
+                CreateFormat(0xC1D3, "CanIncludeInClipboardHistory", [1, 0, 0, 0], isStandard: false),
+                CreateFormat(0xC013, "Ole Private Data", [0x0D, 0x0E, 0x0F], isStandard: false),
+                CreateFormat(ClipboardConstants.CF_DIB, "CF_DIB", dibBytes, isStandard: true),
+                CreateFormat(ClipboardConstants.CF_DIBV5, "CF_DIBV5", dibv5Bytes, isStandard: true),
+            ],
+        };
+    }
+
+    private static ClipboardFormatInfo CreateFormat(
+        uint formatId,
+        string formatName,
+        byte[] rawData,
+        bool isStandard)
+    {
+        return new ClipboardFormatInfo
+        {
+            FormatId = formatId,
+            FormatName = formatName,
+            IsStandard = isStandard,
+            DataSize = rawData.Length,
+            Memory = new MemoryInfo("0x0", "0x0", rawData.Length, []),
+            RawData = rawData,
+        };
+    }
+
+    private static byte[] BuildBitmapPayload(
+        int headerSize,
+        int width,
+        int height,
+        params byte[] tail)
+    {
+        byte[] payload = new byte[Math.Max(headerSize, 16) + tail.Length];
+        BitConverter.TryWriteBytes(payload.AsSpan(0, 4), headerSize);
+        BitConverter.TryWriteBytes(payload.AsSpan(4, 4), width);
+        BitConverter.TryWriteBytes(payload.AsSpan(8, 4), height);
+
+        if (tail.Length > 0)
+            tail.CopyTo(payload, Math.Max(headerSize, 16));
+
+        return payload;
     }
 
     private static ClipboardSnapshot CreateImageSnapshotWithDimensions(

@@ -12,9 +12,10 @@ namespace Clipt.Services;
 public sealed class ClipboardHistoryService : IClipboardHistoryService
 {
     internal const int ContentHashLookback = 5;
-    internal static readonly TimeSpan DeduplicateWindow = TimeSpan.FromSeconds(2);
+    private const string PngFormatName = "PNG";
 
     private readonly ISettingsService _settingsService;
+    private readonly IAppLogger _logger;
     private readonly string _historyDir;
     private readonly string _blobsDir;
     private readonly string _indexPath;
@@ -41,14 +42,15 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         set => Interlocked.Exchange(ref _suppressed, value ? 1 : 0);
     }
 
-    public ClipboardHistoryService(ISettingsService settingsService)
-        : this(settingsService, GetDefaultHistoryDirectory())
+    public ClipboardHistoryService(ISettingsService settingsService, IAppLogger logger)
+        : this(settingsService, logger, GetDefaultHistoryDirectory())
     {
     }
 
-    internal ClipboardHistoryService(ISettingsService settingsService, string historyDirectory)
+    internal ClipboardHistoryService(ISettingsService settingsService, IAppLogger logger, string historyDirectory)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _historyDir = historyDirectory ?? throw new ArgumentNullException(nameof(historyDirectory));
         _blobsDir = Path.Combine(_historyDir, "blobs");
         _indexPath = Path.Combine(_historyDir, "index.json");
@@ -124,49 +126,76 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (IsSuppressed)
+        {
+            if (_logger.Level >= AppLogLevel.Debug)
+                _logger.Debug("AddAsync exit: IsSuppressed=true");
             return;
+        }
 
         if (snapshot.Formats.Length == 0)
+        {
+            if (_logger.Level >= AppLogLevel.Debug)
+                _logger.Debug("AddAsync exit: empty formats");
             return;
+        }
 
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_entries.Count > 0 && _entries[0].SequenceNumber == snapshot.SequenceNumber)
-                return;
+            if (_logger.Level >= AppLogLevel.Debug)
+                _logger.Debug($"AddAsync enter: {DescribeSnapshotDebug(snapshot)}");
 
-            string contentHash = ComputeContentHash(snapshot);
+            ContentHashDetails contentHashDetails = ComputeContentHashDetails(snapshot);
+            string contentHash = contentHashDetails.Hash;
+
+            if (_entries.Count > 0 && _entries[0].SequenceNumber == snapshot.SequenceNumber)
+            {
+                LogDuplicateSuppressed(
+                    $"History duplicate suppressed: reason=sequenceMatch seq={snapshot.SequenceNumber} contentHash={contentHash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}",
+                    contentHashDetails);
+                if (_logger.Level >= AppLogLevel.Debug)
+                {
+                    _logger.Debug(
+                        $"AddAsync exit: head id={_entries[0].Id} headSeq={_entries[0].SequenceNumber} headHash={_entries[0].ContentHash}");
+                }
+
+                return;
+            }
 
             int lookback = Math.Min(_entries.Count, ContentHashLookback);
             for (int i = 0; i < lookback; i++)
             {
                 if (_entries[i].ContentHash.Length > 0
                     && _entries[i].ContentHash == contentHash)
+                {
+                    LogDuplicateSuppressed(
+                        $"History duplicate suppressed: reason=contentHashMatch lookbackIndex={i} contentHash={contentHash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}",
+                        contentHashDetails);
+                    if (_logger.Level >= AppLogLevel.Debug)
+                    {
+                        _logger.Debug(
+                            $"AddAsync exit: matched entry id={_entries[i].Id} seq={_entries[i].SequenceNumber} name={_entries[i].Name}");
+                    }
+
                     return;
+                }
             }
 
             ContentType newContentType = DetermineContentType(snapshot);
 
             var disabledTypes = _settingsService.LoadDisabledHistoryTypes();
             if (disabledTypes.Contains(newContentType))
+            {
+                if (_logger.Level >= AppLogLevel.Debug)
+                    _logger.Debug($"AddAsync exit: content type {newContentType} disabled in settings");
                 return;
+            }
 
             string id = Guid.NewGuid().ToString("N");
 
             EnsureDirectoriesExist();
 
             byte[] blobData = SerializeSnapshot(snapshot);
-
-            if (_entries.Count > 0)
-            {
-                var head = _entries[0];
-                TimeSpan age = snapshot.Timestamp - head.TimestampUtc;
-                if (age < DeduplicateWindow && head.ContentType == newContentType)
-                {
-                    DeleteBlobQuietly(head.Id);
-                    _entries.RemoveAt(0);
-                }
-            }
 
             string blobPath = GetBlobPath(id);
             await File.WriteAllBytesAsync(blobPath, blobData).ConfigureAwait(false);
@@ -188,6 +217,12 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             _entries.Insert(0, entry);
             EnforceCaps();
             await WriteIndexAsync().ConfigureAwait(false);
+
+            if (_logger.Level >= AppLogLevel.Debug)
+            {
+                _logger.Debug(
+                    $"AddAsync added: id={id} seq={snapshot.SequenceNumber} type={newContentType} contentHash={contentHash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)} blobBytes={blobData.LongLength}");
+            }
         }
         finally
         {
@@ -350,29 +385,6 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         await historyService.ClearExceptMatchingContentHashAsync(hash).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Clears the system clipboard with the same suppression delay used after history restores/clears.
-    /// </summary>
-    public static async Task ClearSystemClipboardWithSuppressionAsync(
-        IClipboardHistoryService historyService,
-        IClipboardService clipboardService,
-        nint hwnd)
-    {
-        ArgumentNullException.ThrowIfNull(historyService);
-        ArgumentNullException.ThrowIfNull(clipboardService);
-
-        historyService.IsSuppressed = true;
-        try
-        {
-            clipboardService.ClearClipboard(hwnd);
-        }
-        finally
-        {
-            await Task.Delay(500).ConfigureAwait(false);
-            historyService.IsSuppressed = false;
-        }
-    }
-
     public async Task<ClipboardSnapshot?> RestoreAsync(string entryId)
     {
         ArgumentException.ThrowIfNullOrEmpty(entryId);
@@ -406,7 +418,54 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
     }
 
+    internal static string DescribeSnapshotDebug(ClipboardSnapshot snapshot)
+    {
+        var sb = new StringBuilder();
+        sb.Append(
+            $"seq={snapshot.SequenceNumber} utc={snapshot.Timestamp:O} owner={snapshot.OwnerProcessName} pid={snapshot.OwnerProcessId}");
+
+        ContentHashDetails contentHashDetails = ComputeContentHashDetails(snapshot);
+        sb.Append($" contentHash={contentHashDetails.Hash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}");
+
+        string aggregateHash = ComputeAggregateHash(snapshot);
+        if (!string.Equals(aggregateHash, contentHashDetails.Hash, StringComparison.Ordinal))
+            sb.Append($" aggregateHash={aggregateHash}");
+
+        for (int i = 0; i < snapshot.Formats.Length; i++)
+        {
+            var f = snapshot.Formats[i];
+            string fp = f.RawData.Length == 0
+                ? "empty"
+                : Convert.ToHexString(SHA256.HashData(f.RawData).AsSpan(0, 8));
+            sb.Append(
+                $" | fmt[{i}] id=0x{f.FormatId:X4} name={f.FormatName} rawLen={f.RawData.Length} sha256prefix={fp}");
+        }
+
+        return sb.ToString();
+    }
+
     public static string ComputeContentHash(ClipboardSnapshot snapshot)
+    {
+        return ComputeContentHashDetails(snapshot).Hash;
+    }
+
+    private static ContentHashDetails ComputeContentHashDetails(ClipboardSnapshot snapshot)
+    {
+        if (snapshot.Formats.Length == 0)
+            return new ContentHashDetails(string.Empty, "empty", null);
+
+        if (TryGetCanonicalImageFormat(snapshot, out ClipboardFormatInfo? format))
+        {
+            return new ContentHashDetails(
+                ComputeHashForPayload(format!.FormatId, format.RawData, "imageCanonical"),
+                "imageCanonical",
+                format.FormatName);
+        }
+
+        return new ContentHashDetails(ComputeAggregateHash(snapshot), "aggregate", null);
+    }
+
+    private static string ComputeAggregateHash(ClipboardSnapshot snapshot)
     {
         if (snapshot.Formats.Length == 0)
             return string.Empty;
@@ -414,7 +473,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Span<byte> idBytes = stackalloc byte[4];
 
-        foreach (var fmt in snapshot.Formats)
+        foreach (var fmt in snapshot.Formats
+            .OrderBy(f => f.FormatId)
+            .ThenBy(f => f.FormatName, StringComparer.Ordinal))
         {
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(idBytes, fmt.FormatId);
             sha.AppendData(idBytes);
@@ -426,6 +487,59 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         byte[] hash = sha.GetHashAndReset();
         return Convert.ToHexString(hash);
     }
+
+    private static string ComputeHashForPayload(uint formatId, byte[] rawData, string scheme)
+    {
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        byte[] schemeBytes = Encoding.ASCII.GetBytes(scheme);
+        sha.AppendData(schemeBytes);
+
+        Span<byte> idBytes = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(idBytes, formatId);
+        sha.AppendData(idBytes);
+
+        if (rawData.Length > 0)
+            sha.AppendData(rawData);
+
+        return Convert.ToHexString(sha.GetHashAndReset());
+    }
+
+    private static bool TryGetCanonicalImageFormat(
+        ClipboardSnapshot snapshot,
+        out ClipboardFormatInfo? format)
+    {
+        format = snapshot.Formats.FirstOrDefault(f =>
+            f.FormatId == ClipboardConstants.CF_DIBV5 && f.RawData.Length > 0);
+        if (format is not null)
+            return true;
+
+        format = snapshot.Formats.FirstOrDefault(f =>
+            f.FormatId == ClipboardConstants.CF_DIB && f.RawData.Length > 0);
+        if (format is not null)
+            return true;
+
+        format = snapshot.Formats.FirstOrDefault(f =>
+            f.FormatName == PngFormatName && f.RawData.Length > 0);
+        return format is not null;
+    }
+
+    private static string FormatHashSourceSuffix(ContentHashDetails details) =>
+        details.SourceFormatName is { Length: > 0 } sourceFormat
+            ? $" sourceFormat={sourceFormat}"
+            : string.Empty;
+
+    private void LogDuplicateSuppressed(string message, ContentHashDetails details)
+    {
+        if (details.Kind == "imageCanonical")
+            _logger.Warn(message);
+        else if (_logger.Level >= AppLogLevel.Debug)
+            _logger.Debug(message);
+    }
+
+    private readonly record struct ContentHashDetails(
+        string Hash,
+        string Kind,
+        string? SourceFormatName);
 
     private void EnforceCaps()
     {

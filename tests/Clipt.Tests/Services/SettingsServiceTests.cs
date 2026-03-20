@@ -1,10 +1,47 @@
 using Clipt.Models;
 using Clipt.Services;
+using Microsoft.Win32;
 
 namespace Clipt.Tests.Services;
 
-public class SettingsServiceTests
+public class SettingsServiceTests : IDisposable
 {
+    private const string SettingsKeyPath = @"SOFTWARE\Clipt";
+    private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunValueName = "Clipt";
+
+    private readonly bool _settingsKeyExisted;
+    private readonly List<RegistryValueSnapshot> _settingsValues;
+    private readonly RegistryValueSnapshot? _runValue;
+
+    public SettingsServiceTests()
+    {
+        using RegistryKey? settingsKey = Registry.CurrentUser.OpenSubKey(SettingsKeyPath);
+        _settingsKeyExisted = settingsKey is not null;
+        _settingsValues = settingsKey?
+            .GetValueNames()
+            .Select(name => new RegistryValueSnapshot(
+                name,
+                settingsKey.GetValue(name)!,
+                settingsKey.GetValueKind(name)))
+            .ToList()
+            ?? [];
+
+        using RegistryKey? runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        _runValue = runKey?.GetValue(RunValueName) is { } runValue
+            ? new RegistryValueSnapshot(
+                RunValueName,
+                runValue,
+                runKey.GetValueKind(RunValueName))
+            : null;
+    }
+
+    public void Dispose()
+    {
+        RestoreSettingsKey();
+        RestoreRunValue();
+    }
+
     [Fact]
     public void LoadStartupMode_DefaultsToFullWindow()
     {
@@ -225,4 +262,71 @@ public class SettingsServiceTests
         service.SaveRunOnStartup(false);
         Assert.False(service.LoadRunOnStartup());
     }
+
+    [Fact]
+    public void LoadLogLevel_DefaultsToOff()
+    {
+        var service = new SettingsService();
+        service.SaveLogLevel(AppLogLevel.Off);
+        Assert.Equal(AppLogLevel.Off, service.LoadLogLevel());
+    }
+
+    [Fact]
+    public void SaveAndLoadLogLevel_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveLogLevel(AppLogLevel.Debug);
+        Assert.Equal(AppLogLevel.Debug, service.LoadLogLevel());
+
+        service.SaveLogLevel(AppLogLevel.Warn);
+        Assert.Equal(AppLogLevel.Warn, service.LoadLogLevel());
+
+        service.SaveLogLevel(AppLogLevel.Off);
+        Assert.Equal(AppLogLevel.Off, service.LoadLogLevel());
+    }
+
+    [Fact]
+    public void SaveLogLevel_InvalidValue_FallsBackToOff()
+    {
+        var service = new SettingsService();
+
+        service.SaveLogLevel((AppLogLevel)999);
+
+        Assert.Equal(AppLogLevel.Off, service.LoadLogLevel());
+    }
+
+    private void RestoreSettingsKey()
+    {
+        if (!_settingsKeyExisted)
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(SettingsKeyPath, throwOnMissingSubKey: false);
+            return;
+        }
+
+        using var key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath);
+        foreach (string valueName in key.GetValueNames())
+            key.DeleteValue(valueName, throwOnMissingValue: false);
+
+        foreach (RegistryValueSnapshot snapshot in _settingsValues)
+            key.SetValue(snapshot.Name, snapshot.Value, snapshot.Kind);
+    }
+
+    private void RestoreRunValue()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);
+
+        if (_runValue is RegistryValueSnapshot snapshot)
+        {
+            key.SetValue(snapshot.Name, snapshot.Value, snapshot.Kind);
+            return;
+        }
+
+        key.DeleteValue(RunValueName, throwOnMissingValue: false);
+    }
+
+    private readonly record struct RegistryValueSnapshot(
+        string Name,
+        object Value,
+        RegistryValueKind Kind);
 }

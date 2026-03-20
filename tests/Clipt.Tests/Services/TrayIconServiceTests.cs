@@ -1,6 +1,7 @@
 using Clipt.Models;
 using Clipt.Services;
 using Moq;
+using WinForms = System.Windows.Forms;
 
 namespace Clipt.Tests.Services;
 
@@ -15,6 +16,14 @@ public class TrayIconServiceTests
         mock.Setup(s => s.LoadRunOnStartup()).Returns(false);
         mock.Setup(s => s.LoadPurgeHistoryOnStartup()).Returns(false);
         mock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
+        mock.Setup(s => s.LoadLogLevel()).Returns(AppLogLevel.Off);
+        return mock;
+    }
+
+    private static Mock<IAppLogger> CreateLoggerMock()
+    {
+        var mock = new Mock<IAppLogger>();
+        mock.Setup(l => l.Level).Returns(AppLogLevel.Off);
         return mock;
     }
 
@@ -23,7 +32,7 @@ public class TrayIconServiceTests
     {
         var settingsMock = CreateFullSettingsMock();
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         var ex = Record.Exception(() => service.Initialize());
         Assert.Null(ex);
     }
@@ -33,7 +42,7 @@ public class TrayIconServiceTests
     {
         var settingsMock = CreateFullSettingsMock();
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         service.Initialize();
         var ex = Record.Exception(() => service.Initialize());
         Assert.Null(ex);
@@ -43,7 +52,7 @@ public class TrayIconServiceTests
     public void UpdateIcon_BeforeInitialize_DoesNotThrow()
     {
         var settingsMock = new Mock<ISettingsService>();
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         var ex = Record.Exception(() => service.UpdateIcon(true));
         Assert.Null(ex);
     }
@@ -53,7 +62,7 @@ public class TrayIconServiceTests
     {
         var settingsMock = CreateFullSettingsMock();
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         service.Initialize();
 
         var ex = Record.Exception(() => service.UpdateIcon(true));
@@ -68,7 +77,7 @@ public class TrayIconServiceTests
     {
         var settingsMock = CreateFullSettingsMock();
 
-        var service = new TrayIconService(settingsMock.Object);
+        var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         service.Initialize();
 
         var ex = Record.Exception(() => service.Dispose());
@@ -80,7 +89,7 @@ public class TrayIconServiceTests
     {
         var settingsMock = CreateFullSettingsMock();
 
-        var service = new TrayIconService(settingsMock.Object);
+        var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         service.Initialize();
         service.Dispose();
 
@@ -92,7 +101,8 @@ public class TrayIconServiceTests
     public void Initialize_AfterDispose_ThrowsObjectDisposedException()
     {
         var settingsMock = new Mock<ISettingsService>();
-        var service = new TrayIconService(settingsMock.Object);
+        settingsMock.Setup(s => s.LoadLogLevel()).Returns(AppLogLevel.Off);
+        var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         service.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => service.Initialize());
@@ -102,7 +112,8 @@ public class TrayIconServiceTests
     public void ITrayIconService_ImplementedByTrayIconService()
     {
         var settingsMock = new Mock<ISettingsService>();
-        ITrayIconService service = new TrayIconService(settingsMock.Object);
+        settingsMock.Setup(s => s.LoadLogLevel()).Returns(AppLogLevel.Off);
+        ITrayIconService service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         Assert.NotNull(service);
         service.Dispose();
     }
@@ -111,7 +122,7 @@ public class TrayIconServiceTests
     public void Events_AreSubscribable()
     {
         var settingsMock = new Mock<ISettingsService>();
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
 
         bool trayClicked = false;
         bool openFull = false;
@@ -133,7 +144,7 @@ public class TrayIconServiceTests
         settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
             .Returns(new HashSet<ContentType> { ContentType.Text, ContentType.Image });
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         var ex = Record.Exception(() => service.Initialize());
         Assert.Null(ex);
     }
@@ -144,7 +155,7 @@ public class TrayIconServiceTests
         var settingsMock = CreateFullSettingsMock();
         settingsMock.Setup(s => s.LoadRunOnStartup()).Returns(true);
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         var ex = Record.Exception(() => service.Initialize());
         Assert.Null(ex);
     }
@@ -155,8 +166,33 @@ public class TrayIconServiceTests
         var settingsMock = CreateFullSettingsMock();
         settingsMock.Setup(s => s.LoadPurgeHistoryOnStartup()).Returns(true);
 
-        using var service = new TrayIconService(settingsMock.Object);
+        using var service = new TrayIconService(settingsMock.Object, CreateLoggerMock().Object);
         var ex = Record.Exception(() => service.Initialize());
         Assert.Null(ex);
+    }
+
+    [Fact]
+    public void LogLevelMenuClick_SavesSettingAndUpdatesLogger()
+    {
+        var settingsMock = CreateFullSettingsMock();
+        var loggerMock = CreateLoggerMock();
+        using var service = new TrayIconService(settingsMock.Object, loggerMock.Object);
+
+        var buildMenu = typeof(TrayIconService).GetMethod(
+            "BuildLoggingSubmenu",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        Assert.NotNull(buildMenu);
+
+        var submenu = Assert.IsType<WinForms.ToolStripMenuItem>(buildMenu!.Invoke(service, null));
+        var debugItem = submenu.DropDownItems
+            .OfType<WinForms.ToolStripMenuItem>()
+            .Single(item => item.Tag is AppLogLevel.Debug);
+
+        debugItem.PerformClick();
+
+        settingsMock.Verify(s => s.SaveLogLevel(AppLogLevel.Debug), Times.Once);
+        loggerMock.Verify(l => l.SetLevel(AppLogLevel.Debug), Times.Once);
+        Assert.True(debugItem.Checked);
     }
 }

@@ -223,21 +223,17 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Clipboard Win32 calls must run on the thread that owns the listener HWND (WPF dispatcher).
-    /// Clear-all uses ConfigureAwait(false) after history work, so we marshal this step back to the UI thread.
+    /// Clears the system clipboard on the thread that owns the listener HWND.
+    /// No suppression needed: an empty clipboard produces Formats.Length == 0,
+    /// which OnClipboardChangedForTray already filters out (hasData check).
     /// </summary>
     private async Task ClearSystemClipboardAsync()
     {
-        Task RunAsync() => ClipboardHistoryService.ClearSystemClipboardWithSuppressionAsync(
-            _historyService,
-            _clipboardService,
-            _hwndProvider());
-
         Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
-            await RunAsync().ConfigureAwait(false);
+            _clipboardService.ClearClipboard(_hwndProvider());
         else
-            await dispatcher.InvokeAsync(RunAsync);
+            await dispatcher.InvokeAsync(() => _clipboardService.ClearClipboard(_hwndProvider()));
     }
 
     private void OnEntriesChanged(object? sender, EventArgs e)

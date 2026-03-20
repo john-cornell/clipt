@@ -10,6 +10,13 @@ public class MainViewModelTests
 {
     private readonly Mock<IClipboardService> _clipboardServiceMock = new();
     private readonly Mock<IThemeService> _themeServiceMock = new();
+    private readonly Mock<IAppLogger> _appLoggerMock;
+
+    public MainViewModelTests()
+    {
+        _appLoggerMock = new Mock<IAppLogger>();
+        _appLoggerMock.Setup(l => l.Level).Returns(AppLogLevel.Off);
+    }
 
     [Fact]
     public void Refresh_PopulatesAllTabViewModels()
@@ -37,7 +44,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(snapshot);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.Refresh();
@@ -58,7 +65,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.Refresh();
@@ -75,7 +82,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         Assert.True(vm.AutoRefresh);
@@ -88,7 +95,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         var ex = Record.Exception(() => vm.Dispose());
@@ -103,7 +110,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         Assert.False(vm.IsDarkMode);
@@ -117,7 +124,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.IsDarkMode = _themeServiceMock.Object.LoadSavedTheme() == AppTheme.Dark;
@@ -133,7 +140,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.IsDarkMode = true;
@@ -149,7 +156,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
         vm.IsDarkMode = true;
         _themeServiceMock.Invocations.Clear();
@@ -166,7 +173,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         Assert.False(vm.IsHelpVisible);
@@ -179,7 +186,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         Assert.Equal(0, vm.SelectedTabIndex);
@@ -192,7 +199,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.SelectedTabIndex = 2;
@@ -209,7 +216,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         // Initialize() calls Start() which requires a WPF dispatcher.
@@ -229,7 +236,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.SelectedTabIndex = 1;
@@ -246,7 +253,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.SelectedTabIndex = 1;
@@ -267,7 +274,7 @@ public class MainViewModelTests
             .Setup(s => s.CaptureSnapshot(It.IsAny<nint>()))
             .Returns(ClipboardSnapshot.Empty);
 
-        using var listener = new ClipboardListenerService();
+        using var listener = new ClipboardListenerService(_appLoggerMock.Object);
         var vm = new MainViewModel(_clipboardServiceMock.Object, listener, _themeServiceMock.Object);
 
         vm.SelectedTabIndex = tabIndex;

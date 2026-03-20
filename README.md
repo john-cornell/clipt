@@ -24,6 +24,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 - **Delete with Auto-Advance** - Deleting the active (most recent) history entry automatically restores the next entry to the system clipboard, or clears the clipboard if history is empty
 - **Image Preview** - Click inline image thumbnails in history to open a full-size DPI-aware preview popup
 - **History Settings** - Configurable max entries (5/10/25/50), max storage size (50 MB -- unlimited), per-type filtering (text/image/files/other), and purge-on-startup option -- all from the tray right-click menu
+- **Clipboard Logging** - Tray right-click **Log level** supports Off, Warn, and Debug. Logs are written to `%LOCALAPPDATA%\Clipt\clipt.log` to diagnose clipboard change timing and dedup behavior
 
 ### System Tray and Window Management
 
@@ -52,6 +53,8 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.6.12 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.12/CliptSetup.exe) | Fix duplicate screenshot history entries with canonical image hashing; add tray log levels (Off/Warn/Debug) and richer `clipt.log` diagnostics |
+| 1.6.9 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.9/CliptSetup.exe) | Fix IsSuppressed staying true after clear-clipboard: add .Unwrap() to Dispatcher.InvokeAsync calls so the inner async Task is fully awaited |
 | 1.6.8 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.8/CliptSetup.exe) | Clean clear-clipboard flow: single-branch instead of double-call; fix thread-safety for CaptureSnapshot in tray clear path |
 | 1.6.7 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.7/CliptSetup.exe) | **Clear clipboard too**: second history pass + immediate **Refresh** so the list goes empty with the clipboard; tray clear refreshes too |
 | 1.6.6 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.6/CliptSetup.exe) | Fix **Clear clipboard too** / tray option: run clipboard empty on the WPF UI thread (required for OpenClipboard with listener HWND) |

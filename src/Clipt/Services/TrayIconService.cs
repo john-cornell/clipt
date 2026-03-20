@@ -7,6 +7,7 @@ namespace Clipt.Services;
 public sealed class TrayIconService : ITrayIconService
 {
     private readonly ISettingsService _settingsService;
+    private readonly IAppLogger _appLogger;
     private readonly Icon _emptyIcon;
     private readonly Icon _hasDataIcon;
     private WinForms.NotifyIcon? _notifyIcon;
@@ -40,9 +41,10 @@ public sealed class TrayIconService : ITrayIconService
     public event EventHandler? ExitRequested;
     public event EventHandler? ClearHistoryRequested;
 
-    public TrayIconService(ISettingsService settingsService)
+    public TrayIconService(ISettingsService settingsService, IAppLogger appLogger)
     {
         _settingsService = settingsService;
+        _appLogger = appLogger;
         _emptyIcon = TrayIconHelper.CreateEmptyClipboardIcon();
         _hasDataIcon = TrayIconHelper.CreateHasDataIcon();
     }
@@ -132,6 +134,8 @@ public sealed class TrayIconService : ITrayIconService
         menu.Items.Add(BuildMaxEntriesSubmenu());
         menu.Items.Add(BuildMaxSizeSubmenu());
 
+        menu.Items.Add(BuildLoggingSubmenu());
+
         var clearHistoryItem = new WinForms.ToolStripMenuItem("Clear History");
         clearHistoryItem.Click += (_, _) => ClearHistoryRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(clearHistoryItem);
@@ -200,6 +204,45 @@ public sealed class TrayIconService : ITrayIconService
         }
 
         return parent;
+    }
+
+    private WinForms.ToolStripMenuItem BuildLoggingSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Log level");
+        AppLogLevel current = _settingsService.LoadLogLevel();
+
+        foreach (var (label, level) in new (string Label, AppLogLevel Level)[]
+        {
+            ("Off", AppLogLevel.Off),
+            ("Warn", AppLogLevel.Warn),
+            ("Debug", AppLogLevel.Debug),
+        })
+        {
+            var item = new WinForms.ToolStripMenuItem(label)
+            {
+                Checked = level == current,
+                Tag = level,
+            };
+            item.Click += OnLogLevelClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        return parent;
+    }
+
+    private void OnLogLevelClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not AppLogLevel level)
+            return;
+
+        _settingsService.SaveLogLevel(level);
+        _appLogger.SetLevel(level);
+
+        if (clicked.OwnerItem is WinForms.ToolStripMenuItem parent)
+        {
+            foreach (WinForms.ToolStripMenuItem sibling in parent.DropDownItems)
+                sibling.Checked = ReferenceEquals(sibling, clicked);
+        }
     }
 
     private void OnRunOnStartupToggle(object? sender, EventArgs e)
