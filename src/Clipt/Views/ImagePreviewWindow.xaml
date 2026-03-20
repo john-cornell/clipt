@@ -9,7 +9,6 @@
         Background="Transparent"
         WindowStartupLocation="CenterScreen"
         KeyDown="OnKeyDown"
-        MouseLeftButtonDown="OnMouseDown"
         Deactivated="OnDeactivated">
 
     <Border Background="{DynamicResource BackgroundBrush}"
@@ -17,8 +16,19 @@
             BorderThickness="2"
             CornerRadius="4"
             Padding="4">
-        <Image x:Name="PreviewImage"
-               Stretch="Uniform"
-               RenderOptions.BitmapScalingMode="HighQuality" />
+        <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Bottom"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,8,0,0">
+                <Button Content="Save As..."
+                        Click="OnSaveClick"
+                        Padding="8,4" />
+            </StackPanel>
+            <Image x:Name="PreviewImage"
+                   Stretch="Uniform"
+                   MouseLeftButtonDown="OnMouseDown"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+        </DockPanel>
     </Border>
 </Window>
