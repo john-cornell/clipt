@@ -14,9 +14,11 @@ The Inno Setup installer at `installer/Clipt.iss` has its own `#define MyAppVers
 
 ## Rules
 
-1. **Every feature, fix, or meaningful change MUST include a version bump** in both:
+1. **Every feature, fix, or meaningful change to the shipped app or installer output MUST include a version bump** in both:
    - `src/Clipt/Clipt.csproj` — the `<Version>` property
    - `installer/Clipt.iss` — the `#define MyAppVersion` line
+
+   **No bump** when the diff only affects repo tooling or docs that are not part of the built binary or `CliptSetup.exe` — e.g. `build-setup.bat`, pure README/CONTRIBUTING edits, `.cursor` rules, tests-only refactors with no product change. When in doubt, bump.
 
 2. **Versioning scheme**: `MAJOR.MINOR.PATCH` (SemVer)
    - MAJOR: breaking changes

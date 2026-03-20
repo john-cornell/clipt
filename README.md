@@ -118,7 +118,19 @@ If you skip this step, you may end up with two copies installed.
 dotnet build src\Clipt\Clipt.csproj -c Release
 ```
 
-To build the installer (requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
+### Signed installer (`build-setup.bat`)
+
+From the repo root, `build-setup.bat` builds **Release**, signs `Clipt.exe`, and compiles the Inno Setup installer. **Signing is always required** — the script does not skip it.
+
+Prerequisites (if the script stops, it prints where to get each tool):
+
+1. **SignTool** — from the [Windows SDK](https://developer.microsoft.com/windows/downloads/windows-sdk/) or Visual Studio (e.g. *Desktop development with C++* / Windows SDK). The batch file looks for `signtool` on `PATH` and under `%ProgramFiles(x86)%\Windows Kits\10\bin\<version>\x64\`.
+2. **Code signing certificate** — `installer\CliptCodeSigning.pfx` (or change `SIGN_CERT` in the `.bat`).
+3. **[Inno Setup 6](https://jrsoftware.org/isinfo.php)** — `ISCC.exe` in the default install path or on `PATH`.
+
+### Installer only (unsigned / manual)
+
+To build the installer without the batch file (requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 ```
 dotnet build src\Clipt\Clipt.csproj -c Release
