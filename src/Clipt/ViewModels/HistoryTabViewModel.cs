@@ -78,11 +78,13 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         for (int i = 0; i < entries.Count; i++)
         {
             var entry = entries[i];
+            string entryId = entry.Id;
             var item = new HistoryEntryDisplayItem
             {
                 Id = entry.Id,
                 Name = entry.Name,
                 Summary = entry.Summary,
+                SummaryDisplay = entry.Summary,
                 ContentTypeLabel = FormatContentType(entry.ContentType),
                 ContentType = entry.ContentType,
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
@@ -90,6 +92,9 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
                 RenameCommand = new AsyncRelayCommand<string>(newName => RenameEntryAsync(entry.Id, newName!)),
                 IsCurrent = i == 0,
+                LoadUnicodeTextForSummaryExpandAsync = entry.ContentType == ContentType.Text
+                    ? () => LoadEntryUnicodeTextAsync(entryId)
+                    : null,
             };
 
             if (entry.ContentType == ContentType.Image)
@@ -178,6 +183,21 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             return;
 
         await _historyService.RenameAsync(entryId, trimmed).ConfigureAwait(false);
+    }
+
+    private async Task<string?> LoadEntryUnicodeTextAsync(string entryId)
+    {
+        var snapshot = await _historyService.RestoreAsync(entryId).ConfigureAwait(false);
+        if (snapshot is null)
+            return null;
+
+        var unicodeFormat = snapshot.Formats
+            .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
+
+        if (unicodeFormat is null || unicodeFormat.RawData.Length == 0)
+            return null;
+
+        return ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, int.MaxValue);
     }
 
     private async Task RestoreSnapshotToClipboard(string entryId)
@@ -364,6 +384,10 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     private string _name = string.Empty;
 
     public required string Summary { get; init; }
+
+    [ObservableProperty]
+    private string _summaryDisplay = string.Empty;
+
     public required string ContentTypeLabel { get; init; }
     public required ContentType ContentType { get; init; }
     public required string RelativeTime { get; init; }
@@ -373,6 +397,8 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public IAsyncRelayCommand? RenameCommand { get; set; }
     public bool IsCurrent { get; init; }
 
+    public Func<Task<string?>>? LoadUnicodeTextForSummaryExpandAsync { get; init; }
+
     [ObservableProperty]
     private bool _isEditing;
 
@@ -381,4 +407,99 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
 
     [ObservableProperty]
     private ImageSource? _inlineThumbnail;
+
+    private string? _fullUnicodeSummaryText;
+    private int _summaryExpandLevel;
+
+    public bool SummaryExpandChromeVisible =>
+        ContentType == ContentType.Text
+        && (CompactSummaryMayBeTruncated || _summaryExpandLevel > 0);
+
+    private bool CompactSummaryMayBeTruncated =>
+        Summary.EndsWith("...", StringComparison.Ordinal);
+
+    [RelayCommand(CanExecute = nameof(CanExpandHistorySummary))]
+    private async Task ExpandHistorySummary()
+    {
+        if (ContentType != ContentType.Text)
+            return;
+
+        bool loaded = _fullUnicodeSummaryText is not null;
+        int fullLen = _fullUnicodeSummaryText?.Length ?? 0;
+        if (!PreviewStepSizes.CanAdvanceHistorySummaryExpand(
+                _summaryExpandLevel,
+                fullLen,
+                loaded,
+                CompactSummaryMayBeTruncated))
+        {
+            return;
+        }
+
+        if (_summaryExpandLevel == 0)
+        {
+            if (LoadUnicodeTextForSummaryExpandAsync is not { } load)
+                return;
+
+            string? full = await load().ConfigureAwait(true);
+            if (string.IsNullOrEmpty(full))
+                return;
+
+            _fullUnicodeSummaryText = full;
+            _summaryExpandLevel = 1;
+        }
+        else
+        {
+            _summaryExpandLevel = Math.Min(4, _summaryExpandLevel + 1);
+        }
+
+        ApplySummaryDisplay();
+        NotifySummaryExpandProperties();
+    }
+
+    private bool CanExpandHistorySummary() =>
+        ContentType == ContentType.Text
+        && PreviewStepSizes.CanAdvanceHistorySummaryExpand(
+            _summaryExpandLevel,
+            _fullUnicodeSummaryText?.Length ?? 0,
+            _fullUnicodeSummaryText is not null,
+            CompactSummaryMayBeTruncated);
+
+    [RelayCommand(CanExecute = nameof(CanRetreatHistorySummary))]
+    private void RetreatHistorySummary()
+    {
+        if (_summaryExpandLevel <= 0)
+            return;
+
+        _summaryExpandLevel = PreviewStepSizes.RetreatHistorySummaryExpandLevel(_summaryExpandLevel);
+        if (_summaryExpandLevel == 0)
+            _fullUnicodeSummaryText = null;
+
+        ApplySummaryDisplay();
+        NotifySummaryExpandProperties();
+    }
+
+    private bool CanRetreatHistorySummary() =>
+        ContentType == ContentType.Text
+        && PreviewStepSizes.CanRetreatHistorySummaryExpand(_summaryExpandLevel, _fullUnicodeSummaryText is not null);
+
+    private void ApplySummaryDisplay()
+    {
+        if (_summaryExpandLevel == 0 || _fullUnicodeSummaryText is null)
+        {
+            SummaryDisplay = Summary;
+            return;
+        }
+
+        int limit = PreviewStepSizes.GetHistorySummaryDisplayLimit(_summaryExpandLevel, _fullUnicodeSummaryText.Length);
+        SummaryDisplay = limit >= _fullUnicodeSummaryText.Length
+            ? _fullUnicodeSummaryText
+            : _fullUnicodeSummaryText.Substring(0, limit);
+    }
+
+    private void NotifySummaryExpandProperties()
+    {
+        OnPropertyChanged(nameof(SummaryExpandChromeVisible));
+        ExpandHistorySummaryCommand.NotifyCanExecuteChanged();
+        RetreatHistorySummaryCommand.NotifyCanExecuteChanged();
+    }
 }

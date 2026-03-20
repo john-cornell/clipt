@@ -87,7 +87,8 @@ public static class HelpContent
         "Returns the allocated size in bytes of the global memory block identified by an HGLOBAL handle.";
 
     public const string RawMemoryTooltip =
-        "First 256 bytes of the clipboard format's global memory block, displayed as a hex dump.";
+        "Captured bytes from the clipboard format's global memory block, shown as a hex dump. " +
+        "Use the size buttons (256 through Full) to show more of the captured data — up to the app's capture limit, not necessarily the entire GlobalSize allocation.";
 
     public const string SeqStatusTooltip =
         "Clipboard sequence number — incremented by Windows each time any application modifies the clipboard.";
@@ -256,9 +257,9 @@ public static class HelpContent
                 "This value is shown in the Native/Memory tab to indicate how much memory the format occupies.",
 
             ["RawMemory"] =
-                "The raw memory view shows the first 256 bytes of the clipboard format's global memory block. " +
-                "This is useful for inspecting the binary structure of clipboard data formats, " +
-                "including headers and magic bytes that identify the data type.",
+                "The raw memory view shows a hex dump of bytes captured from the format's global memory block. " +
+                "You can expand the preview in steps (256 bytes up through Full) to inspect more of the captured payload — " +
+                "useful for headers, magic bytes, and binary layout. Full means all bytes Clipt captured for that format (see capture limits in documentation), not always every byte reported by GlobalSize.",
 
             ["FormatInfo"] =
                 "The Format Info panel shows a description of the currently selected clipboard format. " +

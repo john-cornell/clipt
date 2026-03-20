@@ -39,6 +39,7 @@ public class TrayPopupViewModelTests
         Assert.True(vm.HasText);
         Assert.Equal(expected, vm.PreviewText);
         Assert.Equal("1 format on clipboard", vm.ClipboardSummary);
+        Assert.False(vm.TextPreviewStepControlsVisible);
     }
 
     [Fact]
@@ -53,6 +54,7 @@ public class TrayPopupViewModelTests
 
         Assert.True(vm.HasText);
         Assert.Equal(500, vm.PreviewText.Length);
+        Assert.True(vm.TextPreviewStepControlsVisible);
     }
 
     [Fact]

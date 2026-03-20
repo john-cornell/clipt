@@ -11,10 +11,15 @@ public sealed class TrayIconService : ITrayIconService
     private readonly Icon _emptyIcon;
     private readonly Icon _hasDataIcon;
     private WinForms.NotifyIcon? _notifyIcon;
+    private WinForms.ContextMenuStrip? _trayContextMenu;
     private WinForms.ToolStripMenuItem? _startModeItem;
     private WinForms.ToolStripMenuItem? _runOnStartupItem;
     private WinForms.ToolStripMenuItem? _purgeHistoryItem;
     private WinForms.ToolStripMenuItem? _clearClipboardWhenClearingHistoryItem;
+    private WinForms.ToolStripMenuItem? _historyTypeSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _maxEntriesSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _maxSizeSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _logLevelSubmenuRoot;
     private Action<bool>? _syncClearClipboardPreference;
     private bool _disposed;
 
@@ -56,12 +61,13 @@ public sealed class TrayIconService : ITrayIconService
         if (_notifyIcon is not null)
             return;
 
+        var menu = BuildContextMenu();
         _notifyIcon = new WinForms.NotifyIcon
         {
             Icon = _emptyIcon,
             Text = "Clipt — Clipboard Inspector",
             Visible = true,
-            ContextMenuStrip = BuildContextMenu(),
+            ContextMenuStrip = menu,
         };
 
         _notifyIcon.MouseClick += OnNotifyIconMouseClick;
@@ -146,12 +152,67 @@ public sealed class TrayIconService : ITrayIconService
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(exitItem);
 
+        menu.ItemClicked += OnTrayContextMenuItemClicked;
+        _trayContextMenu = menu;
+
         return menu;
+    }
+
+    /// <summary>
+    /// Keeps the tray context menu open after choosing settings (toggles and submenu picks) so several options can be changed in one visit.
+    /// Single-action items (open window, clear history, exit) still dismiss the menu normally.
+    /// </summary>
+    private void OnTrayContextMenuItemClicked(object? sender, WinForms.ToolStripItemClickedEventArgs e)
+    {
+        if (sender is not WinForms.ContextMenuStrip menu || !ShouldKeepTrayMenuOpen(e.ClickedItem))
+            return;
+
+        menu.AutoClose = false;
+        menu.BeginInvoke(() =>
+        {
+            try
+            {
+                if (!menu.IsDisposed)
+                    menu.AutoClose = true;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        });
+    }
+
+    private bool ShouldKeepTrayMenuOpen(WinForms.ToolStripItem? clicked)
+    {
+        if (clicked is null or WinForms.ToolStripSeparator)
+            return false;
+
+        if (ReferenceEquals(clicked, _startModeItem)
+            || ReferenceEquals(clicked, _runOnStartupItem)
+            || ReferenceEquals(clicked, _purgeHistoryItem)
+            || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem))
+            return true;
+
+        if (ReferenceEquals(clicked, _historyTypeSubmenuRoot)
+            || ReferenceEquals(clicked, _maxEntriesSubmenuRoot)
+            || ReferenceEquals(clicked, _maxSizeSubmenuRoot)
+            || ReferenceEquals(clicked, _logLevelSubmenuRoot))
+            return true;
+
+        if (clicked is WinForms.ToolStripMenuItem leaf && leaf.OwnerItem is WinForms.ToolStripMenuItem owner)
+        {
+            return ReferenceEquals(owner, _historyTypeSubmenuRoot)
+                || ReferenceEquals(owner, _maxEntriesSubmenuRoot)
+                || ReferenceEquals(owner, _maxSizeSubmenuRoot)
+                || ReferenceEquals(owner, _logLevelSubmenuRoot);
+        }
+
+        return false;
     }
 
     private WinForms.ToolStripMenuItem BuildHistoryTypeSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Enable History for Type");
+        _historyTypeSubmenuRoot = parent;
         var disabled = _settingsService.LoadDisabledHistoryTypes();
 
         foreach (ContentType ct in ToggleableContentTypes)
@@ -171,6 +232,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildMaxEntriesSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Max History Entries");
+        _maxEntriesSubmenuRoot = parent;
         int current = _settingsService.LoadMaxHistoryEntries();
 
         foreach (int value in MaxEntriesOptions)
@@ -190,6 +252,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildMaxSizeSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Max History Size");
+        _maxSizeSubmenuRoot = parent;
         long current = _settingsService.LoadMaxHistorySizeBytes();
 
         foreach (var (label, bytes) in MaxSizeOptions)
@@ -209,6 +272,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildLoggingSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Log level");
+        _logLevelSubmenuRoot = parent;
         AppLogLevel current = _settingsService.LoadLogLevel();
 
         foreach (var (label, level) in new (string Label, AppLogLevel Level)[]
@@ -350,6 +414,12 @@ public sealed class TrayIconService : ITrayIconService
             return;
 
         _disposed = true;
+
+        if (_trayContextMenu is not null)
+        {
+            _trayContextMenu.ItemClicked -= OnTrayContextMenuItemClicked;
+            _trayContextMenu = null;
+        }
 
         if (_notifyIcon is not null)
         {

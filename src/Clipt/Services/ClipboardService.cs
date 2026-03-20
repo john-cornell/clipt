@@ -9,7 +9,6 @@ namespace Clipt.Services;
 public sealed class ClipboardService : IClipboardService
 {
     private const int DefaultMaxCaptureBytes = 64 * 1024;
-    private const int MaxPreviewBytes = 256;
     private const long ImageMaxCaptureBytes = 256L * 1024 * 1024;
 
     public ClipboardSnapshot CaptureSnapshot(nint hwnd)
@@ -125,16 +124,11 @@ public sealed class ClipboardService : IClipboardService
                 ? ImageMaxCaptureBytes
                 : DefaultMaxCaptureBytes;
             int captureSize = (int)Math.Min(dataSize, maxCapture);
-            int previewSize = (int)Math.Min(dataSize, MaxPreviewBytes);
 
             byte[] rawData = new byte[captureSize];
-            byte[] previewData = new byte[previewSize];
 
             if (captureSize > 0)
                 Marshal.Copy(lockPtr, rawData, 0, captureSize);
-
-            if (previewSize > 0)
-                Buffer.BlockCopy(rawData, 0, previewData, 0, previewSize);
 
             return new ClipboardFormatInfo
             {
@@ -146,7 +140,7 @@ public sealed class ClipboardService : IClipboardService
                     $"0x{handle:X16}",
                     $"0x{lockPtr:X16}",
                     dataSize,
-                    previewData),
+                    []),
                 RawData = rawData,
             };
         }

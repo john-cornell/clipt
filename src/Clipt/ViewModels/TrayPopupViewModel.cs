@@ -13,13 +13,29 @@ namespace Clipt.ViewModels;
 
 public sealed partial class TrayPopupViewModel : ObservableObject
 {
-    private const int MaxPreviewLength = 500;
-
     [ObservableProperty]
     private string _clipboardSummary = "Clipboard is empty";
 
     [ObservableProperty]
     private string _previewText = string.Empty;
+
+    [ObservableProperty]
+    private string _textPreviewCaption = string.Empty;
+
+    [ObservableProperty]
+    private int _textPreviewStepIndex;
+
+    [ObservableProperty]
+    private bool _textPreviewCanAdvanceStep;
+
+    [ObservableProperty]
+    private bool _textPreviewCanRetreatStep;
+
+    /// <summary>
+    /// True when the tray text is long enough that step controls (500 / 2K / …) change what is shown, or the user has moved off the default step.
+    /// </summary>
+    [ObservableProperty]
+    private bool _textPreviewStepControlsVisible;
 
     [ObservableProperty]
     private BitmapSource? _previewImage;
@@ -45,6 +61,9 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     [ObservableProperty]
     private HistoryTabViewModel? _historyTab;
 
+    private string? _trayUnicodeFullText;
+    private int _trayUnicodeFullCharCount;
+
     public event EventHandler? ExpandToFullRequested;
 
     [RelayCommand]
@@ -52,6 +71,43 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     {
         ExpandToFullRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    [RelayCommand]
+    private void SetTrayTextPreviewStep(object? parameter)
+    {
+        int step = parameter switch
+        {
+            int i => i,
+            string s when int.TryParse(s, out int x) => x,
+            _ => 0,
+        };
+
+        int maxStep = PreviewStepSizes.TrayTextCharLimits.Length;
+        TextPreviewStepIndex = Math.Clamp(step, 0, maxStep);
+        ApplyTrayTextPreviewSlice();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanAdvanceTrayTextPreviewStep))]
+    private void AdvanceTrayTextPreviewStep()
+    {
+        if (!CanAdvanceTrayTextPreviewStep())
+            return;
+        TextPreviewStepIndex++;
+        ApplyTrayTextPreviewSlice();
+    }
+
+    private bool CanAdvanceTrayTextPreviewStep() => TextPreviewCanAdvanceStep;
+
+    [RelayCommand(CanExecute = nameof(CanRetreatTrayTextPreviewStep))]
+    private void RetreatTrayTextPreviewStep()
+    {
+        if (!CanRetreatTrayTextPreviewStep())
+            return;
+        TextPreviewStepIndex--;
+        ApplyTrayTextPreviewSlice();
+    }
+
+    private bool CanRetreatTrayTextPreviewStep() => TextPreviewCanRetreatStep;
 
     public void Update(ClipboardSnapshot snapshot)
     {
@@ -75,19 +131,67 @@ public sealed partial class TrayPopupViewModel : ObservableObject
 
     private void UpdateTextPreview(ClipboardSnapshot snapshot)
     {
+        _trayUnicodeFullText = null;
+        _trayUnicodeFullCharCount = 0;
+
         var unicodeFormat = snapshot.Formats
             .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
 
         if (unicodeFormat is null || unicodeFormat.RawData.Length == 0)
         {
+            TextPreviewStepIndex = 0;
             PreviewText = string.Empty;
+            TextPreviewCaption = string.Empty;
             HasText = false;
+            TextPreviewCanAdvanceStep = false;
+            TextPreviewCanRetreatStep = false;
+            TextPreviewStepControlsVisible = false;
+            AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
+            RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
             return;
         }
 
-        string decoded = ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, MaxPreviewLength);
-        PreviewText = decoded;
-        HasText = decoded.Length > 0;
+        _trayUnicodeFullText = ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, int.MaxValue);
+        _trayUnicodeFullCharCount = _trayUnicodeFullText.Length;
+        HasText = _trayUnicodeFullCharCount > 0;
+        TextPreviewStepIndex = 0;
+        ApplyTrayTextPreviewSlice();
+    }
+
+    private void ApplyTrayTextPreviewSlice()
+    {
+        if (_trayUnicodeFullText is null || _trayUnicodeFullCharCount == 0)
+        {
+            PreviewText = string.Empty;
+            TextPreviewCaption = string.Empty;
+            TextPreviewCanAdvanceStep = false;
+            TextPreviewCanRetreatStep = false;
+            TextPreviewStepControlsVisible = false;
+            AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
+            RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        int maxChars = PreviewStepSizes.GetTrayTextMaxChars(TextPreviewStepIndex, _trayUnicodeFullCharCount);
+        PreviewText = maxChars >= _trayUnicodeFullCharCount
+            ? _trayUnicodeFullText
+            : _trayUnicodeFullText.Substring(0, maxChars);
+
+        TextPreviewCaption = maxChars >= _trayUnicodeFullCharCount
+            ? $"All {_trayUnicodeFullCharCount:N0} characters (captured)."
+            : $"Showing {maxChars:N0} of {_trayUnicodeFullCharCount:N0} characters (captured).";
+
+        TextPreviewCanAdvanceStep =
+            PreviewStepSizes.CanAdvanceTrayTextStep(TextPreviewStepIndex, _trayUnicodeFullCharCount);
+        TextPreviewCanRetreatStep =
+            PreviewStepSizes.CanRetreatTrayTextStep(TextPreviewStepIndex);
+
+        TextPreviewStepControlsVisible =
+            PreviewStepSizes.CanAdvanceTrayTextStep(TextPreviewStepIndex, _trayUnicodeFullCharCount)
+            || PreviewStepSizes.CanRetreatTrayTextStep(TextPreviewStepIndex);
+
+        AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
+        RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
     }
 
     private void UpdateImagePreview(ClipboardSnapshot snapshot)
@@ -177,12 +281,21 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     {
         ClipboardSummary = "Clipboard is empty";
         PreviewText = string.Empty;
+        TextPreviewCaption = string.Empty;
+        TextPreviewStepIndex = 0;
+        _trayUnicodeFullText = null;
+        _trayUnicodeFullCharCount = 0;
+        TextPreviewCanAdvanceStep = false;
+        TextPreviewCanRetreatStep = false;
+        TextPreviewStepControlsVisible = false;
         PreviewImage = null;
         PreviewFiles.Clear();
         HasText = false;
         HasImage = false;
         HasFiles = false;
         IsEmpty = true;
+        AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
+        RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
     }
 
     private static List<string> ParseFilePaths(byte[] data)

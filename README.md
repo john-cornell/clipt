@@ -28,7 +28,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 ### System Tray and Window Management
 
-- **System Tray Icon** - Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit
+- **System Tray Icon** - Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit. The tray menu stays open while you flip settings (history limits, log level, etc.); it closes after **Open Full Window**, **Clear History**, or **Exit**
 - **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
 - **Pin Popup** - Toggle pin button in the popup title bar keeps the window open when you click elsewhere
 - **Expand to Full** - One-click button in the compact popup to open the full Clipt inspector window
@@ -51,8 +51,19 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 ## Downloads
 
+### Latest
+
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| **1.6.15** | 2026-03-20 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
+
+<details>
+<summary><strong>Previous releases</strong> (click to expand)</summary>
+
+| Version | Date | Installer | Notes |
+|---------|------|-----------|-------|
+| 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
+| 1.6.13 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.13/CliptSetup.exe) | Step-based preview expansion: Native raw hex (256→16K→Full of captured bytes), tray text (500→8K→Full), history text summaries (More/Less from blob); drop duplicate FirstBytes capture |
 | 1.6.12 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.12/CliptSetup.exe) | Fix duplicate screenshot history entries with canonical image hashing; add tray log levels (Off/Warn/Debug) and richer `clipt.log` diagnostics |
 | 1.6.9 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.9/CliptSetup.exe) | Fix IsSuppressed staying true after clear-clipboard: add .Unwrap() to Dispatcher.InvokeAsync calls so the inner async Task is fully awaited |
 | 1.6.8 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.8/CliptSetup.exe) | Clean clear-clipboard flow: single-branch instead of double-call; fix thread-safety for CaptureSnapshot in tray clear path |
@@ -72,6 +83,8 @@ Worth a watch if you want to understand the codebase without reading every file.
 | 1.1.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.1/CliptSetup.exe) | Hex editor selection model, text tab improvements, expanded test coverage |
 | 1.0.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.0.0/CliptSetup.exe) | Initial release - full clipboard inspection with light/dark themes |
 
+</details>
+
 ### System Requirements
 
 - Windows 10 or later (x64)
@@ -79,7 +92,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 ### Install
 
-1. Download `CliptSetup.exe` from the table above or from the [Releases](https://github.com/john-cornell/clipt/releases) page
+1. Download `CliptSetup.exe` from **Latest** above, from **Previous releases**, or from the [Releases](https://github.com/john-cornell/clipt/releases) page
 2. Run the installer - it will install to your local AppData folder (no admin required)
 3. Launch Clipt from the Start Menu or desktop shortcut
 
