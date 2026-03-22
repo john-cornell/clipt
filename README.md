@@ -32,7 +32,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 - **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
 - **Pin Popup** - Toggle pin button in the popup title bar keeps the window open when you click elsewhere
 - **Expand to Full** - One-click button in the compact popup to open the full Clipt inspector window
-- **Run on Startup** - Toggle Windows startup registration from the tray menu; writes to the current-user Run registry key
+- **Run on Startup** - Toggle Windows startup registration from the tray menu; writes a quoted path to the current-user Run registry key (handles spaces in usernames)
 - **Startup Mode** - Choose between launching with the full window visible or collapsed to the system tray. Preference saved to registry
 - **Minimize to Tray** - Closing the main window hides it to the tray instead of exiting. Exit only via tray right-click menu
 
@@ -55,13 +55,14 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.6.19** | 2026-03-20 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
+| **1.7.1** | 2026-03-22 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.7.1/CliptSetup.exe) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; expand/pin button layout restyle |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
 | 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
 | 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
 | 1.6.13 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.13/CliptSetup.exe) | Step-based preview expansion: Native raw hex (256→16K→Full of captured bytes), tray text (500→8K→Full), history text summaries (More/Less from blob); drop duplicate FirstBytes capture |

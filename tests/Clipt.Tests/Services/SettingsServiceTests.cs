@@ -264,6 +264,21 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void SaveRunOnStartup_True_WritesQuotedPath()
+    {
+        var service = new SettingsService();
+        service.SaveRunOnStartup(true);
+
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        Assert.NotNull(key);
+
+        string? raw = key.GetValue(RunValueName) as string;
+        Assert.NotNull(raw);
+        Assert.StartsWith("\"", raw);
+        Assert.EndsWith("\"", raw);
+    }
+
+    [Fact]
     public void LoadLogLevel_DefaultsToOff()
     {
         var service = new SettingsService();

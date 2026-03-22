@@ -212,6 +212,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildHistoryTypeSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Enable History for Type");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
         _historyTypeSubmenuRoot = parent;
         var disabled = _settingsService.LoadDisabledHistoryTypes();
 
@@ -232,6 +233,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildMaxEntriesSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Max History Entries");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
         _maxEntriesSubmenuRoot = parent;
         int current = _settingsService.LoadMaxHistoryEntries();
 
@@ -252,6 +254,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildMaxSizeSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Max History Size");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
         _maxSizeSubmenuRoot = parent;
         long current = _settingsService.LoadMaxHistorySizeBytes();
 
@@ -272,6 +275,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem BuildLoggingSubmenu()
     {
         var parent = new WinForms.ToolStripMenuItem("Log level");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
         _logLevelSubmenuRoot = parent;
         AppLogLevel current = _settingsService.LoadLogLevel();
 

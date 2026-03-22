@@ -29,33 +29,94 @@
             <!-- Title bar -->
             <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-                    Padding="10,6" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    Padding="10,6,0,6" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="&#x2197;"
-                            ToolTip="Expand to full window"
-                            Command="{Binding ExpandToFullCommand}"
-                            Width="28" Height="28" Padding="0"
-                            FontSize="16" />
+                    <!-- Pin button: far right, close-button style -->
                     <ToggleButton DockPanel.Dock="Right"
                                   IsChecked="{Binding IsPinned}"
-                                  Width="28" Height="28" Padding="0"
-                                  FontSize="14" Margin="0,0,4,0">
+                                  Width="36" Height="30" Padding="0"
+                                  FontSize="16" Margin="0"
+                                  VerticalAlignment="Stretch">
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton">
                                 <Setter Property="Content" Value="&#x25CB;" />
                                 <Setter Property="ToolTip" Value="Pin window" />
-                                <Style.Triggers>
-                                    <Trigger Property="IsChecked" Value="True">
-                                        <Setter Property="Content" Value="&#x25C9;" />
-                                        <Setter Property="ToolTip" Value="Unpin window" />
-                                    </Trigger>
-                                </Style.Triggers>
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="Bd"
+                                                    Background="Transparent"
+                                                    CornerRadius="0,4,0,0">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource AccentBrush}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource AccentLightBrush}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter Property="Content" Value="&#x25C9;" />
+                                                    <Setter Property="ToolTip" Value="Unpin window" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                             </Style>
                         </ToggleButton.Style>
                     </ToggleButton>
+
+                    <!-- Title + expand button together on the left -->
                     <TextBlock x:Name="TitleText" FontSize="14" FontWeight="Bold"
                                Foreground="{DynamicResource AccentBrush}"
                                VerticalAlignment="Center" />
+                    <Button Content="&#x2197;"
+                            ToolTip="Expand to full window"
+                            Command="{Binding ExpandToFullCommand}"
+                            Width="26" Height="26" Padding="0"
+                            FontSize="14" Margin="6,0,0,0"
+                            VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource AccentBrush}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource AccentLightBrush}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </DockPanel>
             </Border>
 

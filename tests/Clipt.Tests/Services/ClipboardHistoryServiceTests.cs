@@ -1216,4 +1216,32 @@ public class ClipboardHistoryServiceTests : IDisposable
         await svc.AddAsync(CreateTextSnapshot("Migrate Me", seqNum: 1));
         Assert.Equal("Migrate Me", svc.Entries[0].Name);
     }
+
+    [Fact]
+    public async Task AddAsync_SyncOnOpen_DifferentContent_AddsToHistory()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-10);
+        await svc.AddAsync(CreateTextSnapshot("Original", seqNum: 1, timestamp: t0));
+        Assert.Single(svc.Entries);
+
+        await svc.AddAsync(CreateTextSnapshot("Changed externally", seqNum: 2, timestamp: t0.AddSeconds(5)));
+        Assert.Equal(2, svc.Entries.Count);
+        Assert.Equal("Changed externally", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_SyncOnOpen_SameContent_Deduplicated()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Unchanged", seqNum: 1));
+        Assert.Single(svc.Entries);
+
+        await svc.AddAsync(CreateTextSnapshot("Unchanged", seqNum: 2));
+        Assert.Single(svc.Entries);
+    }
 }

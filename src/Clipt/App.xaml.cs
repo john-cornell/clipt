@@ -145,7 +145,7 @@ public partial class App : Application
         });
     }
 
-    private void OnTrayIconClicked(object? sender, EventArgs e)
+    private async void OnTrayIconClicked(object? sender, EventArgs e)
     {
         if (_trayPopupWindow is null)
             return;
@@ -159,7 +159,10 @@ public partial class App : Application
         if (_trayPopupWindow.WasRecentlyHidden)
             return;
 
-        RefreshTrayPopup();
+        var snapshot = RefreshTrayPopup();
+        if (snapshot is not null)
+            await SyncClipboardToHistoryAsync(snapshot);
+
         _historyTabViewModel?.Refresh();
         _trayPopupWindow.ShowNearTray();
     }
@@ -212,15 +215,32 @@ public partial class App : Application
             _mainWindow.WindowState = WindowState.Normal;
     }
 
-    private void RefreshTrayPopup()
+    private ClipboardSnapshot? RefreshTrayPopup()
     {
         try
         {
             var snapshot = _clipboardService!.CaptureSnapshot(_listenerService!.Hwnd);
             _trayPopupViewModel?.Update(snapshot);
             _trayIconService?.UpdateIcon(snapshot.Formats.Length > 0);
+            return snapshot;
         }
         catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private async Task SyncClipboardToHistoryAsync(ClipboardSnapshot snapshot)
+    {
+        if (_historyService is null || snapshot.Formats.Length == 0)
+            return;
+
+        try
+        {
+            await _historyService.AddAsync(snapshot).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (
+            ex is ObjectDisposedException or IOException or UnauthorizedAccessException)
         {
         }
     }

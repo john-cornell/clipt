@@ -245,7 +245,7 @@ public sealed class SettingsService : ISettingsService
             {
                 string? exePath = Environment.ProcessPath;
                 if (!string.IsNullOrEmpty(exePath))
-                    key.SetValue(RunValueName, exePath, RegistryValueKind.String);
+                    key.SetValue(RunValueName, $"\"{exePath}\"", RegistryValueKind.String);
             }
             else
             {
