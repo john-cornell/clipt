@@ -30,8 +30,8 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 - **System Tray Icon** - Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit. The tray menu stays open while you flip settings (history limits, log level, etc.); it closes after **Open Full Window**, **Clear History**, or **Exit**
 - **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
-- **Pin Popup** - Toggle pin button in the popup title bar keeps the window open when you click elsewhere
-- **Expand to Full** - One-click button in the compact popup to open the full Clipt inspector window
+- **Pin Popup** - Pin toggle in the **top-right** of the compact popup title bar keeps the window open when you click elsewhere
+- **Expand to Full** - Button **next to the title** (Clipt + version) opens the full Clipt inspector window
 - **Run on Startup** - Toggle Windows startup registration from the tray menu; writes a quoted path to the current-user Run registry key (handles spaces in usernames)
 - **Startup Mode** - Choose between launching with the full window visible or collapsed to the system tray. Preference saved to registry
 - **Minimize to Tray** - Closing the main window hides it to the tray instead of exiting. Exit only via tray right-click menu
@@ -55,13 +55,14 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.7.1** | 2026-03-22 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.7.1/CliptSetup.exe) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; expand/pin button layout restyle |
+| **1.7.2** | 2026-03-22 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.7.1 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.1/CliptSetup.exe) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle |
 | 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
 | 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
 | 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
