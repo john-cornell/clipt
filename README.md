@@ -51,6 +51,8 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 ## Downloads
 
+Each **CliptSetup.exe** link points at a file attached to that version’s [GitHub Release](https://github.com/john-cornell/clipt/releases). If you get **404**, the release exists but no installer was uploaded yet — open the release page and check **Assets**, or upload with `gh release upload TAG installer/Output/CliptSetup.exe` after building the installer.
+
 ### Latest
 
 | Version | Date | Installer | Notes |
@@ -62,7 +64,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| 1.7.1 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.1/CliptSetup.exe) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle |
+| 1.7.1 | 2026-03-22 | [Release](https://github.com/john-cornell/clipt/releases/tag/v1.7.1) (no installer uploaded) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle — use **1.7.2** installer above |
 | 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
 | 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
 | 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
