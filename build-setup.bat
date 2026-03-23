@@ -30,7 +30,7 @@ echo === Signing Clipt.exe ===
 "%SIGNTOOL_EXE%" sign /f "%SIGN_CERT%" /p %SIGN_PASS% /fd SHA256 /t http://timestamp.digicert.com "src\Clipt\bin\Release\net8.0-windows\Clipt.exe"
 if errorlevel 1 (
     echo.
-    echo SIGNING FAILED — signtool returned an error. Check the .pfx password ^(SIGN_PASS^) and file path.
+    echo SIGNING FAILED - signtool returned an error. Check the .pfx password ^(SIGN_PASS^) and file path.
     exit /b 1
 )
 
@@ -50,7 +50,7 @@ if errorlevel 1 (
 echo.
 echo === Done ===
 echo Output: installer\Output\CliptSetup.exe
-exit /b 0
+goto :EOF
 
 rem ---------------------------------------------------------------------------
 rem  Scan one Windows Kits\bin root for the newest 10.* kit with signtool.
@@ -71,7 +71,7 @@ for /f "delims=" %%v in ('dir /b /ad /o-n "%KITS_BIN%" 2^>nul ^| findstr /r /c:"
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  Locate Microsoft signtool.exe (required — signing is not skipped).
+rem  Locate Microsoft signtool.exe (required - signing is not skipped).
 rem ---------------------------------------------------------------------------
 :ResolveSignTool
 set "SIGNTOOL_EXE="
@@ -98,7 +98,7 @@ exit /b 0
 :PrintSignToolHelp
 echo.
 echo ======================================================================
-echo   SIGNTOOL.EXE NOT FOUND — signing is required and is not skipped.
+echo   SIGNTOOL.EXE NOT FOUND - signing is required and is not skipped.
 echo ======================================================================
 echo.
 echo   Install the Windows SDK (includes SignTool^):
@@ -110,7 +110,7 @@ echo.
 echo   After install, either:
 echo     - Add the SDK "bin\x64" folder to your PATH, or
 echo     - Run this script from "x64 Native Tools Command Prompt for VS", or
-echo     - Rerun this .bat — it searches:
+echo     - Rerun this .bat - it searches:
 echo         %%ProgramFiles(x86)%%\Windows Kits\10\bin\^<version^>\x64\signtool.exe
 echo.
 echo   Verify manually:
