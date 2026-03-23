@@ -305,6 +305,35 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         EntriesChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public async Task MoveAsync(string entryId, int direction)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(entryId);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int idx = _entries.FindIndex(e => e.Id == entryId);
+            if (idx < 0)
+                return;
+
+            int newIdx = Math.Clamp(idx + direction, 0, _entries.Count - 1);
+            if (newIdx == idx)
+                return;
+
+            var entry = _entries[idx];
+            _entries.RemoveAt(idx);
+            _entries.Insert(newIdx, entry);
+            await WriteIndexAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task ClearAsync()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

@@ -1013,4 +1013,170 @@ public class HistoryTabViewModelTests
 
         Assert.DoesNotContain(vm.DisplayEntries, i => i.IsEditing);
     }
+
+    [Fact]
+    public void Refresh_SetsIsFirstAndIsLast_Correctly()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Middle", ContentType.Text, minutesAgo: 10),
+            CreateEntry("c", "Last", ContentType.Text, minutesAgo: 20),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.True(vm.DisplayEntries[0].IsFirst);
+        Assert.False(vm.DisplayEntries[0].IsLast);
+
+        Assert.False(vm.DisplayEntries[1].IsFirst);
+        Assert.False(vm.DisplayEntries[1].IsLast);
+
+        Assert.False(vm.DisplayEntries[2].IsFirst);
+        Assert.True(vm.DisplayEntries[2].IsLast);
+    }
+
+    [Fact]
+    public void Refresh_SingleEntry_IsFirstAndIsLastBothTrue()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("only", "Only", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.True(vm.DisplayEntries[0].IsFirst);
+        Assert.True(vm.DisplayEntries[0].IsLast);
+    }
+
+    [Fact]
+    public void MoveUpCommand_IsNull_ForFirstEntry()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.Null(vm.DisplayEntries[0].MoveUpCommand);
+        Assert.NotNull(vm.DisplayEntries[1].MoveUpCommand);
+    }
+
+    [Fact]
+    public void MoveDownCommand_IsNull_ForLastEntry()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.NotNull(vm.DisplayEntries[0].MoveDownCommand);
+        Assert.Null(vm.DisplayEntries[1].MoveDownCommand);
+    }
+
+    [Fact]
+    public void MoveCommands_SingleEntry_BothNull()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("only", "Only", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.Null(vm.DisplayEntries[0].MoveUpCommand);
+        Assert.Null(vm.DisplayEntries[0].MoveDownCommand);
+    }
+
+    [Fact]
+    public async Task MoveDownCommand_TopEntry_CallsMoveAndRestoresNewTop()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.MoveAsync("a", +1))
+            .Callback(() =>
+            {
+                var tmp = entries[0];
+                entries[0] = entries[1];
+                entries[1] = tmp;
+            })
+            .Returns(Task.CompletedTask);
+
+        var snapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = 16,
+                Memory = new MemoryInfo("0x0", "0x0", 16, []),
+                RawData = Encoding.Unicode.GetBytes("Second\0"),
+            }),
+        };
+        _historyMock.Setup(h => h.RestoreAsync("b")).ReturnsAsync(snapshot);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[0].MoveDownCommand!.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.MoveAsync("a", +1), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText("Second", It.IsAny<nint>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task MoveUpCommand_NonTopEntry_NoClipboardRestore()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+            CreateEntry("c", "Third", ContentType.Text, minutesAgo: 20),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        _historyMock.Setup(h => h.MoveAsync("c", -1))
+            .Callback(() =>
+            {
+                var tmp = entries[2];
+                entries[2] = entries[1];
+                entries[1] = tmp;
+            })
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.DisplayEntries[2].MoveUpCommand!.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.MoveAsync("c", -1), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
+        _clipboardMock.Verify(c => c.SetMultipleClipboardData(It.IsAny<IReadOnlyList<(uint, byte[])>>(), It.IsAny<nint>()), Times.Never);
+    }
 }

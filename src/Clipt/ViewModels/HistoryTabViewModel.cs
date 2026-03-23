@@ -79,6 +79,8 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         {
             var entry = entries[i];
             string entryId = entry.Id;
+            bool isFirst = i == 0;
+            bool isLast = i == entries.Count - 1;
             var item = new HistoryEntryDisplayItem
             {
                 Id = entry.Id,
@@ -91,7 +93,11 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
                 RenameCommand = new AsyncRelayCommand<string>(newName => RenameEntryAsync(entry.Id, newName!)),
-                IsCurrent = i == 0,
+                MoveUpCommand = isFirst ? null : new AsyncRelayCommand(() => MoveEntryAsync(entry.Id, -1)),
+                MoveDownCommand = isLast ? null : new AsyncRelayCommand(() => MoveEntryAsync(entry.Id, +1)),
+                IsCurrent = isFirst,
+                IsFirst = isFirst,
+                IsLast = isLast,
                 LoadUnicodeTextForSummaryExpandAsync = entry.ContentType == ContentType.Text
                     ? () => LoadEntryUnicodeTextAsync(entryId)
                     : null,
@@ -153,6 +159,20 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         await RestoreSnapshotToClipboard(entryId).ConfigureAwait(false);
         await _historyService.PromoteAsync(entryId).ConfigureAwait(false);
         ClipboardRestored?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task MoveEntryAsync(string entryId, int direction)
+    {
+        string? previousTopId = _historyService.Entries.Count > 0
+            ? _historyService.Entries[0].Id : null;
+
+        await _historyService.MoveAsync(entryId, direction).ConfigureAwait(false);
+
+        string? newTopId = _historyService.Entries.Count > 0
+            ? _historyService.Entries[0].Id : null;
+
+        if (newTopId is not null && newTopId != previousTopId)
+            await RestoreSnapshotToClipboard(newTopId).ConfigureAwait(false);
     }
 
     private async Task DeleteEntryAsync(string entryId)
@@ -395,7 +415,11 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public required IAsyncRelayCommand DeleteCommand { get; init; }
     public IAsyncRelayCommand? PreviewCommand { get; set; }
     public IAsyncRelayCommand? RenameCommand { get; set; }
+    public IAsyncRelayCommand? MoveUpCommand { get; init; }
+    public IAsyncRelayCommand? MoveDownCommand { get; init; }
     public bool IsCurrent { get; init; }
+    public bool IsFirst { get; init; }
+    public bool IsLast { get; init; }
 
     public Func<Task<string?>>? LoadUnicodeTextForSummaryExpandAsync { get; init; }
 

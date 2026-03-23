@@ -21,6 +21,7 @@ Worth a watch if you want to understand the codebase without reading every file.
 - **Optional clear clipboard** - Tray: **Clear Clipboard When Clearing History** (like **Purge History on Startup**). Popup: **Clear clipboard too** next to **Clear history**. Both use the same saved setting; default is off. When on, the app clears the OS clipboard and then clears **all** history so the list matches (immediate refresh)
 - **Named Entries** - History entries get auto-generated descriptive names (first line of text, image dimensions, file names). Single-click any name to rename it inline; text is pre-selected so you can start typing immediately. "Click to edit" tooltip guides discoverability
 - **Smart Restore** - Restoring an entry writes all original clipboard formats (not just one), so paste works correctly everywhere. Restored items move to the top of the history list
+- **Reorder History** - Up/down arrow buttons on each history entry let you manually reorder the list. Moving an entry to the top automatically restores it to the system clipboard
 - **Delete with Auto-Advance** - Deleting the active (most recent) history entry automatically restores the next entry to the system clipboard, or clears the clipboard if history is empty
 - **Image Preview** - Click inline image thumbnails in history to open a full-size DPI-aware preview popup. **Save As** button lets you export the image to PNG, BMP, JPEG, GIF, or TIFF via a format-selection file dialog
 - **History Settings** - Configurable max entries (5/10/25/50), max storage size (50 MB -- unlimited), per-type filtering (text/image/files/other), and purge-on-startup option -- all from the tray right-click menu
@@ -57,13 +58,14 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.7.2** | 2026-03-22 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
+| **1.8.0** | 2026-03-24 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.8.0/CliptSetup.exe) | Manual history reordering with up/down arrows; moving an entry to the top auto-restores it to the clipboard |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.7.2 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
 | 1.7.1 | 2026-03-22 | [Release](https://github.com/john-cornell/clipt/releases/tag/v1.7.1) (no installer uploaded) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle — use **1.7.2** installer above |
 | 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
 | 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |

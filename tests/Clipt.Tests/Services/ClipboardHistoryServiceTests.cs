@@ -1244,4 +1244,146 @@ public class ClipboardHistoryServiceTests : IDisposable
         await svc.AddAsync(CreateTextSnapshot("Unchanged", seqNum: 2));
         Assert.Single(svc.Entries);
     }
+
+    [Fact]
+    public async Task MoveAsync_MoveDown_SwapsWithNext()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-20);
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2, timestamp: t0.AddSeconds(3)));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3, timestamp: t0.AddSeconds(6)));
+
+        string topId = svc.Entries[0].Id;
+        await svc.MoveAsync(topId, +1);
+
+        Assert.Equal("B", svc.Entries[0].Summary);
+        Assert.Equal("C", svc.Entries[1].Summary);
+        Assert.Equal("A", svc.Entries[2].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_MoveUp_SwapsWithPrevious()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-20);
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2, timestamp: t0.AddSeconds(3)));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3, timestamp: t0.AddSeconds(6)));
+
+        string lastId = svc.Entries[2].Id;
+        await svc.MoveAsync(lastId, -1);
+
+        Assert.Equal("C", svc.Entries[0].Summary);
+        Assert.Equal("A", svc.Entries[1].Summary);
+        Assert.Equal("B", svc.Entries[2].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_AtTopBoundary_NoOp()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-10);
+        await svc.AddAsync(CreateTextSnapshot("First", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("Second", seqNum: 2, timestamp: t0.AddSeconds(3)));
+
+        string topId = svc.Entries[0].Id;
+        await svc.MoveAsync(topId, -1);
+
+        Assert.Equal("Second", svc.Entries[0].Summary);
+        Assert.Equal("First", svc.Entries[1].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_AtBottomBoundary_NoOp()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-10);
+        await svc.AddAsync(CreateTextSnapshot("First", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("Second", seqNum: 2, timestamp: t0.AddSeconds(3)));
+
+        string lastId = svc.Entries[1].Id;
+        await svc.MoveAsync(lastId, +1);
+
+        Assert.Equal("Second", svc.Entries[0].Summary);
+        Assert.Equal("First", svc.Entries[1].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_InvalidId_NoOp()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Only", seqNum: 1));
+
+        await svc.MoveAsync("nonexistent", +1);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Only", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_PersistsAfterReload()
+    {
+        {
+            using var svc1 = CreateService();
+            await svc1.LoadAsync();
+
+            var t0 = DateTime.UtcNow.AddSeconds(-20);
+            await svc1.AddAsync(CreateTextSnapshot("A", seqNum: 1, timestamp: t0));
+            await svc1.AddAsync(CreateTextSnapshot("B", seqNum: 2, timestamp: t0.AddSeconds(3)));
+            await svc1.AddAsync(CreateTextSnapshot("C", seqNum: 3, timestamp: t0.AddSeconds(6)));
+
+            await svc1.MoveAsync(svc1.Entries[0].Id, +1);
+        }
+
+        using var svc2 = CreateService();
+        await svc2.LoadAsync();
+
+        Assert.Equal(3, svc2.Entries.Count);
+        Assert.Equal("B", svc2.Entries[0].Summary);
+        Assert.Equal("C", svc2.Entries[1].Summary);
+        Assert.Equal("A", svc2.Entries[2].Summary);
+    }
+
+    [Fact]
+    public async Task MoveAsync_RaisesEntriesChanged()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-10);
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2, timestamp: t0.AddSeconds(3)));
+
+        bool raised = false;
+        svc.EntriesChanged += (_, _) => raised = true;
+
+        await svc.MoveAsync(svc.Entries[0].Id, +1);
+        Assert.True(raised);
+    }
+
+    [Fact]
+    public async Task MoveAsync_NoOpAtBoundary_DoesNotRaiseEvent()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Only", seqNum: 1));
+
+        bool raised = false;
+        svc.EntriesChanged += (_, _) => raised = true;
+
+        await svc.MoveAsync(svc.Entries[0].Id, -1);
+        Assert.False(raised);
+    }
 }

@@ -274,6 +274,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
@@ -283,8 +284,38 @@
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
 
+                                            <StackPanel Grid.Column="0" Grid.Row="0" Grid.RowSpan="3"
+                                                        VerticalAlignment="Center" Margin="0,0,6,0">
+                                                <Button Content="&#x25B2;" FontSize="9" Padding="2,0"
+                                                        Command="{Binding MoveUpCommand}"
+                                                        ToolTip="Move up in history">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding MoveUpCommand}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Hidden" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <Button Content="&#x25BC;" FontSize="9" Padding="2,0"
+                                                        Command="{Binding MoveDownCommand}"
+                                                        ToolTip="Move down in history">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding MoveDownCommand}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Hidden" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
+
                                             <!-- Editable name row -->
-                                            <TextBlock Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="0"
+                                            <TextBlock Grid.Column="1" Grid.ColumnSpan="4" Grid.Row="0"
                                                        Text="{Binding Name}"
                                                        FontSize="11" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource ForegroundBrush}"
@@ -302,7 +333,7 @@
                                                     </ToolTip>
                                                 </TextBlock.ToolTip>
                                             </TextBlock>
-                                            <TextBox Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="0"
+                                            <TextBox Grid.Column="1" Grid.ColumnSpan="4" Grid.Row="0"
                                                      Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                                      FontSize="11" FontWeight="SemiBold"
                                                      Margin="0,0,0,2" Padding="0"
@@ -311,7 +342,7 @@
                                                      KeyDown="HistoryEntryNameEdit_KeyDown"
                                                      Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
 
-                                            <Button Grid.Column="0" Grid.Row="1"
+                                            <Button Grid.Column="1" Grid.Row="1"
                                                     Command="{Binding PreviewCommand}"
                                                     Margin="0,0,6,0"
                                                     VerticalAlignment="Center"
@@ -340,13 +371,13 @@
                                                        RenderOptions.BitmapScalingMode="HighQuality" />
                                             </Button>
 
-                                            <TextBlock Grid.Column="1" Grid.Row="1"
+                                            <TextBlock Grid.Column="2" Grid.Row="1"
                                                        Text="{Binding ContentTypeLabel}"
                                                        FontWeight="SemiBold" FontSize="11"
                                                        Foreground="{DynamicResource AccentLightBrush}"
                                                        Margin="0,0,6,0" VerticalAlignment="Center" />
 
-                                            <StackPanel Grid.Column="2" Grid.Row="1" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="3" Grid.Row="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding SummaryDisplay}"
                                                            FontSize="11"
                                                            Foreground="{DynamicResource ForegroundBrush}"
@@ -361,14 +392,14 @@
                                                 </StackPanel>
                                             </StackPanel>
 
-                                            <TextBlock Grid.Column="3" Grid.Row="1"
+                                            <TextBlock Grid.Column="4" Grid.Row="1"
                                                        Text="{Binding RelativeTime}"
                                                        FontSize="10"
                                                        Foreground="{DynamicResource ForegroundDimBrush}"
                                                        VerticalAlignment="Center"
                                                        Margin="6,0,0,0" />
 
-                                            <StackPanel Grid.Column="2" Grid.ColumnSpan="2"
+                                            <StackPanel Grid.Column="3" Grid.ColumnSpan="2"
                                                         Grid.Row="2" Orientation="Horizontal"
                                                         HorizontalAlignment="Right" Margin="0,3,0,0">
                                                 <Button Content="Restore" FontSize="10"
