@@ -3,7 +3,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Clipt.Models;
 using Clipt.Native;
 
@@ -19,16 +18,13 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     private readonly string _historyDir;
     private readonly string _blobsDir;
     private readonly string _indexPath;
+    private readonly string _groupsPath;
+    private readonly string _groupsArchiveRoot;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly List<ClipboardHistoryEntry> _entries = [];
     private bool _disposed;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static JsonSerializerOptions JsonOptions => CliptJsonOptions.Shared;
 
     public event EventHandler? EntriesChanged;
 
@@ -54,6 +50,8 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         _historyDir = historyDirectory ?? throw new ArgumentNullException(nameof(historyDirectory));
         _blobsDir = Path.Combine(_historyDir, "blobs");
         _indexPath = Path.Combine(_historyDir, "index.json");
+        _groupsPath = Path.Combine(_historyDir, "groups.json");
+        _groupsArchiveRoot = Path.Combine(_historyDir, "groups");
     }
 
     public async Task LoadAsync()
@@ -456,6 +454,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         try
         {
             List<ClipboardHistoryEntry> resolved = ResolveGroupEntriesInOrder(entryIds);
+            if (resolved.Count == 0)
+                return;
+
             switch (mode)
             {
                 case GroupRestoreMode.ClearAndRestore:
@@ -492,16 +493,95 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 continue;
 
             ClipboardHistoryEntry? entry = _entries.FirstOrDefault(e => e.Id == id);
-            if (entry is null)
+            if (entry is not null && File.Exists(GetBlobPath(entry.Id)))
+            {
+                result.Add(entry);
                 continue;
+            }
 
-            if (!File.Exists(GetBlobPath(entry.Id)))
-                continue;
-
-            result.Add(entry);
+            ClipboardHistoryEntry? archivedEntry = TryMaterializeArchivedGroupEntryUnderLock(id);
+            if (archivedEntry is not null)
+                result.Add(archivedEntry);
         }
 
         return result;
+    }
+
+    private ClipboardHistoryEntry? TryMaterializeArchivedGroupEntryUnderLock(string archivedEntryId)
+    {
+        if (!File.Exists(_groupsPath))
+            return null;
+
+        GroupsFileDto? groupsFile;
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(_groupsPath);
+            groupsFile = JsonSerializer.Deserialize<GroupsFileDto>(bytes, JsonOptions);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        if (groupsFile?.Groups is null || groupsFile.Groups.Count == 0)
+            return null;
+
+        foreach (GroupDto group in groupsFile.Groups)
+        {
+            if (string.IsNullOrWhiteSpace(group.Id) || group.ArchivedEntries is null)
+                continue;
+
+            ArchivedGroupEntryDto? archived = group.ArchivedEntries
+                .FirstOrDefault(a => a.Id == archivedEntryId);
+            if (archived is null)
+                continue;
+
+            string sourceBlob = Path.Combine(_groupsArchiveRoot, group.Id, "blobs", archived.Id + ".bin");
+            if (!File.Exists(sourceBlob))
+                return null;
+
+            byte[] blobData;
+            try
+            {
+                blobData = File.ReadAllBytes(sourceBlob);
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+
+            EnsureDirectoriesExist();
+            string newHistoryId = Guid.NewGuid().ToString("N");
+            string targetBlob = GetBlobPath(newHistoryId);
+            try
+            {
+                File.WriteAllBytes(targetBlob, blobData);
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+
+            return new ClipboardHistoryEntry
+            {
+                Id = newHistoryId,
+                Name = string.IsNullOrWhiteSpace(archived.Name) ? "Clip" : archived.Name,
+                TimestampUtc = archived.TimestampUtc == default ? DateTime.UtcNow : archived.TimestampUtc,
+                SequenceNumber = archived.SequenceNumber,
+                OwnerProcess = string.IsNullOrWhiteSpace(archived.OwnerProcess) ? "(unknown)" : archived.OwnerProcess,
+                OwnerPid = archived.OwnerPid,
+                Summary = archived.Summary ?? string.Empty,
+                ContentType = archived.ContentType,
+                DataSizeBytes = blobData.LongLength,
+                ContentHash = archived.ContentHash ?? string.Empty,
+            };
+        }
+
+        return null;
     }
 
     private void ApplyClearAndRestoreUnderLock(List<ClipboardHistoryEntry> resolved)
@@ -1096,6 +1176,30 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         public string? Summary { get; set; }
         public ContentType ContentType { get; set; }
         public long DataSizeBytes { get; set; }
+        public string? ContentHash { get; set; }
+    }
+
+    private sealed class GroupsFileDto
+    {
+        public List<GroupDto> Groups { get; set; } = [];
+    }
+
+    private sealed class GroupDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public List<ArchivedGroupEntryDto>? ArchivedEntries { get; set; }
+    }
+
+    private sealed class ArchivedGroupEntryDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public DateTime TimestampUtc { get; set; }
+        public uint SequenceNumber { get; set; }
+        public string OwnerProcess { get; set; } = string.Empty;
+        public int OwnerPid { get; set; }
+        public string Summary { get; set; } = string.Empty;
+        public ContentType ContentType { get; set; }
         public string? ContentHash { get; set; }
     }
 }

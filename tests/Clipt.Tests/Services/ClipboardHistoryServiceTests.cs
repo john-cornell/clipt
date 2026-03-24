@@ -361,6 +361,24 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RestoreGroupAsync_ClearAndRestore_NoResolvedEntries_NoOp()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2));
+
+        string idB = svc.Entries[0].Id;
+        string idA = svc.Entries[1].Id;
+
+        await svc.RestoreGroupAsync(["missing-1", "missing-2"], GroupRestoreMode.ClearAndRestore);
+
+        Assert.Equal(2, svc.Entries.Count);
+        Assert.Equal(idB, svc.Entries[0].Id);
+        Assert.Equal(idA, svc.Entries[1].Id);
+    }
+
+    [Fact]
     public async Task RestoreGroupAsync_AddToTop_ReordersAndPrepends()
     {
         using var svc = CreateService();
@@ -400,6 +418,63 @@ public class ClipboardHistoryServiceTests : IDisposable
         Assert.Equal(idC, svc.Entries[0].Id);
         Assert.Equal(idA, svc.Entries[1].Id);
         Assert.Equal(idB, svc.Entries[2].Id);
+    }
+
+    [Fact]
+    public async Task RestoreGroupAsync_ClearAndRestore_UsesArchivedGroupPayloadWhenLiveEntryMissing()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("Live", seqNum: 1));
+        await svc.ClearAsync();
+
+        string groupsPath = Path.Combine(_tempDir, "groups.json");
+        string groupId = "group1";
+        string archivedId = "arch1";
+        string groupBlobDir = Path.Combine(_tempDir, "groups", groupId, "blobs");
+        Directory.CreateDirectory(groupBlobDir);
+
+        ClipboardSnapshot archivedSnapshot = CreateTextSnapshot("Archived payload", seqNum: 99);
+        byte[] archivedBlob = ClipboardHistoryService.SerializeSnapshot(archivedSnapshot);
+        await File.WriteAllBytesAsync(Path.Combine(groupBlobDir, archivedId + ".bin"), archivedBlob);
+
+        string groupsJson = """
+            {
+              "groups": [
+                {
+                  "id": "group1",
+                  "name": "Archived",
+                  "createdUtc": "2026-01-01T00:00:00Z",
+                  "entryIds": ["arch1"],
+                  "archivedEntries": [
+                    {
+                      "id": "arch1",
+                      "sourceEntryId": "old-id",
+                      "name": "Archived clip",
+                      "timestampUtc": "2026-01-01T00:00:00Z",
+                      "sequenceNumber": 99,
+                      "ownerProcess": "test",
+                      "ownerPid": 1,
+                      "summary": "Archived payload",
+                      "contentType": 1,
+                      "dataSizeBytes": 10,
+                      "contentHash": "DEADBEEF"
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(groupsPath, groupsJson);
+
+        await svc.RestoreGroupAsync([archivedId], GroupRestoreMode.ClearAndRestore);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Archived clip", svc.Entries[0].Name);
+        var restored = await svc.RestoreAsync(svc.Entries[0].Id);
+        Assert.NotNull(restored);
+        string text = Encoding.Unicode.GetString(restored.Formats[0].RawData).TrimEnd('\0');
+        Assert.Equal("Archived payload", text);
     }
 
     [Fact]

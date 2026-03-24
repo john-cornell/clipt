@@ -58,13 +58,14 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.9.4** | 2026-03-24 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
+| **1.9.8** | 2026-03-24 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.9.8/CliptSetup.exe) | Saved groups: durable archive aligned with history JSON (shared serialization); group save/load/restore diagnostics in `clipt.log`; safer clear-and-restore when nothing can be resolved |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.9.4 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
 | 1.8.0 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.8.0/CliptSetup.exe) | Manual history reordering with up/down arrows; moving an entry to the top auto-restores it to the clipboard |
 | 1.7.2 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
 | 1.7.1 | 2026-03-22 | [Release](https://github.com/john-cornell/clipt/releases/tag/v1.7.1) (no installer uploaded) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle — use **1.7.2** installer above |
@@ -116,6 +117,7 @@ If you skip this step, you may end up with two copies installed.
 
 ## Known Issues
 
+- The tray icon (red = empty, green = has data) can sometimes show **empty clipboard** (red) when the clipboard actually has content, until the next clipboard change or UI refresh (e.g. opening the popup).
 - Hex column / ASCII column cross-selection works within the Hex tab. Selection highlighting across multi-line ranges may occasionally lag on very large clipboard data.
 - The tray icon may initially appear in the Windows overflow area (click the `^` arrow in the system tray to find it). You can drag it to the always-visible area.
 - Users upgrading from v1.3.0 or earlier must manually uninstall the old version first (see Upgrading section above).
