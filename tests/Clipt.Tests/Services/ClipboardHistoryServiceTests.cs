@@ -341,6 +341,68 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RestoreGroupAsync_ClearAndRestore_KeepsOrderedEntries()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3));
+
+        string idC = svc.Entries[0].Id;
+        string idB = svc.Entries[1].Id;
+        string idA = svc.Entries[2].Id;
+
+        await svc.RestoreGroupAsync(new[] { idB, idA }, GroupRestoreMode.ClearAndRestore);
+
+        Assert.Equal(2, svc.Entries.Count);
+        Assert.Equal(idB, svc.Entries[0].Id);
+        Assert.Equal(idA, svc.Entries[1].Id);
+    }
+
+    [Fact]
+    public async Task RestoreGroupAsync_AddToTop_ReordersAndPrepends()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3));
+
+        string idC = svc.Entries[0].Id;
+        string idB = svc.Entries[1].Id;
+        string idA = svc.Entries[2].Id;
+
+        await svc.RestoreGroupAsync(new[] { idA, idC }, GroupRestoreMode.AddToTop);
+
+        Assert.Equal(3, svc.Entries.Count);
+        Assert.Equal(idA, svc.Entries[0].Id);
+        Assert.Equal(idC, svc.Entries[1].Id);
+        Assert.Equal(idB, svc.Entries[2].Id);
+    }
+
+    [Fact]
+    public async Task RestoreGroupAsync_AddToBottom_AppendsAfterRemaining()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3));
+
+        string idC = svc.Entries[0].Id;
+        string idB = svc.Entries[1].Id;
+        string idA = svc.Entries[2].Id;
+
+        await svc.RestoreGroupAsync(new[] { idA, idB }, GroupRestoreMode.AddToBottom);
+
+        Assert.Equal(3, svc.Entries.Count);
+        Assert.Equal(idC, svc.Entries[0].Id);
+        Assert.Equal(idA, svc.Entries[1].Id);
+        Assert.Equal(idB, svc.Entries[2].Id);
+    }
+
+    [Fact]
     public async Task ClearHistoryMatchingCurrentClipboardAsync_EmptyClipboard_CallsClearAsync()
     {
         var historyMock = new Mock<IClipboardHistoryService>();

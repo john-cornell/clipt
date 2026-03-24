@@ -14,6 +14,7 @@ public class HistoryTabViewModelTests
     private readonly Mock<IClipboardService> _clipboardMock;
     private readonly Mock<ISettingsService> _settingsMock;
     private readonly Mock<ITrayIconService> _trayMock;
+    private readonly Mock<IClipboardGroupService> _groupMock;
 
     public HistoryTabViewModelTests()
     {
@@ -23,6 +24,8 @@ public class HistoryTabViewModelTests
         _settingsMock = new Mock<ISettingsService>();
         _settingsMock.Setup(s => s.LoadClearClipboardWhenClearingHistory()).Returns(false);
         _trayMock = new Mock<ITrayIconService>();
+        _groupMock = new Mock<IClipboardGroupService>();
+        _groupMock.Setup(g => g.Groups).Returns(Array.Empty<ClipboardGroup>());
     }
 
     private HistoryTabViewModel CreateVm()
@@ -32,7 +35,8 @@ public class HistoryTabViewModelTests
             _clipboardMock.Object,
             () => (nint)0,
             _settingsMock.Object,
-            _trayMock.Object);
+            _trayMock.Object,
+            _groupMock.Object);
     }
 
     private static ClipboardHistoryEntry CreateEntry(
@@ -199,6 +203,68 @@ public class HistoryTabViewModelTests
         await vm.ClearAllCommand.ExecuteAsync(null);
 
         Assert.False(_historyMock.Object.IsSuppressed, "IsSuppressed must be false after clear without clipboard option");
+    }
+
+    [Fact]
+    public void ShowMoveControls_DefaultsFalse()
+    {
+        var vm = CreateVm();
+        Assert.False(vm.ShowMoveControls);
+    }
+
+    [Fact]
+    public void ShowTextExpandControls_DefaultsFalse()
+    {
+        var vm = CreateVm();
+        Assert.False(vm.ShowTextExpandControls);
+    }
+
+    [Fact]
+    public async Task ClearAllIncludingClipboardCommand_AlwaysClearsHistoryAndClipboard()
+    {
+        _historyMock.Setup(h => h.Entries)
+            .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        await vm.ClearAllIncludingClipboardCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.ClearAsync(), Times.Once);
+        _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(It.IsAny<string>()), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ClearHistoryOnlyCommand_CallsClearExceptMatchingHash()
+    {
+        byte[] data = Encoding.Unicode.GetBytes("KeepHash\0");
+        var snapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 99,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = data.Length,
+                Memory = new MemoryInfo("0x0", "0x0", data.Length, []),
+                RawData = data,
+            }),
+        };
+        string expectedHash = ClipboardHistoryService.ComputeContentHash(snapshot);
+
+        _clipboardMock.Setup(c => c.CaptureSnapshot(It.IsAny<nint>())).Returns(snapshot);
+        _historyMock.Setup(h => h.Entries)
+            .Returns(new List<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        await vm.ClearHistoryOnlyCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.ClearExceptMatchingContentHashAsync(expectedHash), Times.Once);
+        _historyMock.Verify(h => h.ClearAsync(), Times.Never);
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Never);
     }
 
     [Fact]
@@ -1178,5 +1244,104 @@ public class HistoryTabViewModelTests
         _historyMock.Verify(h => h.MoveAsync("c", -1), Times.Once);
         _clipboardMock.Verify(c => c.SetClipboardText(It.IsAny<string>(), It.IsAny<nint>()), Times.Never);
         _clipboardMock.Verify(c => c.SetMultipleClipboardData(It.IsAny<IReadOnlyList<(uint, byte[])>>(), It.IsAny<nint>()), Times.Never);
+    }
+
+    [Fact]
+    public void EnterSelectionMode_SetsModeAndClearsCheckboxes()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.DisplayEntries[0].IsSelected = true;
+
+        vm.EnterSelectionModeCommand.Execute(null);
+
+        Assert.True(vm.IsSelectionMode);
+        Assert.False(vm.IsNamingGroup);
+        Assert.False(vm.DisplayEntries[0].IsSelected);
+    }
+
+    [Fact]
+    public void BeginSaveSelected_WithoutSelection_IsDisabled()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSelectionModeCommand.Execute(null);
+
+        Assert.False(vm.BeginSaveSelectedCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void BeginSaveSelected_WithSelection_OpensNamingPrompt()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+
+        vm.BeginSaveSelectedCommand.Execute(null);
+
+        Assert.True(vm.IsNamingGroup);
+        Assert.Equal("New group", vm.NewGroupName);
+    }
+
+    [Fact]
+    public async Task ConfirmSaveGroupAsync_InvokesGroupServiceWithOrderedIds()
+    {
+        _groupMock
+            .Setup(g => g.SaveGroupAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
+            .Returns(Task.CompletedTask);
+
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "First", ContentType.Text),
+            CreateEntry("b", "Second", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+        vm.DisplayEntries[1].IsSelected = true;
+        vm.BeginSaveSelectedCommand.Execute(null);
+        vm.NewGroupName = "Pack";
+
+        await vm.ConfirmSaveGroupCommand.ExecuteAsync(null);
+
+        _groupMock.Verify(
+            g => g.SaveGroupAsync(
+                "Pack",
+                It.Is<IReadOnlyList<string>>(ids => ids.Count == 2 && ids[0] == "a" && ids[1] == "b")),
+            Times.Once);
+    }
+
+    [Fact]
+    public void EnterSelectionMode_EmptyHistory_IsDisabled()
+    {
+        _historyMock.Setup(h => h.Entries).Returns(Array.Empty<ClipboardHistoryEntry>().AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.True(vm.IsEmpty);
+        Assert.False(vm.EnterSelectionModeCommand.CanExecute(null));
     }
 }

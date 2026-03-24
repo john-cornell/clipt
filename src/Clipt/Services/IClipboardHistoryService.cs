@@ -26,5 +26,10 @@ public interface IClipboardHistoryService : IDisposable
     Task ClearExceptMatchingContentHashAsync(string? contentHashHex);
     Task<ClipboardSnapshot?> RestoreAsync(string entryId);
 
+    /// <summary>
+    /// Reorders history from a saved group. Missing entries or blobs are skipped.
+    /// </summary>
+    Task RestoreGroupAsync(IReadOnlyList<string> entryIds, GroupRestoreMode mode);
+
     event EventHandler? EntriesChanged;
 }

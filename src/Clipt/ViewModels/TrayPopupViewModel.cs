@@ -61,6 +61,9 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     [ObservableProperty]
     private HistoryTabViewModel? _historyTab;
 
+    [ObservableProperty]
+    private GroupsTabViewModel? _groupsTab;
+
     private string? _trayUnicodeFullText;
     private int _trayUnicodeFullCharCount;
 

@@ -16,6 +16,7 @@ public partial class App : Application
     private TrayPopupWindow? _trayPopupWindow;
     private TrayPopupViewModel? _trayPopupViewModel;
     private HistoryTabViewModel? _historyTabViewModel;
+    private GroupsTabViewModel? _groupsTabViewModel;
     private MainWindow? _mainWindow;
     private ClipboardListenerService? _listenerService;
     private IClipboardService? _clipboardService;
@@ -42,9 +43,11 @@ public partial class App : Application
         _trayPopupViewModel = _serviceProvider.GetRequiredService<TrayPopupViewModel>();
         _historyService = _serviceProvider.GetRequiredService<IClipboardHistoryService>();
         _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
+        _groupsTabViewModel = _serviceProvider.GetRequiredService<GroupsTabViewModel>();
         _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
+        _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
 
         _listenerService.Start();
 
@@ -61,6 +64,17 @@ public partial class App : Application
             ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
         }
+
+        try
+        {
+            var groupService = _serviceProvider.GetRequiredService<IClipboardGroupService>();
+            await groupService.LoadAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+        }
+
+        Dispatcher.Invoke(() => _groupsTabViewModel?.Refresh());
 
         _settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
         var settings = _settingsService;
@@ -164,6 +178,7 @@ public partial class App : Application
             await SyncClipboardToHistoryAsync(snapshot);
 
         _historyTabViewModel?.Refresh();
+        _groupsTabViewModel?.Refresh();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -267,14 +282,17 @@ public partial class App : Application
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<ITrayIconService, TrayIconService>();
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
+        services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayPopupViewModel>();
+        services.AddSingleton<GroupsTabViewModel>();
         services.AddSingleton<HistoryTabViewModel>(sp => new HistoryTabViewModel(
             sp.GetRequiredService<IClipboardHistoryService>(),
             sp.GetRequiredService<IClipboardService>(),
             () => sp.GetRequiredService<ClipboardListenerService>().Hwnd,
             sp.GetRequiredService<ISettingsService>(),
-            sp.GetRequiredService<ITrayIconService>()));
+            sp.GetRequiredService<ITrayIconService>(),
+            sp.GetRequiredService<IClipboardGroupService>()));
         services.AddSingleton<MainWindow>();
         services.AddSingleton<TrayPopupWindow>();
     }

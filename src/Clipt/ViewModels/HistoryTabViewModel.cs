@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -17,6 +19,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     private readonly IClipboardService _clipboardService;
     private readonly ISettingsService _settingsService;
     private readonly ITrayIconService _trayIconService;
+    private readonly IClipboardGroupService _groupService;
     private readonly Func<nint> _hwndProvider;
 
     [ObservableProperty]
@@ -26,10 +29,38 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     private string _statusText = "No history";
 
     /// <summary>
-    /// When true, <see cref="ClearAllCommand"/> also clears the system clipboard after clearing history (tray and popup).
+    /// When true, <see cref="ClearAllCommand"/> also clears the system clipboard after clearing history
+    /// (tray icon preference / programmatic use).
     /// </summary>
     [ObservableProperty]
     private bool _alsoClearClipboardOnClearHistory;
+
+    [ObservableProperty]
+    private bool _isSelectionMode;
+
+    [ObservableProperty]
+    private bool _isNamingGroup;
+
+    [ObservableProperty]
+    private string _newGroupName = string.Empty;
+
+    /// <summary>
+    /// When true, history rows show up/down reorder controls.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showMoveControls;
+
+    /// <summary>
+    /// When true, text entries can show More/Less controls for long summaries.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showTextExpandControls;
+
+    public bool ShowNormalHistoryChrome => !IsSelectionMode && !IsNamingGroup;
+
+    public bool ShowSelectionHistoryChrome => IsSelectionMode && !IsNamingGroup;
+
+    public bool ShowNamingHistoryChrome => IsNamingGroup;
 
     public ObservableCollection<HistoryEntryDisplayItem> DisplayEntries { get; } = [];
 
@@ -41,18 +72,118 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         IClipboardService clipboardService,
         Func<nint> hwndProvider,
         ISettingsService settingsService,
-        ITrayIconService trayIconService)
+        ITrayIconService trayIconService,
+        IClipboardGroupService groupService)
     {
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
         _clipboardService = clipboardService ?? throw new ArgumentNullException(nameof(clipboardService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _trayIconService = trayIconService ?? throw new ArgumentNullException(nameof(trayIconService));
+        _groupService = groupService ?? throw new ArgumentNullException(nameof(groupService));
         _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
 
         _historyService.EntriesChanged += OnEntriesChanged;
 
         AlsoClearClipboardOnClearHistory = _settingsService.LoadClearClipboardWhenClearingHistory();
     }
+
+    partial void OnIsSelectionModeChanged(bool value)
+    {
+        BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        EnterSelectionModeCommand.NotifyCanExecuteChanged();
+        NotifyHistoryChromeVisibility();
+    }
+
+    partial void OnIsNamingGroupChanged(bool value)
+    {
+        BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        ConfirmSaveGroupCommand.NotifyCanExecuteChanged();
+        NotifyHistoryChromeVisibility();
+    }
+
+    private void NotifyHistoryChromeVisibility()
+    {
+        OnPropertyChanged(nameof(ShowNormalHistoryChrome));
+        OnPropertyChanged(nameof(ShowSelectionHistoryChrome));
+        OnPropertyChanged(nameof(ShowNamingHistoryChrome));
+    }
+
+    partial void OnNewGroupNameChanged(string value) =>
+        ConfirmSaveGroupCommand.NotifyCanExecuteChanged();
+
+    partial void OnIsEmptyChanged(bool value) =>
+        EnterSelectionModeCommand.NotifyCanExecuteChanged();
+
+    [RelayCommand(CanExecute = nameof(CanEnterSelectionMode))]
+    private void EnterSelectionMode()
+    {
+        IsSelectionMode = true;
+        IsNamingGroup = false;
+        NewGroupName = string.Empty;
+        foreach (HistoryEntryDisplayItem e in DisplayEntries)
+            e.IsSelected = false;
+    }
+
+    private bool CanEnterSelectionMode() =>
+        !IsEmpty && !IsSelectionMode;
+
+    [RelayCommand]
+    private void CancelSelectionMode()
+    {
+        IsSelectionMode = false;
+        IsNamingGroup = false;
+        NewGroupName = string.Empty;
+        foreach (HistoryEntryDisplayItem e in DisplayEntries)
+            e.IsSelected = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanBeginSaveSelected))]
+    private void BeginSaveSelected()
+    {
+        IsNamingGroup = true;
+        NewGroupName = "New group";
+    }
+
+    private bool CanBeginSaveSelected() =>
+        IsSelectionMode && !IsNamingGroup && DisplayEntries.Any(e => e.IsSelected);
+
+    [RelayCommand]
+    private void CancelNaming()
+    {
+        IsNamingGroup = false;
+        NewGroupName = string.Empty;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmSaveGroup))]
+    private async Task ConfirmSaveGroupAsync()
+    {
+        string name = NewGroupName.Trim();
+        if (name.Length == 0)
+            return;
+
+        List<string> ids = DisplayEntries.Where(e => e.IsSelected).Select(e => e.Id).ToList();
+        if (ids.Count == 0)
+            return;
+
+        await _groupService.SaveGroupAsync(name, ids).ConfigureAwait(false);
+
+        void Finish()
+        {
+            IsSelectionMode = false;
+            IsNamingGroup = false;
+            NewGroupName = string.Empty;
+            Refresh();
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Finish();
+        else
+            dispatcher.Invoke(Finish);
+    }
+
+    private bool CanConfirmSaveGroup() =>
+        IsNamingGroup && !string.IsNullOrWhiteSpace(NewGroupName);
 
     partial void OnAlsoClearClipboardOnClearHistoryChanged(bool value)
     {
@@ -62,7 +193,16 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     public void Refresh()
     {
+        foreach (HistoryEntryDisplayItem old in DisplayEntries)
+            old.PropertyChanged -= OnHistoryEntryDisplayPropertyChanged;
+
         DisplayEntries.Clear();
+        IsSelectionMode = false;
+        IsNamingGroup = false;
+        NewGroupName = string.Empty;
+        BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        ConfirmSaveGroupCommand.NotifyCanExecuteChanged();
+        NotifyHistoryChromeVisibility();
 
         var entries = _historyService.Entries;
         if (entries.Count == 0)
@@ -106,10 +246,18 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             if (entry.ContentType == ContentType.Image)
                 item.PreviewCommand = new AsyncRelayCommand(() => ShowPreviewAsync(entry.Id));
 
+            item.PropertyChanged += OnHistoryEntryDisplayPropertyChanged;
             DisplayEntries.Add(item);
         }
 
+        EnterSelectionModeCommand.NotifyCanExecuteChanged();
         _ = LoadInlineThumbnailsSafeAsync();
+    }
+
+    private void OnHistoryEntryDisplayPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HistoryEntryDisplayItem.IsSelected))
+            BeginSaveSelectedCommand.NotifyCanExecuteChanged();
     }
 
     private async Task LoadInlineThumbnailsSafeAsync()
@@ -138,6 +286,31 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 _clipboardService,
                 _hwndProvider()).ConfigureAwait(false);
         }
+
+        EnsureRefreshOnUiThread();
+    }
+
+    /// <summary>
+    /// Clears history and the system clipboard (tray popup menu).
+    /// </summary>
+    [RelayCommand]
+    private async Task ClearAllIncludingClipboardAsync()
+    {
+        await _historyService.ClearAsync().ConfigureAwait(false);
+        await ClearSystemClipboardAsync().ConfigureAwait(false);
+        EnsureRefreshOnUiThread();
+    }
+
+    /// <summary>
+    /// Clears history but keeps the current clipboard content in history when possible.
+    /// </summary>
+    [RelayCommand]
+    private async Task ClearHistoryOnlyAsync()
+    {
+        await ClipboardHistoryService.ClearHistoryMatchingCurrentClipboardAsync(
+            _historyService,
+            _clipboardService,
+            _hwndProvider()).ConfigureAwait(false);
 
         EnsureRefreshOnUiThread();
     }
@@ -402,6 +575,9 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
 
     [ObservableProperty]
     private string _name = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSelected;
 
     public required string Summary { get; init; }
 

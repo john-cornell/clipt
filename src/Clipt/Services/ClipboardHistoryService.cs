@@ -447,6 +447,109 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
     }
 
+    public async Task RestoreGroupAsync(IReadOnlyList<string> entryIds, GroupRestoreMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(entryIds);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            List<ClipboardHistoryEntry> resolved = ResolveGroupEntriesInOrder(entryIds);
+            switch (mode)
+            {
+                case GroupRestoreMode.ClearAndRestore:
+                    ApplyClearAndRestoreUnderLock(resolved);
+                    break;
+                case GroupRestoreMode.AddToTop:
+                    ApplyAddToTopUnderLock(resolved);
+                    break;
+                case GroupRestoreMode.AddToBottom:
+                    ApplyAddToBottomUnderLock(resolved);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+            }
+
+            EnforceCaps();
+            await WriteIndexAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private List<ClipboardHistoryEntry> ResolveGroupEntriesInOrder(IReadOnlyList<string> entryIds)
+    {
+        var result = new List<ClipboardHistoryEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string id in entryIds)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                continue;
+
+            ClipboardHistoryEntry? entry = _entries.FirstOrDefault(e => e.Id == id);
+            if (entry is null)
+                continue;
+
+            if (!File.Exists(GetBlobPath(entry.Id)))
+                continue;
+
+            result.Add(entry);
+        }
+
+        return result;
+    }
+
+    private void ApplyClearAndRestoreUnderLock(List<ClipboardHistoryEntry> resolved)
+    {
+        var keepSet = new HashSet<string>(resolved.Select(e => e.Id), StringComparer.Ordinal);
+        foreach (ClipboardHistoryEntry entry in _entries.ToList())
+        {
+            if (!keepSet.Contains(entry.Id))
+                DeleteBlobQuietly(entry.Id);
+        }
+
+        _entries.Clear();
+        foreach (ClipboardHistoryEntry e in resolved)
+            _entries.Add(e);
+    }
+
+    private void ApplyAddToTopUnderLock(List<ClipboardHistoryEntry> resolved)
+    {
+        if (resolved.Count == 0)
+            return;
+
+        var resolvedSet = new HashSet<string>(resolved.Select(e => e.Id), StringComparer.Ordinal);
+        for (int i = _entries.Count - 1; i >= 0; i--)
+        {
+            if (resolvedSet.Contains(_entries[i].Id))
+                _entries.RemoveAt(i);
+        }
+
+        for (int i = resolved.Count - 1; i >= 0; i--)
+            _entries.Insert(0, resolved[i]);
+    }
+
+    private void ApplyAddToBottomUnderLock(List<ClipboardHistoryEntry> resolved)
+    {
+        if (resolved.Count == 0)
+            return;
+
+        var resolvedSet = new HashSet<string>(resolved.Select(e => e.Id), StringComparer.Ordinal);
+        for (int i = _entries.Count - 1; i >= 0; i--)
+        {
+            if (resolvedSet.Contains(_entries[i].Id))
+                _entries.RemoveAt(i);
+        }
+
+        foreach (ClipboardHistoryEntry e in resolved)
+            _entries.Add(e);
+    }
+
     internal static string DescribeSnapshotDebug(ClipboardSnapshot snapshot)
     {
         var sb = new StringBuilder();
