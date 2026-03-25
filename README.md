@@ -10,17 +10,22 @@ Clipt goes far beyond simple paste, it's a history manager, as well as it enumer
 
 | Video | Watch / download |
 |-------|------------------|
-| **Engineering update (v1.6 → v1.10)** — features and evolution | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Clipt_Engineering_1_6_to_1_10_update.mp4) · [In repo](Clipt_Engineering_1_6_to_1_10_update.mp4) |
-| **Building a forensic clipboard inspector** — Win32 clipboard, `HGLOBAL`, and how Clipt inspects memory | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) · [In repo](Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) |
-| **Engineering update PDF (v1.6 → v1.10)** — companion document to the update video | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.4/Clipt_Engineering_1_6_to_1_10_update.pdf) · [In repo](Clipt_Engineering_1_6_to_1_10_update.pdf) |
+| **Engineering update (v1.6 → v1.10)** — features and evolution | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Clipt_Engineering_1_6_to_1_10_update.mp4) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.mp4) |
+| **Building a forensic clipboard inspector** — Win32 clipboard, `HGLOBAL`, and how Clipt inspects memory | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) · [In repo](media/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) |
 
 Release assets match the filenames above (same links as the installer). If a link 404s, open the matching [release](https://github.com/john-cornell/clipt/releases) and download from **Assets**.
+
+## Documents
+
+| Document | Access |
+|----------|--------|
+| **Engineering update PDF (v1.6 -> v1.10)** — companion document to the update video | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.4/Clipt_Engineering_1_6_to_1_10_update.pdf) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.pdf) |
 
 ### Archive
 
 | Video | Notes |
 |-------|--------|
-| [`Clipt_1.6_Code_Explainer.mp4`](Clipt_1.6_Code_Explainer.mp4) | NotebookLM-generated walkthrough of the architecture around **v1.6** — handy overview, not a low-level line-by-line; take it with a pinch of salt. Superseded for “what’s new” by the **Engineering update** video above. |
+| [`Clipt_1.6_Code_Explainer.mp4`](media/Clipt_1.6_Code_Explainer.mp4) | NotebookLM-generated walkthrough of the architecture around **v1.6** — handy overview, not a low-level line-by-line; take it with a pinch of salt. Superseded for “what’s new” by the **Engineering update** video above. |
 
 ## Features
 
