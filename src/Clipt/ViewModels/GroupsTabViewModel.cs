@@ -12,6 +12,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 {
     private readonly IClipboardGroupService _groupService;
     private readonly IClipboardHistoryService _historyService;
+    private readonly IClipboardService _clipboardService;
+    private readonly Func<nint> _hwndProvider;
 
     [ObservableProperty]
     private bool _isEmpty = true;
@@ -23,10 +25,14 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 
     public GroupsTabViewModel(
         IClipboardGroupService groupService,
-        IClipboardHistoryService historyService)
+        IClipboardHistoryService historyService,
+        IClipboardService clipboardService,
+        Func<nint> hwndProvider)
     {
         _groupService = groupService ?? throw new ArgumentNullException(nameof(groupService));
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
+        _clipboardService = clipboardService ?? throw new ArgumentNullException(nameof(clipboardService));
+        _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
 
         _groupService.GroupsChanged += OnGroupsChanged;
     }
@@ -103,6 +109,16 @@ public sealed partial class GroupsTabViewModel : ObservableObject
             return;
 
         await _historyService.RestoreGroupAsync(g.EntryIds, mode).ConfigureAwait(false);
+
+        if (_historyService.Entries.Count == 0)
+            return;
+
+        string topId = _historyService.Entries[0].Id;
+        await ClipboardSnapshotWriter.RestoreEntryToClipboardAsync(
+            _historyService,
+            _clipboardService,
+            _hwndProvider(),
+            topId).ConfigureAwait(false);
     }
 }
 

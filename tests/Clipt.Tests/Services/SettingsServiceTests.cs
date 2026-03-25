@@ -8,11 +8,14 @@ public class SettingsServiceTests : IDisposable
 {
     private const string SettingsKeyPath = @"SOFTWARE\Clipt";
     private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupApprovedRunKeyPath =
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     private const string RunValueName = "Clipt";
 
     private readonly bool _settingsKeyExisted;
     private readonly List<RegistryValueSnapshot> _settingsValues;
     private readonly RegistryValueSnapshot? _runValue;
+    private readonly RegistryValueSnapshot? _startupApprovedRunValue;
 
     public SettingsServiceTests()
     {
@@ -34,12 +37,21 @@ public class SettingsServiceTests : IDisposable
                 runValue,
                 runKey.GetValueKind(RunValueName))
             : null;
+
+        using RegistryKey? approvedKey = Registry.CurrentUser.OpenSubKey(StartupApprovedRunKeyPath);
+        _startupApprovedRunValue = approvedKey?.GetValue(RunValueName) is { } approvedVal
+            ? new RegistryValueSnapshot(
+                RunValueName,
+                approvedVal,
+                approvedKey.GetValueKind(RunValueName))
+            : null;
     }
 
     public void Dispose()
     {
         RestoreSettingsKey();
         RestoreRunValue();
+        RestoreStartupApprovedRunValue();
     }
 
     [Fact]
@@ -251,7 +263,7 @@ public class SettingsServiceTests : IDisposable
     public void SaveRunOnStartup_True_ThenLoad_ReturnsTrue()
     {
         var service = new SettingsService();
-        service.SaveRunOnStartup(true);
+        Assert.True(service.SaveRunOnStartup(true));
         Assert.True(service.LoadRunOnStartup());
     }
 
@@ -259,15 +271,15 @@ public class SettingsServiceTests : IDisposable
     public void SaveRunOnStartup_False_ThenLoad_ReturnsFalse()
     {
         var service = new SettingsService();
-        service.SaveRunOnStartup(false);
+        Assert.True(service.SaveRunOnStartup(false));
         Assert.False(service.LoadRunOnStartup());
     }
 
     [Fact]
-    public void SaveRunOnStartup_True_WritesQuotedPath()
+    public void SaveRunOnStartup_True_WritesQuotedPathAndStartupApproved()
     {
         var service = new SettingsService();
-        service.SaveRunOnStartup(true);
+        Assert.True(service.SaveRunOnStartup(true));
 
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
         Assert.NotNull(key);
@@ -276,6 +288,28 @@ public class SettingsServiceTests : IDisposable
         Assert.NotNull(raw);
         Assert.StartsWith("\"", raw);
         Assert.EndsWith("\"", raw);
+
+        using var approvedKey = Registry.CurrentUser.OpenSubKey(StartupApprovedRunKeyPath);
+        Assert.NotNull(approvedKey);
+        Assert.Equal(RegistryValueKind.Binary, approvedKey.GetValueKind(RunValueName));
+        var bin = Assert.IsType<byte[]>(approvedKey.GetValue(RunValueName));
+        Assert.Equal(12, bin.Length);
+        Assert.Equal(0x02, bin[0]);
+    }
+
+    [Fact]
+    public void LoadRunOnStartup_False_WhenRunExistsButStartupApprovedDisabled()
+    {
+        var service = new SettingsService();
+
+        using (var runKey = Registry.CurrentUser.CreateSubKey(RunKeyPath))
+            runKey.SetValue(RunValueName, "\"C:\\Fake\\Clipt.exe\"", RegistryValueKind.String);
+
+        byte[] disabled = [0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        using (var approvedKey = Registry.CurrentUser.CreateSubKey(StartupApprovedRunKeyPath))
+            approvedKey.SetValue(RunValueName, disabled, RegistryValueKind.Binary);
+
+        Assert.False(service.LoadRunOnStartup());
     }
 
     [Fact]
@@ -332,6 +366,19 @@ public class SettingsServiceTests : IDisposable
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);
 
         if (_runValue is RegistryValueSnapshot snapshot)
+        {
+            key.SetValue(snapshot.Name, snapshot.Value, snapshot.Kind);
+            return;
+        }
+
+        key.DeleteValue(RunValueName, throwOnMissingValue: false);
+    }
+
+    private void RestoreStartupApprovedRunValue()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(StartupApprovedRunKeyPath);
+
+        if (_startupApprovedRunValue is RegistryValueSnapshot snapshot)
         {
             key.SetValue(snapshot.Name, snapshot.Value, snapshot.Kind);
             return;

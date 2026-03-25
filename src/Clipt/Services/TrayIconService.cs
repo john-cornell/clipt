@@ -319,8 +319,8 @@ public sealed class TrayIconService : ITrayIconService
             return;
 
         bool next = !_runOnStartupItem.Checked;
-        _settingsService.SaveRunOnStartup(next);
-        _runOnStartupItem.Checked = next;
+        bool ok = _settingsService.SaveRunOnStartup(next);
+        _runOnStartupItem.Checked = ok ? next : _settingsService.LoadRunOnStartup();
     }
 
     private void OnPurgeHistoryToggle(object? sender, EventArgs e)

@@ -1247,7 +1247,7 @@ public class HistoryTabViewModelTests
     }
 
     [Fact]
-    public void EnterSelectionMode_SetsModeAndClearsCheckboxes()
+    public void EnterSaveSelectionMode_SetsFlowAndClearsCheckboxes()
     {
         var entries = new List<ClipboardHistoryEntry>
         {
@@ -1259,11 +1259,13 @@ public class HistoryTabViewModelTests
         vm.Refresh();
         vm.DisplayEntries[0].IsSelected = true;
 
-        vm.EnterSelectionModeCommand.Execute(null);
+        vm.EnterSaveSelectionModeCommand.Execute(null);
 
+        Assert.Equal(HistorySelectionFlow.SaveGroup, vm.SelectionFlow);
         Assert.True(vm.IsSelectionMode);
         Assert.False(vm.IsNamingGroup);
         Assert.False(vm.DisplayEntries[0].IsSelected);
+        Assert.False(vm.SelectAllHeaderChecked);
     }
 
     [Fact]
@@ -1277,7 +1279,7 @@ public class HistoryTabViewModelTests
 
         var vm = CreateVm();
         vm.Refresh();
-        vm.EnterSelectionModeCommand.Execute(null);
+        vm.EnterSaveSelectionModeCommand.Execute(null);
 
         Assert.False(vm.BeginSaveSelectedCommand.CanExecute(null));
     }
@@ -1293,7 +1295,7 @@ public class HistoryTabViewModelTests
 
         var vm = CreateVm();
         vm.Refresh();
-        vm.EnterSelectionModeCommand.Execute(null);
+        vm.EnterSaveSelectionModeCommand.Execute(null);
         vm.DisplayEntries[0].IsSelected = true;
 
         vm.BeginSaveSelectedCommand.Execute(null);
@@ -1318,7 +1320,7 @@ public class HistoryTabViewModelTests
 
         var vm = CreateVm();
         vm.Refresh();
-        vm.EnterSelectionModeCommand.Execute(null);
+        vm.EnterSaveSelectionModeCommand.Execute(null);
         vm.DisplayEntries[0].IsSelected = true;
         vm.DisplayEntries[1].IsSelected = true;
         vm.BeginSaveSelectedCommand.Execute(null);
@@ -1334,7 +1336,7 @@ public class HistoryTabViewModelTests
     }
 
     [Fact]
-    public void EnterSelectionMode_EmptyHistory_IsDisabled()
+    public void EnterSaveOrDeleteSelectionMode_EmptyHistory_IsDisabled()
     {
         _historyMock.Setup(h => h.Entries).Returns(Array.Empty<ClipboardHistoryEntry>().AsReadOnly());
 
@@ -1342,6 +1344,223 @@ public class HistoryTabViewModelTests
         vm.Refresh();
 
         Assert.True(vm.IsEmpty);
-        Assert.False(vm.EnterSelectionModeCommand.CanExecute(null));
+        Assert.False(vm.EnterSaveSelectionModeCommand.CanExecute(null));
+        Assert.False(vm.EnterDeleteSelectionModeCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void EnterDeleteSelectionMode_SetsFlowAndClearsCheckboxes()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.DisplayEntries[0].IsSelected = true;
+
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+
+        Assert.Equal(HistorySelectionFlow.DeleteEntries, vm.SelectionFlow);
+        Assert.True(vm.ShowDeleteSelectedInChrome);
+        Assert.False(vm.ShowSaveSelectedInChrome);
+        Assert.False(vm.DisplayEntries[0].IsSelected);
+    }
+
+    [Fact]
+    public async Task DeleteSelected_RemovesEachSelectedEntry()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+            CreateEntry("b", "B", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+        _historyMock.Setup(h => h.RemoveAsync(It.IsAny<string>()))
+            .Callback((string id) => entries.RemoveAll(e => e.Id == id))
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+        vm.DisplayEntries[1].IsSelected = true;
+
+        await vm.DeleteSelectedCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.RemoveAsync("a"), Times.Once);
+        _historyMock.Verify(h => h.RemoveAsync("b"), Times.Once);
+        Assert.Equal(HistorySelectionFlow.None, vm.SelectionFlow);
+    }
+
+    [Fact]
+    public async Task DeleteSelected_WhenOnlyTopSelected_RestoresNextToClipboard()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("top", "Top", ContentType.Text),
+            CreateEntry("next", "Next", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+        _historyMock.Setup(h => h.RemoveAsync(It.IsAny<string>()))
+            .Callback((string id) => entries.RemoveAll(e => e.Id == id))
+            .Returns(Task.CompletedTask);
+
+        var nextSnapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 2,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = 14,
+                Memory = new MemoryInfo("0x0", "0x0", 14, []),
+                RawData = Encoding.Unicode.GetBytes("Next\0"),
+            }),
+        };
+        _historyMock.Setup(h => h.RestoreAsync("next")).ReturnsAsync(nextSnapshot);
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+
+        await vm.DeleteSelectedCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(h => h.RestoreAsync("next"), Times.Once);
+        _clipboardMock.Verify(c => c.SetClipboardText("Next", It.IsAny<nint>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteSelected_WhenTopAndRestSelected_ClearsClipboardWhenHistoryEmpty()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("top", "Top", ContentType.Text),
+            CreateEntry("next", "Next", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+        _historyMock.Setup(h => h.RemoveAsync(It.IsAny<string>()))
+            .Callback((string id) => entries.RemoveAll(e => e.Id == id))
+            .Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+        vm.DisplayEntries[1].IsSelected = true;
+
+        await vm.DeleteSelectedCommand.ExecuteAsync(null);
+
+        _clipboardMock.Verify(c => c.ClearClipboard(It.IsAny<nint>()), Times.Once);
+        _historyMock.Verify(h => h.RestoreAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void SelectAllHeader_SyncsCheckedWhenAllRowsSelectedManually()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+            CreateEntry("b", "B", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSaveSelectionModeCommand.Execute(null);
+
+        Assert.False(vm.SelectAllHeaderChecked);
+        vm.DisplayEntries[0].IsSelected = true;
+        Assert.False(vm.SelectAllHeaderChecked);
+        vm.DisplayEntries[1].IsSelected = true;
+        Assert.True(vm.SelectAllHeaderChecked);
+    }
+
+    [Fact]
+    public void SelectAllHeader_UnchecksWhenOneRowUncheckedFromFullSet_KeepsOtherSelections()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+            CreateEntry("b", "B", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSaveSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+        vm.DisplayEntries[1].IsSelected = true;
+
+        Assert.True(vm.SelectAllHeaderChecked);
+        vm.DisplayEntries[1].IsSelected = false;
+
+        Assert.False(vm.SelectAllHeaderChecked);
+        Assert.True(vm.DisplayEntries[0].IsSelected);
+    }
+
+    [Fact]
+    public void SelectAllHeader_Check_SelectsAllRows()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+            CreateEntry("b", "B", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+        vm.SelectAllHeaderChecked = true;
+
+        Assert.True(vm.DisplayEntries[0].IsSelected);
+        Assert.True(vm.DisplayEntries[1].IsSelected);
+        Assert.True(vm.SelectAllHeaderChecked);
+    }
+
+    [Fact]
+    public void SelectAllHeader_Uncheck_DeselectsAllRows()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+            CreateEntry("b", "B", ContentType.Text, minutesAgo: 1),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSaveSelectionModeCommand.Execute(null);
+        vm.SelectAllHeaderChecked = true;
+        vm.SelectAllHeaderChecked = false;
+
+        Assert.False(vm.DisplayEntries[0].IsSelected);
+        Assert.False(vm.DisplayEntries[1].IsSelected);
+    }
+
+    [Fact]
+    public void BeginSaveSelected_DisabledInDeleteFlow()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterDeleteSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[0].IsSelected = true;
+
+        Assert.False(vm.BeginSaveSelectedCommand.CanExecute(null));
+        Assert.True(vm.DeleteSelectedCommand.CanExecute(null));
     }
 }

@@ -36,10 +36,22 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     private bool _alsoClearClipboardOnClearHistory;
 
     [ObservableProperty]
-    private bool _isSelectionMode;
+    private HistorySelectionFlow _selectionFlow;
+
+    [ObservableProperty]
+    private bool _selectAllHeaderChecked;
 
     [ObservableProperty]
     private bool _isNamingGroup;
+
+    private bool _syncingSelectAllFromItems;
+    private bool _applyingSelectionFromHeader;
+
+    public bool IsSelectionMode => SelectionFlow != HistorySelectionFlow.None;
+
+    public bool ShowSaveSelectedInChrome => SelectionFlow == HistorySelectionFlow.SaveGroup;
+
+    public bool ShowDeleteSelectedInChrome => SelectionFlow == HistorySelectionFlow.DeleteEntries;
 
     [ObservableProperty]
     private string _newGroupName = string.Empty;
@@ -87,11 +99,35 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         AlsoClearClipboardOnClearHistory = _settingsService.LoadClearClipboardWhenClearingHistory();
     }
 
-    partial void OnIsSelectionModeChanged(bool value)
+    partial void OnSelectionFlowChanged(HistorySelectionFlow value)
     {
+        EnterSaveSelectionModeCommand.NotifyCanExecuteChanged();
+        EnterDeleteSelectionModeCommand.NotifyCanExecuteChanged();
         BeginSaveSelectedCommand.NotifyCanExecuteChanged();
-        EnterSelectionModeCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsSelectionMode));
+        OnPropertyChanged(nameof(ShowSaveSelectedInChrome));
+        OnPropertyChanged(nameof(ShowDeleteSelectedInChrome));
         NotifyHistoryChromeVisibility();
+    }
+
+    partial void OnSelectAllHeaderCheckedChanged(bool value)
+    {
+        if (_syncingSelectAllFromItems)
+            return;
+
+        _applyingSelectionFromHeader = true;
+        try
+        {
+            foreach (HistoryEntryDisplayItem e in DisplayEntries)
+                e.IsSelected = value;
+        }
+        finally
+        {
+            _applyingSelectionFromHeader = false;
+        }
+
+        SyncSelectAllHeaderFromItems();
     }
 
     partial void OnIsNamingGroupChanged(bool value)
@@ -108,33 +144,69 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowNamingHistoryChrome));
     }
 
+    private void SyncSelectAllHeaderFromItems()
+    {
+        if (_applyingSelectionFromHeader)
+            return;
+
+        bool all = DisplayEntries.Count > 0 && DisplayEntries.All(e => e.IsSelected);
+        _syncingSelectAllFromItems = true;
+        try
+        {
+            SelectAllHeaderChecked = all;
+        }
+        finally
+        {
+            _syncingSelectAllFromItems = false;
+        }
+    }
+
     partial void OnNewGroupNameChanged(string value) =>
         ConfirmSaveGroupCommand.NotifyCanExecuteChanged();
 
-    partial void OnIsEmptyChanged(bool value) =>
-        EnterSelectionModeCommand.NotifyCanExecuteChanged();
-
-    [RelayCommand(CanExecute = nameof(CanEnterSelectionMode))]
-    private void EnterSelectionMode()
+    partial void OnIsEmptyChanged(bool value)
     {
-        IsSelectionMode = true;
+        EnterSaveSelectionModeCommand.NotifyCanExecuteChanged();
+        EnterDeleteSelectionModeCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEnterSaveOrDeleteSelectionMode))]
+    private void EnterSaveSelectionMode()
+    {
+        SelectionFlow = HistorySelectionFlow.SaveGroup;
         IsNamingGroup = false;
         NewGroupName = string.Empty;
         foreach (HistoryEntryDisplayItem e in DisplayEntries)
             e.IsSelected = false;
+
+        SyncSelectAllHeaderFromItems();
     }
 
-    private bool CanEnterSelectionMode() =>
-        !IsEmpty && !IsSelectionMode;
+    [RelayCommand(CanExecute = nameof(CanEnterSaveOrDeleteSelectionMode))]
+    private void EnterDeleteSelectionMode()
+    {
+        SelectionFlow = HistorySelectionFlow.DeleteEntries;
+        IsNamingGroup = false;
+        NewGroupName = string.Empty;
+        foreach (HistoryEntryDisplayItem e in DisplayEntries)
+            e.IsSelected = false;
+
+        SyncSelectAllHeaderFromItems();
+    }
+
+    private bool CanEnterSaveOrDeleteSelectionMode() =>
+        !IsEmpty && SelectionFlow == HistorySelectionFlow.None;
 
     [RelayCommand]
     private void CancelSelectionMode()
     {
-        IsSelectionMode = false;
+        SelectionFlow = HistorySelectionFlow.None;
         IsNamingGroup = false;
         NewGroupName = string.Empty;
         foreach (HistoryEntryDisplayItem e in DisplayEntries)
             e.IsSelected = false;
+
+        SyncSelectAllHeaderFromItems();
     }
 
     [RelayCommand(CanExecute = nameof(CanBeginSaveSelected))]
@@ -145,7 +217,9 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     }
 
     private bool CanBeginSaveSelected() =>
-        IsSelectionMode && !IsNamingGroup && DisplayEntries.Any(e => e.IsSelected);
+        SelectionFlow == HistorySelectionFlow.SaveGroup
+        && !IsNamingGroup
+        && DisplayEntries.Any(e => e.IsSelected);
 
     [RelayCommand]
     private void CancelNaming()
@@ -169,7 +243,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
         void Finish()
         {
-            IsSelectionMode = false;
+            SelectionFlow = HistorySelectionFlow.None;
             IsNamingGroup = false;
             NewGroupName = string.Empty;
             Refresh();
@@ -185,6 +259,51 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     private bool CanConfirmSaveGroup() =>
         IsNamingGroup && !string.IsNullOrWhiteSpace(NewGroupName);
 
+    [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
+    private async Task DeleteSelectedAsync()
+    {
+        List<string> ids = DisplayEntries.Where(e => e.IsSelected).Select(e => e.Id).ToList();
+        if (ids.Count == 0)
+            return;
+
+        string? topId = _historyService.Entries.Count > 0 ? _historyService.Entries[0].Id : null;
+        bool deletingCurrent = topId is not null && ids.Contains(topId);
+
+        foreach (string id in ids)
+            await _historyService.RemoveAsync(id).ConfigureAwait(false);
+
+        if (deletingCurrent)
+        {
+            if (_historyService.Entries.Count > 0)
+            {
+                string nextId = _historyService.Entries[0].Id;
+                await RestoreSnapshotToClipboard(nextId).ConfigureAwait(false);
+            }
+            else
+            {
+                await ClearSystemClipboardAsync().ConfigureAwait(false);
+            }
+        }
+
+        void Finish()
+        {
+            SelectionFlow = HistorySelectionFlow.None;
+            IsNamingGroup = false;
+            NewGroupName = string.Empty;
+            Refresh();
+        }
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Finish();
+        else
+            dispatcher.Invoke(Finish);
+    }
+
+    private bool CanDeleteSelected() =>
+        SelectionFlow == HistorySelectionFlow.DeleteEntries
+        && DisplayEntries.Any(e => e.IsSelected);
+
     partial void OnAlsoClearClipboardOnClearHistoryChanged(bool value)
     {
         _settingsService.SaveClearClipboardWhenClearingHistory(value);
@@ -197,10 +316,21 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             old.PropertyChanged -= OnHistoryEntryDisplayPropertyChanged;
 
         DisplayEntries.Clear();
-        IsSelectionMode = false;
+        SelectionFlow = HistorySelectionFlow.None;
         IsNamingGroup = false;
         NewGroupName = string.Empty;
+        _syncingSelectAllFromItems = true;
+        try
+        {
+            SelectAllHeaderChecked = false;
+        }
+        finally
+        {
+            _syncingSelectAllFromItems = false;
+        }
+
         BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
         ConfirmSaveGroupCommand.NotifyCanExecuteChanged();
         NotifyHistoryChromeVisibility();
 
@@ -250,14 +380,22 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             DisplayEntries.Add(item);
         }
 
-        EnterSelectionModeCommand.NotifyCanExecuteChanged();
+        EnterSaveSelectionModeCommand.NotifyCanExecuteChanged();
+        EnterDeleteSelectionModeCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsSelectionMode));
+        OnPropertyChanged(nameof(ShowSaveSelectedInChrome));
+        OnPropertyChanged(nameof(ShowDeleteSelectedInChrome));
         _ = LoadInlineThumbnailsSafeAsync();
     }
 
     private void OnHistoryEntryDisplayPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(HistoryEntryDisplayItem.IsSelected))
-            BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        if (e.PropertyName != nameof(HistoryEntryDisplayItem.IsSelected))
+            return;
+
+        SyncSelectAllHeaderFromItems();
+        BeginSaveSelectedCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
     }
 
     private async Task LoadInlineThumbnailsSafeAsync()
@@ -393,47 +531,12 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         return ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, int.MaxValue);
     }
 
-    private async Task RestoreSnapshotToClipboard(string entryId)
-    {
-        var snapshot = await _historyService.RestoreAsync(entryId).ConfigureAwait(false);
-        if (snapshot is null)
-            return;
-
-        nint hwnd = _hwndProvider();
-
-        _historyService.IsSuppressed = true;
-        try
-        {
-            WriteSnapshotToClipboard(snapshot, hwnd);
-        }
-        finally
-        {
-            await Task.Delay(500).ConfigureAwait(false);
-            _historyService.IsSuppressed = false;
-        }
-    }
-
-    private void WriteSnapshotToClipboard(ClipboardSnapshot snapshot, nint hwnd)
-    {
-        var textFormat = snapshot.Formats
-            .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
-
-        if (textFormat is not null && textFormat.RawData.Length > 0)
-        {
-            _clipboardService.SetClipboardText(
-                System.Text.Encoding.Unicode.GetString(textFormat.RawData).TrimEnd('\0'),
-                hwnd);
-            return;
-        }
-
-        var restorableFormats = snapshot.Formats
-            .Where(f => f.RawData.Length > 0 && !ClipboardConstants.IsGdiHandleFormat(f.FormatId))
-            .Select(f => (f.FormatId, f.RawData))
-            .ToList();
-
-        if (restorableFormats.Count > 0)
-            _clipboardService.SetMultipleClipboardData(restorableFormats, hwnd);
-    }
+    private Task RestoreSnapshotToClipboard(string entryId) =>
+        ClipboardSnapshotWriter.RestoreEntryToClipboardAsync(
+            _historyService,
+            _clipboardService,
+            _hwndProvider(),
+            entryId);
 
     /// <summary>
     /// Clears the system clipboard on the thread that owns the listener HWND.

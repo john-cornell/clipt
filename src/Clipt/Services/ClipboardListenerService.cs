@@ -8,6 +8,7 @@ public sealed class ClipboardListenerService : IDisposable
 {
     private readonly IAppLogger _logger;
     private HwndSource? _hwndSource;
+    private uint _secondInstanceActivateMsg;
     private bool _disposed;
 
     public ClipboardListenerService(IAppLogger logger)
@@ -16,6 +17,7 @@ public sealed class ClipboardListenerService : IDisposable
     }
 
     public event EventHandler? ClipboardChanged;
+    public event EventHandler<SecondInstanceActivateEventArgs>? SecondInstanceActivateRequested;
 
     public nint Hwnd => _hwndSource?.Handle ?? 0;
 
@@ -36,6 +38,8 @@ public sealed class ClipboardListenerService : IDisposable
         _hwndSource = new HwndSource(parameters);
         _hwndSource.AddHook(WndProc);
 
+        _secondInstanceActivateMsg = NativeMethods.RegisterWindowMessage(SingleInstanceActivation.WindowMessageName);
+
         if (!NativeMethods.AddClipboardFormatListener(_hwndSource.Handle))
         {
             int error = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
@@ -46,6 +50,13 @@ public sealed class ClipboardListenerService : IDisposable
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        if (_secondInstanceActivateMsg != 0 && (uint)msg == _secondInstanceActivateMsg)
+        {
+            SecondInstanceActivateRequested?.Invoke(this, new SecondInstanceActivateEventArgs((int)wParam));
+            handled = true;
+            return 0;
+        }
+
         if (msg == ClipboardConstants.WM_CLIPBOARDUPDATE)
         {
             if (_logger.Level >= AppLogLevel.Debug)

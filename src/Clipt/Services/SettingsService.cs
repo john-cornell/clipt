@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using Clipt.Models;
 using Microsoft.Win32;
@@ -14,7 +15,15 @@ public sealed class SettingsService : ISettingsService
     private const string ClearClipboardWhenClearingHistoryValueName = "ClearClipboardWhenClearingHistory";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupApprovedRunKeyPath =
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     private const string RunValueName = "Clipt";
+
+    /// <summary>
+    /// 12-byte "enabled" marker under StartupApproved\Run (same pattern Task Manager uses when enabling an item).
+    /// </summary>
+    private static readonly byte[] StartupApprovedEnabledBytes =
+        [0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     private const string LogLevelValueName = "LogLevel";
     private const int DefaultMaxHistoryEntries = 10;
     private const long DefaultMaxHistorySizeBytes = 100L * 1024 * 1024;
@@ -227,8 +236,15 @@ public sealed class SettingsService : ISettingsService
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RunRegistryKeyPath);
-            return key?.GetValue(RunValueName) is string;
+            using var runKey = Registry.CurrentUser.OpenSubKey(RunRegistryKeyPath);
+            if (runKey?.GetValue(RunValueName) is not string runCommand || string.IsNullOrWhiteSpace(runCommand))
+                return false;
+
+            using var approvedKey = Registry.CurrentUser.OpenSubKey(StartupApprovedRunKeyPath);
+            if (approvedKey?.GetValue(RunValueName) is not byte[] bin || bin.Length == 0)
+                return true;
+
+            return IsStartupApprovedEnabled(bin[0]);
         }
         catch (System.Security.SecurityException) { }
         catch (IOException) { }
@@ -236,24 +252,95 @@ public sealed class SettingsService : ISettingsService
         return false;
     }
 
-    public void SaveRunOnStartup(bool enabled)
+    public bool SaveRunOnStartup(bool enabled)
     {
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RunRegistryKeyPath);
-            if (enabled)
+            if (!enabled)
             {
-                string? exePath = Environment.ProcessPath;
-                if (!string.IsNullOrEmpty(exePath))
-                    key.SetValue(RunValueName, $"\"{exePath}\"", RegistryValueKind.String);
+                using (var runKey = Registry.CurrentUser.CreateSubKey(RunRegistryKeyPath))
+                    runKey.DeleteValue(RunValueName, throwOnMissingValue: false);
+
+                using (var approvedKey = Registry.CurrentUser.CreateSubKey(StartupApprovedRunKeyPath))
+                    approvedKey.DeleteValue(RunValueName, throwOnMissingValue: false);
+
+                return true;
             }
-            else
-            {
-                key.DeleteValue(RunValueName, throwOnMissingValue: false);
-            }
+
+            string? exePath = GetStartupExecutablePath();
+            if (string.IsNullOrEmpty(exePath))
+                return false;
+
+            using (var runKey = Registry.CurrentUser.CreateSubKey(RunRegistryKeyPath))
+                runKey.SetValue(RunValueName, $"\"{exePath}\"", RegistryValueKind.String);
+
+            using (var approvedKey = Registry.CurrentUser.CreateSubKey(StartupApprovedRunKeyPath))
+                approvedKey.SetValue(RunValueName, StartupApprovedEnabledBytes, RegistryValueKind.Binary);
+
+            return true;
         }
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+
+        return false;
+    }
+
+    private static bool IsStartupApprovedEnabled(byte status) =>
+        status is 0x02 or 0x06 or 0x08;
+
+    /// <summary>
+    /// Resolves the .exe to register for logon. Avoids registering dotnet.exe when developing with <c>dotnet run</c>.
+    /// </summary>
+    private static string? GetStartupExecutablePath()
+    {
+        if (IsUsableHostExecutable(Environment.ProcessPath))
+            return Environment.ProcessPath;
+
+        try
+        {
+            string? main = Process.GetCurrentProcess().MainModule?.FileName;
+            if (IsUsableHostExecutable(main))
+                return main;
+        }
+        catch (System.ComponentModel.Win32Exception) { }
+        catch (InvalidOperationException) { }
+
+        string[] argv = Environment.GetCommandLineArgs();
+        if (argv.Length > 0 && !string.IsNullOrEmpty(argv[0]))
+        {
+            try
+            {
+                string expanded = Environment.ExpandEnvironmentVariables(argv[0]);
+                string full = Path.GetFullPath(expanded);
+                if (IsUsableHostExecutable(full))
+                    return full;
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (NotSupportedException) { }
+        }
+
+        return null;
+    }
+
+    private static bool IsUsableHostExecutable(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return false;
+
+        try
+        {
+            if (!File.Exists(path))
+                return false;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+
+        if (string.Equals(Path.GetFileName(path), "dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
     }
 
     public AppLogLevel LoadLogLevel()

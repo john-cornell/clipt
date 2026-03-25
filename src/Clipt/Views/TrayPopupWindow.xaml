@@ -253,7 +253,7 @@
                                               Padding="6,2"
                                               ToolTip="History actions">
                                         <MenuItem Header="Save group…"
-                                                  Command="{Binding EnterSelectionModeCommand}"
+                                                  Command="{Binding EnterSaveSelectionModeCommand}"
                                                   ToolTip="Select entries to save as a named group" />
                                         <MenuItem Header="Reorder items"
                                                   IsCheckable="True"
@@ -265,6 +265,9 @@
                                                   ToolTip="Show More and Less under text entries when the summary may be long" />
                                         <Separator />
                                         <MenuItem Header="Clear">
+                                            <MenuItem Header="Clear selected…"
+                                                      Command="{Binding EnterDeleteSelectionModeCommand}"
+                                                      ToolTip="Select entries in the list, then delete the checked items" />
                                             <MenuItem Header="Clear all"
                                                       Command="{Binding ClearAllIncludingClipboardCommand}"
                                                       ToolTip="Remove all history and clear the system clipboard" />
@@ -280,16 +283,50 @@
                             </DockPanel>
                             <DockPanel
                                 Visibility="{Binding ShowSelectionHistoryChrome, Converter={StaticResource BoolToVis}}">
-                                <Button DockPanel.Dock="Right" Content="Save selected"
-                                        Command="{Binding BeginSaveSelectedCommand}"
-                                        FontSize="11" Padding="8,2" Margin="8,0,0,0" />
-                                <Button DockPanel.Dock="Right" Content="Cancel"
-                                        Command="{Binding CancelSelectionModeCommand}"
-                                        Style="{StaticResource TrayLinkButton}"
-                                        Margin="8,0,0,0" />
-                                <TextBlock Text="{Binding StatusText}"
-                                           Foreground="{DynamicResource ForegroundDimBrush}"
-                                           FontSize="11" VerticalAlignment="Center" />
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                                    <Button Content="Save selected"
+                                            Command="{Binding BeginSaveSelectedCommand}"
+                                            FontSize="11" Padding="8,2" Margin="0,0,6,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowSaveSelectedInChrome}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Delete selected"
+                                            Command="{Binding DeleteSelectedCommand}"
+                                            FontSize="11" Padding="8,2" Margin="0,0,6,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowDeleteSelectedInChrome}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Cancel"
+                                            Command="{Binding CancelSelectionModeCommand}"
+                                            Style="{StaticResource TrayLinkButton}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <CheckBox Content="Select all"
+                                              IsChecked="{Binding SelectAllHeaderChecked, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0"
+                                              FontSize="11"
+                                              Foreground="{DynamicResource ForegroundBrush}" />
+                                    <TextBlock Text="{Binding StatusText}"
+                                               Foreground="{DynamicResource ForegroundDimBrush}"
+                                               FontSize="11" VerticalAlignment="Center" />
+                                </StackPanel>
                             </DockPanel>
                             <DockPanel
                                 Visibility="{Binding ShowNamingHistoryChrome, Converter={StaticResource BoolToVis}}">

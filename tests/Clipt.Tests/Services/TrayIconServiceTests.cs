@@ -18,6 +18,7 @@ public class TrayIconServiceTests
         mock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
         mock.Setup(s => s.LoadLogLevel()).Returns(AppLogLevel.Off);
         mock.Setup(s => s.LoadClearClipboardWhenClearingHistory()).Returns(false);
+        mock.Setup(s => s.SaveRunOnStartup(It.IsAny<bool>())).Returns(true);
         return mock;
     }
 

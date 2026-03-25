@@ -26,7 +26,8 @@ public interface ISettingsService
     void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
 
     bool LoadRunOnStartup();
-    void SaveRunOnStartup(bool enabled);
+    /// <returns>False if startup registration could not be written (e.g. no usable .exe path).</returns>
+    bool SaveRunOnStartup(bool enabled);
 
     AppLogLevel LoadLogLevel();
     void SaveLogLevel(AppLogLevel level);

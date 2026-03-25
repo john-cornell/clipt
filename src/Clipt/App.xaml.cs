@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading;
 using System.Windows;
+using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Services;
 using Clipt.ViewModels;
@@ -24,12 +25,30 @@ public partial class App : Application
     private ISettingsService? _settingsService;
     private IAppLogger? _appLogger;
     private int _clipboardTrayDispatchOrdinal;
+    private Mutex? _singleInstanceMutex;
+    private bool _ownsSingleInstanceMutex;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        if (!SingleInstanceActivation.TryAcquireMutex(out _singleInstanceMutex, out _ownsSingleInstanceMutex))
+        {
+            SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode());
+            Shutdown();
+            return;
+        }
+
+        if (!_ownsSingleInstanceMutex)
+        {
+            SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode());
+            _singleInstanceMutex!.Dispose();
+            _singleInstanceMutex = null;
+            Shutdown();
+            return;
+        }
 
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -49,6 +68,7 @@ public partial class App : Application
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
         _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
 
+        _listenerService.SecondInstanceActivateRequested += OnSecondInstanceActivateRequested;
         _listenerService.Start();
 
         InitializeTray();
@@ -95,6 +115,8 @@ public partial class App : Application
 
             if (startupMode == StartupMode.FullWindow)
                 ShowMainWindow();
+            else
+                ShowTrayPopupWithClipboardSyncAsync();
         });
     }
 
@@ -171,6 +193,44 @@ public partial class App : Application
         }
 
         if (_trayPopupWindow.WasRecentlyHidden)
+            return;
+
+        var snapshot = RefreshTrayPopup();
+        if (snapshot is not null)
+            await SyncClipboardToHistoryAsync(snapshot);
+
+        _historyTabViewModel?.Refresh();
+        _groupsTabViewModel?.Refresh();
+        _trayPopupWindow.ShowNearTray();
+    }
+
+    private void OnSecondInstanceActivateRequested(object? sender, SecondInstanceActivateEventArgs e)
+    {
+        if (Dispatcher.HasShutdownStarted)
+            return;
+
+        var mode = SingleInstanceActivation.StartupModeFromWParam(e.ModeWParam);
+        Dispatcher.BeginInvoke(() => ActivatePrimaryUiFromSecondLaunch(mode), DispatcherPriority.Normal);
+    }
+
+    private void ActivatePrimaryUiFromSecondLaunch(StartupMode mode)
+    {
+        if (Dispatcher.HasShutdownStarted)
+            return;
+
+        if (mode == StartupMode.FullWindow)
+        {
+            _trayPopupWindow?.Hide();
+            ShowMainWindow();
+            return;
+        }
+
+        ShowTrayPopupWithClipboardSyncAsync();
+    }
+
+    private async void ShowTrayPopupWithClipboardSyncAsync()
+    {
+        if (_trayPopupWindow is null)
             return;
 
         var snapshot = RefreshTrayPopup();
@@ -285,7 +345,11 @@ public partial class App : Application
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayPopupViewModel>();
-        services.AddSingleton<GroupsTabViewModel>();
+        services.AddSingleton<GroupsTabViewModel>(sp => new GroupsTabViewModel(
+            sp.GetRequiredService<IClipboardGroupService>(),
+            sp.GetRequiredService<IClipboardHistoryService>(),
+            sp.GetRequiredService<IClipboardService>(),
+            () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
         services.AddSingleton<HistoryTabViewModel>(sp => new HistoryTabViewModel(
             sp.GetRequiredService<IClipboardHistoryService>(),
             sp.GetRequiredService<IClipboardService>(),
@@ -299,6 +363,17 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_listenerService is not null)
+            _listenerService.SecondInstanceActivateRequested -= OnSecondInstanceActivateRequested;
+
+        if (_singleInstanceMutex is not null)
+        {
+            if (_ownsSingleInstanceMutex)
+                _singleInstanceMutex.ReleaseMutex();
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+        }
+
         if (_trayIconService is not null)
         {
             _trayIconService.TrayIconClicked -= OnTrayIconClicked;
