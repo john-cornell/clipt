@@ -12,8 +12,9 @@ Clipt goes far beyond simple paste, it's a history manager, as well as it enumer
 |-------|------------------|
 | **Engineering update (v1.6 → v1.10)** — features and evolution | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Clipt_Engineering_1_6_to_1_10_update.mp4) · [In repo](Clipt_Engineering_1_6_to_1_10_update.mp4) |
 | **Building a forensic clipboard inspector** — Win32 clipboard, `HGLOBAL`, and how Clipt inspects memory | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) · [In repo](Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) |
+| **Engineering update PDF (v1.6 → v1.10)** — companion document to the update video | [In repo](Clipt_Engineering_1_6_to_1_10_update.pdf) |
 
-Release assets match the filenames above (same links as the installer). If a link 404s, open the [v1.10.3 release](https://github.com/john-cornell/clipt/releases/tag/v1.10.3) and download from **Assets**.
+Release assets match the filenames above (same links as the installer). If a link 404s, open the [v1.10.3 release](https://github.com/john-cornell/clipt/releases/tag/v1.10.3) and download from **Assets**. The PDF companion is stored in-repo.
 
 ### Archive
 

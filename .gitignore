@@ -8,5 +8,6 @@ obj/
 TestResults/
 installer/Output/
 installer/*.pfx
+repomix*
 *.lnk
 UpgradeLog.htm
