@@ -74,7 +74,7 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.10.4** | 2026-03-25 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.10.4/CliptSetup.exe) | Same as 1.10.3 plus engineering update **PDF** on the release (and in repo); `repomix*` gitignored — see [Videos](#videos) |
+| **1.10.5** | 2026-03-25 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.10.4/CliptSetup.exe) | Same as 1.10.3 plus engineering update **PDF** on the release (and in repo); `repomix*` gitignored — see [Videos](#videos) |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
