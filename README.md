@@ -10,8 +10,8 @@ Clipt goes far beyond simple paste, it's a history manager, as well as it enumer
 
 | Video | Watch / download |
 |-------|------------------|
-| **Engineering update (v1.6 → v1.10)** — features and evolution | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Clipt_Engineering_1_6_to_1_10_update.mp4) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.mp4) |
-| **Building a forensic clipboard inspector** — Win32 clipboard, `HGLOBAL`, and how Clipt inspects memory | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.3/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) · [In repo](media/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) |
+| **Engineering update (v1.6 → v1.10)** — features and evolution | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.5/Clipt_Engineering_1_6_to_1_10_update.mp4) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.mp4) |
+| **Building a forensic clipboard inspector** — Win32 clipboard, `HGLOBAL`, and how Clipt inspects memory | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.5/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) · [In repo](media/Building_a_Forensic_Clipboard_Inspector__From_HGLOBAL_Pointers_.mp4) |
 
 Release assets match the filenames above (same links as the installer). If a link 404s, open the matching [release](https://github.com/john-cornell/clipt/releases) and download from **Assets**.
 
@@ -19,7 +19,7 @@ Release assets match the filenames above (same links as the installer). If a lin
 
 | Document | Access |
 |----------|--------|
-| **Engineering update PDF (v1.6 -> v1.10)** — companion document to the update video | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.4/Clipt_Engineering_1_6_to_1_10_update.pdf) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.pdf) |
+| **Engineering update PDF (v1.6 -> v1.10)** — companion document to the update video | [Release asset](https://github.com/john-cornell/clipt/releases/download/v1.10.5/Clipt_Engineering_1_6_to_1_10_update.pdf) · [In repo](media/Clipt_Engineering_1_6_to_1_10_update.pdf) |
 
 ### Archive
 
@@ -74,7 +74,7 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.10.5** | 2026-03-25 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.10.4/CliptSetup.exe) | Same as 1.10.3 plus engineering update **PDF** on the release (and in repo); `repomix*` gitignored — see [Videos](#videos) |
+| **1.10.5** | 2026-03-25 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
