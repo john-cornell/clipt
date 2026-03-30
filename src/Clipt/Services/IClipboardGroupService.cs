@@ -14,5 +14,16 @@ public interface IClipboardGroupService
 
     Task DeleteGroupAsync(string groupId);
 
+    /// <summary>Writes a portable .cliptgroup zip (manifest + blobs) for the given saved group.</summary>
+    Task<GroupPackageOperationResult> ExportGroupToPackageAsync(
+        string groupId,
+        string packageFilePath,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Imports a group from a .cliptgroup file; assigns new group and entry IDs on this machine.</summary>
+    Task<GroupPackageOperationResult> ImportGroupFromPackageAsync(
+        string packageFilePath,
+        CancellationToken cancellationToken = default);
+
     event EventHandler? GroupsChanged;
 }

@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using Clipt.Models;
 using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 
 namespace Clipt.ViewModels;
 
@@ -23,6 +25,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 
     public ObservableCollection<GroupDisplayItem> DisplayGroups { get; } = [];
 
+    public IAsyncRelayCommand ImportGroupCommand { get; }
+
     public GroupsTabViewModel(
         IClipboardGroupService groupService,
         IClipboardHistoryService historyService,
@@ -35,6 +39,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
 
         _groupService.GroupsChanged += OnGroupsChanged;
+        ImportGroupCommand = new AsyncRelayCommand(ImportGroupWithDialogAsync);
     }
 
     public void Refresh()
@@ -67,6 +72,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                 RenameCommand = new AsyncRelayCommand<string>(newName => RenameGroupAsync(gid, newName!)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteGroupAsync(gid)),
                 RestoreCommand = new AsyncRelayCommand<GroupRestoreMode>(mode => RestoreGroupForIdAsync(gid, mode)),
+                ExportCommand = new AsyncRelayCommand(() => ExportGroupWithDialogAsync(gid, g.Name)),
             };
             item.PropertyChanged += OnGroupDisplayPropertyChanged;
             DisplayGroups.Add(item);
@@ -100,6 +106,64 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     private async Task DeleteGroupAsync(string groupId)
     {
         await _groupService.DeleteGroupAsync(groupId).ConfigureAwait(false);
+    }
+
+    private async Task ExportGroupWithDialogAsync(string groupId, string groupName)
+    {
+        string safe = SanitizeFileNameForExport(groupName);
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export Clipt group",
+            Filter = $"Clipt group package (*{ClipboardGroupPackage.FileExtension})|*{ClipboardGroupPackage.FileExtension}",
+            DefaultExt = ClipboardGroupPackage.FileExtension.TrimStart('.'),
+            FileName = safe + ClipboardGroupPackage.FileExtension,
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        GroupPackageOperationResult result =
+            await _groupService.ExportGroupToPackageAsync(groupId, dialog.FileName).ConfigureAwait(true);
+        if (!result.Success)
+        {
+            MessageBox.Show(
+                Application.Current?.MainWindow,
+                result.ErrorMessage ?? "Export failed.",
+                "Export group",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task ImportGroupWithDialogAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import Clipt group",
+            Filter = $"Clipt group package (*{ClipboardGroupPackage.FileExtension})|*{ClipboardGroupPackage.FileExtension}",
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        GroupPackageOperationResult result =
+            await _groupService.ImportGroupFromPackageAsync(dialog.FileName).ConfigureAwait(true);
+        MessageBox.Show(
+            Application.Current?.MainWindow,
+            result.Success
+                ? "The group was imported successfully."
+                : (result.ErrorMessage ?? "Import failed."),
+            "Import group",
+            MessageBoxButton.OK,
+            result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
+    private static string SanitizeFileNameForExport(string name)
+    {
+        string n = string.IsNullOrWhiteSpace(name) ? "CliptGroup" : name.Trim();
+        foreach (char c in Path.GetInvalidFileNameChars())
+            n = n.Replace(c, '_');
+        return string.IsNullOrWhiteSpace(n) ? "CliptGroup" : n;
     }
 
     private async Task RestoreGroupForIdAsync(string groupId, GroupRestoreMode mode)
@@ -138,4 +202,5 @@ public sealed partial class GroupDisplayItem : ObservableObject
     public required IAsyncRelayCommand<string> RenameCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }
     public required IAsyncRelayCommand<GroupRestoreMode> RestoreCommand { get; init; }
+    public required IAsyncRelayCommand ExportCommand { get; init; }
 }

@@ -1,4 +1,6 @@
 using System.IO;
+using System.IO.Compression;
+using System.Reflection;
 using System.Text.Json;
 using Clipt.Models;
 
@@ -220,6 +222,381 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         GroupsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public async Task<GroupPackageOperationResult> ExportGroupToPackageAsync(
+        string groupId,
+        string packageFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentException.ThrowIfNullOrEmpty(packageFilePath);
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_groups.All(g => g.Id != groupId))
+                return GroupPackageOperationResult.Fail("That group was not found.");
+
+            GroupsFileDto? snapshot = await ReadGroupsFileSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            GroupDto? dto = snapshot?.Groups?.FirstOrDefault(g => g.Id == groupId);
+            if (dto?.ArchivedEntries is null || dto.ArchivedEntries.Count == 0)
+                return GroupPackageOperationResult.Fail("This group has no archived data to export.");
+
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ArchivedGroupEntryDto a in dto.ArchivedEntries)
+            {
+                if (string.IsNullOrWhiteSpace(a.Id))
+                    return GroupPackageOperationResult.Fail("Group data is invalid (empty entry id).");
+                if (!seenIds.Add(a.Id))
+                    return GroupPackageOperationResult.Fail("Group data is invalid (duplicate entry id).");
+            }
+
+            string blobRoot = Path.Combine(_groupArchiveRootDirectory, groupId, "blobs");
+            foreach (ArchivedGroupEntryDto a in dto.ArchivedEntries)
+            {
+                string path = Path.Combine(blobRoot, a.Id + ".bin");
+                if (!File.Exists(path))
+                {
+                    return GroupPackageOperationResult.Fail(
+                        "A clip file is missing on disk for this group. Export was cancelled; nothing was changed.");
+                }
+            }
+
+            var manifest = new ClipboardGroupPackageManifest
+            {
+                FormatVersion = ClipboardGroupPackage.FormatVersion,
+                ExportedUtc = DateTime.UtcNow,
+                ExporterAppVersion = GetAssemblyVersionString(),
+                Group = new ClipboardGroupPackageGroupPayload
+                {
+                    Name = dto.Name,
+                    CreatedUtc = dto.CreatedUtc,
+                    ArchivedEntries = dto.ArchivedEntries.Select(ToPackageArchived).ToList(),
+                },
+            };
+
+            string tempZip = Path.Combine(Path.GetTempPath(), "clipt-export-" + Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                await using (var fs = new FileStream(
+                                 tempZip,
+                                 FileMode.Create,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 bufferSize: 81920,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
+                using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: true))
+                {
+                    ZipArchiveEntry manifestEntry = zip.CreateEntry(ClipboardGroupPackage.ManifestEntryName, CompressionLevel.Optimal);
+                    await using (Stream mw = manifestEntry.Open())
+                        await JsonSerializer.SerializeAsync(mw, manifest, JsonOptions, cancellationToken).ConfigureAwait(false);
+
+                    foreach (ArchivedGroupEntryDto a in dto.ArchivedEntries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        string diskPath = Path.Combine(blobRoot, a.Id + ".bin");
+                        ZipArchiveEntry blobZip = zip.CreateEntry(ClipboardGroupPackage.BlobsPrefix + a.Id + ".bin", CompressionLevel.Optimal);
+                        await using Stream bw = blobZip.Open();
+                        await using FileStream br = new(
+                            diskPath,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.Read,
+                            bufferSize: 81920,
+                            FileOptions.Asynchronous | FileOptions.SequentialScan);
+                        await br.CopyToAsync(bw, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                string? parent = Path.GetDirectoryName(Path.GetFullPath(packageFilePath));
+                if (!string.IsNullOrEmpty(parent))
+                    Directory.CreateDirectory(parent);
+
+                string partial = packageFilePath + ".clipt-partial";
+                try
+                {
+                    File.Copy(tempZip, partial, overwrite: true);
+                    if (File.Exists(packageFilePath))
+                        File.Delete(packageFilePath);
+                    File.Move(partial, packageFilePath);
+                }
+                catch (IOException ex)
+                {
+                    LogWarn($"ExportGroupToPackageAsync: could not write destination — {ex.Message}");
+                    TryDeleteQuietly(partial);
+                    return GroupPackageOperationResult.Fail(
+                        "Could not save the package file. Check the folder path and disk space, then try again.");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    LogWarn($"ExportGroupToPackageAsync: access denied — {ex.Message}");
+                    TryDeleteQuietly(partial);
+                    return GroupPackageOperationResult.Fail(
+                        "Access denied when saving the package file. Try another folder.");
+                }
+
+                LogDebug($"ExportGroupToPackageAsync: exported group '{groupId}' to {packageFilePath}");
+                return GroupPackageOperationResult.Ok();
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempZip))
+                        File.Delete(tempZip);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<GroupPackageOperationResult> ImportGroupFromPackageAsync(
+        string packageFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(packageFilePath);
+
+        if (!File.Exists(packageFilePath))
+            return GroupPackageOperationResult.Fail("That file does not exist.");
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ClipboardGroupPackageManifest? manifest;
+            List<ClipboardGroupPackageArchivedEntry> sourceEntries;
+
+            try
+            {
+                await using (FileStream zipFs = new(
+                                 packageFilePath,
+                                 FileMode.Open,
+                                 FileAccess.Read,
+                                 FileShare.Read,
+                                 bufferSize: 81920,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
+                using (ZipArchive zip = new(zipFs, ZipArchiveMode.Read, leaveOpen: false))
+                {
+                    ZipArchiveEntry? manifestZ = FindZipEntryOrdinalIgnoreCase(zip, ClipboardGroupPackage.ManifestEntryName);
+                    if (manifestZ is null)
+                        return GroupPackageOperationResult.Fail("This file is not a valid Clipt group package (missing manifest).");
+
+                    await using (Stream ms = manifestZ.Open())
+                    {
+                        manifest = await JsonSerializer.DeserializeAsync<ClipboardGroupPackageManifest>(ms, JsonOptions, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    if (manifest?.Group?.ArchivedEntries is null)
+                        return GroupPackageOperationResult.Fail("The package manifest is invalid.");
+
+                    if (manifest.FormatVersion != ClipboardGroupPackage.FormatVersion)
+                    {
+                        return GroupPackageOperationResult.Fail(
+                            $"This package format (version {manifest.FormatVersion}) is not supported by this app version.");
+                    }
+
+                    sourceEntries = manifest.Group.ArchivedEntries;
+                    if (sourceEntries.Count == 0)
+                        return GroupPackageOperationResult.Fail("The package contains no clips.");
+
+                    var seen = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (ClipboardGroupPackageArchivedEntry a in sourceEntries)
+                    {
+                        if (string.IsNullOrWhiteSpace(a.Id))
+                            return GroupPackageOperationResult.Fail("The package lists a clip with no id.");
+                        if (!seen.Add(a.Id))
+                            return GroupPackageOperationResult.Fail("The package lists duplicate clip ids.");
+                        if (FindZipEntryOrdinalIgnoreCase(zip, ClipboardGroupPackage.BlobsPrefix + a.Id + ".bin") is null)
+                        {
+                            return GroupPackageOperationResult.Fail(
+                                $"The package is missing blob data for a clip (id {a.Id}).");
+                        }
+                    }
+                }
+            }
+            catch (InvalidDataException ex)
+            {
+                LogWarn($"ImportGroupFromPackageAsync: invalid zip — {ex.Message}");
+                return GroupPackageOperationResult.Fail("This file is not a valid Clipt group package.");
+            }
+            catch (IOException ex)
+            {
+                LogWarn($"ImportGroupFromPackageAsync: read error — {ex.Message}");
+                return GroupPackageOperationResult.Fail("Could not read the group package file.");
+            }
+            catch (JsonException ex)
+            {
+                LogWarn($"ImportGroupFromPackageAsync: bad manifest JSON — {ex.Message}");
+                return GroupPackageOperationResult.Fail("The package manifest is damaged or not valid JSON.");
+            }
+
+            // Re-open zip for blob extraction (manifest validated; avoids holding one archive across long I/O with unclear state).
+            await using (FileStream zipFs2 = new(
+                             packageFilePath,
+                             FileMode.Open,
+                             FileAccess.Read,
+                             FileShare.Read,
+                             bufferSize: 81920,
+                             FileOptions.Asynchronous | FileOptions.SequentialScan))
+            using (ZipArchive zip2 = new(zipFs2, ZipArchiveMode.Read, leaveOpen: false))
+            {
+                string newGroupId = Guid.NewGuid().ToString("N");
+                string blobRoot = Path.Combine(_groupArchiveRootDirectory, newGroupId, "blobs");
+
+                try
+                {
+                    Directory.CreateDirectory(blobRoot);
+                    var newArchived = new List<ArchivedGroupEntryDto>(sourceEntries.Count);
+
+                    foreach (ClipboardGroupPackageArchivedEntry src in sourceEntries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        ZipArchiveEntry? blobZ = FindZipEntryOrdinalIgnoreCase(zip2, ClipboardGroupPackage.BlobsPrefix + src.Id + ".bin");
+                        if (blobZ is null)
+                            throw new InvalidOperationException($"Missing blob for entry id {src.Id}.");
+
+                        byte[] bytes;
+                        await using (Stream rs = blobZ.Open())
+                        {
+                            using var acc = new MemoryStream();
+                            await rs.CopyToAsync(acc, cancellationToken).ConfigureAwait(false);
+                            bytes = acc.ToArray();
+                        }
+
+                        if (src.DataSizeBytes > 0 && bytes.LongLength != src.DataSizeBytes)
+                        {
+                            throw new InvalidOperationException(
+                                $"Clip \"{src.Name}\" size does not match the package metadata (expected {src.DataSizeBytes} bytes, found {bytes.LongLength}).");
+                        }
+
+                        string newEntryId = Guid.NewGuid().ToString("N");
+                        await File.WriteAllBytesAsync(Path.Combine(blobRoot, newEntryId + ".bin"), bytes, cancellationToken)
+                            .ConfigureAwait(false);
+
+                        newArchived.Add(new ArchivedGroupEntryDto
+                        {
+                            Id = newEntryId,
+                            SourceEntryId = string.Empty,
+                            Name = string.IsNullOrWhiteSpace(src.Name) ? "Clip" : src.Name.Trim(),
+                            TimestampUtc = src.TimestampUtc == default ? DateTime.UtcNow : src.TimestampUtc,
+                            SequenceNumber = src.SequenceNumber,
+                            OwnerProcess = string.IsNullOrWhiteSpace(src.OwnerProcess) ? "(unknown)" : src.OwnerProcess,
+                            OwnerPid = src.OwnerPid,
+                            Summary = src.Summary ?? string.Empty,
+                            ContentType = src.ContentType,
+                            DataSizeBytes = bytes.LongLength,
+                            ContentHash = src.ContentHash ?? string.Empty,
+                        });
+                    }
+
+                    string name = string.IsNullOrWhiteSpace(manifest!.Group!.Name) ? "Untitled" : manifest.Group.Name.Trim();
+                    DateTime created = manifest.Group.CreatedUtc == default ? DateTime.UtcNow : manifest.Group.CreatedUtc;
+                    var group = new ClipboardGroup
+                    {
+                        Id = newGroupId,
+                        Name = name,
+                        CreatedUtc = created,
+                        EntryIds = newArchived.Select(x => x.Id).ToList(),
+                    };
+
+                    _groups.Insert(0, group);
+                    try
+                    {
+                        await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal)
+                        {
+                            [newGroupId] = newArchived,
+                        }).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        _groups.RemoveAll(g => g.Id == newGroupId);
+                        throw;
+                    }
+
+                    LogDebug($"ImportGroupFromPackageAsync: imported group '{name}' as id={newGroupId} ({newArchived.Count} clip(s))");
+                    GroupsChanged?.Invoke(this, EventArgs.Empty);
+                    return GroupPackageOperationResult.Ok();
+                }
+                catch (Exception ex) when (ex is IOException
+                    or UnauthorizedAccessException
+                    or InvalidDataException
+                    or JsonException
+                    or InvalidOperationException)
+                {
+                    _groups.RemoveAll(g => g.Id == newGroupId);
+                    DeleteGroupArchiveQuietly(newGroupId);
+                    LogWarn($"ImportGroupFromPackageAsync: failed — {ex.Message}");
+                    return GroupPackageOperationResult.Fail($"Import failed: {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<GroupsFileDto?> ReadGroupsFileSnapshotAsync(CancellationToken cancellationToken)
+    {
+        if (!File.Exists(_groupsPath))
+            return null;
+
+        try
+        {
+            byte[] bytes = await File.ReadAllBytesAsync(_groupsPath, cancellationToken).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<GroupsFileDto>(bytes, JsonOptions);
+        }
+        catch (IOException ex)
+        {
+            LogWarn($"ReadGroupsFileSnapshotAsync: failed to read — {ex.Message}");
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            LogWarn($"ReadGroupsFileSnapshotAsync: failed to deserialize — {ex.Message}");
+            return null;
+        }
+    }
+
+    private static ZipArchiveEntry? FindZipEntryOrdinalIgnoreCase(ZipArchive zip, string fullName)
+    {
+        string normalized = fullName.Replace('\\', '/').TrimEnd('/');
+        foreach (ZipArchiveEntry e in zip.Entries)
+        {
+            string n = e.FullName.Replace('\\', '/').TrimEnd('/');
+            if (string.Equals(n, normalized, StringComparison.OrdinalIgnoreCase))
+                return e;
+        }
+
+        return null;
+    }
+
+    private static ClipboardGroupPackageArchivedEntry ToPackageArchived(ArchivedGroupEntryDto a) => new()
+    {
+        Id = a.Id,
+        SourceEntryId = a.SourceEntryId,
+        Name = a.Name,
+        TimestampUtc = a.TimestampUtc,
+        SequenceNumber = a.SequenceNumber,
+        OwnerProcess = a.OwnerProcess,
+        OwnerPid = a.OwnerPid,
+        Summary = a.Summary,
+        ContentType = a.ContentType,
+        DataSizeBytes = a.DataSizeBytes,
+        ContentHash = a.ContentHash,
+    };
+
+    private static string GetAssemblyVersionString()
+    {
+        Version? v = typeof(ClipboardGroupService).Assembly.GetName().Version;
+        return v is null ? "0.0.0" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
+
     private async Task WriteGroupsFileAsync(Dictionary<string, List<ArchivedGroupEntryDto>>? archivedByGroupId = null)
     {
         string? directory = Path.GetDirectoryName(_groupsPath);
@@ -391,6 +768,21 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         }
 
         LogDebug($"WriteArchivedBlobsAsync: copied {copied}/{archivedEntries.Count} blob(s) to group archive '{groupId}'");
+    }
+
+    private static void TryDeleteQuietly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private void DeleteGroupArchiveQuietly(string groupId)

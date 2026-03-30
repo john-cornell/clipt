@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Text.Json;
 using Clipt.Models;
 using Clipt.Services;
@@ -285,5 +286,125 @@ public class ClipboardGroupServiceTests : IDisposable
         _loggerMock.Verify(
             l => l.Warn(It.Is<string>(m => m.Contains("index.json not found"))),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ExportGroupToPackageAsync_UnknownGroup_Fails()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        GroupPackageOperationResult r = await svc.ExportGroupToPackageAsync(
+            "ffffffffffffffffffffffffffffffff",
+            Path.Combine(_tempDir, "out.cliptgroup"));
+
+        Assert.False(r.Success);
+        Assert.NotNull(r.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ExportGroupToPackageAsync_MissingArchiveBlob_Fails()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("id1", blobText: "keep");
+        await svc.SaveGroupAsync("G", new[] { "id1" });
+        string gid = svc.Groups[0].Id;
+        string bid = svc.Groups[0].EntryIds[0];
+        File.Delete(Path.Combine(_tempDir, "groups", gid, "blobs", bid + ".bin"));
+
+        GroupPackageOperationResult r = await svc.ExportGroupToPackageAsync(
+            gid,
+            Path.Combine(_tempDir, "out.cliptgroup"));
+
+        Assert.False(r.Success);
+    }
+
+    [Fact]
+    public async Task ExportGroupToPackageAsync_WritesZipWithManifestAndBlobs()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("id1", blobText: "payload-a");
+        await SeedHistoryEntryAsync("id2", blobText: "payload-b");
+        await svc.SaveGroupAsync("Pack", new[] { "id1", "id2" });
+        string gid = svc.Groups[0].Id;
+
+        string zipPath = Path.Combine(_tempDir, "export.cliptgroup");
+        GroupPackageOperationResult r = await svc.ExportGroupToPackageAsync(gid, zipPath);
+
+        Assert.True(r.Success, r.ErrorMessage);
+        Assert.True(File.Exists(zipPath));
+
+        using var zip = ZipFile.OpenRead(zipPath);
+        Assert.NotNull(zip.GetEntry("manifest.json"));
+        foreach (string entryId in svc.Groups[0].EntryIds)
+        {
+            Assert.NotNull(zip.GetEntry("blobs/" + entryId + ".bin"));
+        }
+    }
+
+    [Fact]
+    public async Task ExportThenImport_RoundTripsWithNewIdsAndSameBlobBytes()
+    {
+        string importDir = Path.Combine(Path.GetTempPath(), "CliptImport_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(importDir);
+        try
+        {
+            var exportSvc = CreateService();
+            await exportSvc.LoadAsync();
+            await SeedHistoryEntryAsync("hist1", blobText: "round-trip-bytes");
+            await exportSvc.SaveGroupAsync("Remote", new[] { "hist1" });
+            string origGroupId = exportSvc.Groups[0].Id;
+            string origEntryId = exportSvc.Groups[0].EntryIds[0];
+
+            string zipPath = Path.Combine(_tempDir, "move.cliptgroup");
+            Assert.True((await exportSvc.ExportGroupToPackageAsync(origGroupId, zipPath)).Success);
+
+            var importSvc = new ClipboardGroupService(importDir, _loggerMock.Object);
+            await importSvc.LoadAsync();
+            GroupPackageOperationResult importResult = await importSvc.ImportGroupFromPackageAsync(zipPath);
+            Assert.True(importResult.Success, importResult.ErrorMessage);
+
+            Assert.Single(importSvc.Groups);
+            Assert.Equal("Remote", importSvc.Groups[0].Name);
+            Assert.NotEqual(origGroupId, importSvc.Groups[0].Id);
+            Assert.Single(importSvc.Groups[0].EntryIds);
+            Assert.NotEqual(origEntryId, importSvc.Groups[0].EntryIds[0]);
+
+            string newBlob = Path.Combine(
+                importDir,
+                "groups",
+                importSvc.Groups[0].Id,
+                "blobs",
+                importSvc.Groups[0].EntryIds[0] + ".bin");
+            Assert.True(File.Exists(newBlob));
+            Assert.Equal("round-trip-bytes", await File.ReadAllTextAsync(newBlob));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(importDir))
+                    Directory.Delete(importDir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ImportGroupFromPackageAsync_NotAZip_FailsWithoutAddingGroup()
+    {
+        string zipPath = Path.Combine(_tempDir, "garbage.cliptgroup");
+        await File.WriteAllTextAsync(zipPath, "not a zip file");
+
+        var svc = CreateService();
+        await svc.LoadAsync();
+        GroupPackageOperationResult r = await svc.ImportGroupFromPackageAsync(zipPath);
+
+        Assert.False(r.Success);
+        Assert.Empty(svc.Groups);
     }
 }

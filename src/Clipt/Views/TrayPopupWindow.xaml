@@ -561,10 +561,24 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Margin="10,6,10,4"
-                                   Text="{Binding StatusText}"
-                                   Foreground="{DynamicResource ForegroundDimBrush}"
-                                   FontSize="11" VerticalAlignment="Center" />
+                        <Grid Grid.Row="0" Margin="10,6,10,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding StatusText}"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       FontSize="11" VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Import group…"
+                                    Command="{Binding ImportGroupCommand}"
+                                    FontSize="10"
+                                    Padding="8,2"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Add a group from a .cliptgroup file from another PC" />
+                        </Grid>
 
                         <TextBlock Grid.Row="1" Text="No saved groups."
                                    Foreground="{DynamicResource ForegroundDimBrush}"
@@ -646,6 +660,11 @@
                                                               CommandParameter="{x:Static models:GroupRestoreMode.AddToBottom}"
                                                               ToolTip="Append group after current history" />
                                                 </MenuItem>
+                                                <MenuItem Header="Export…"
+                                                          Command="{Binding ExportCommand}"
+                                                          FontSize="10"
+                                                          Padding="6,2"
+                                                          ToolTip="Save this group to a .cliptgroup file for another PC" />
                                             </Menu>
 
                                             <Button Grid.Column="4" Content="X" FontSize="10"
