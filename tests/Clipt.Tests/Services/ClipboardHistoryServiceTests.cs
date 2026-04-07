@@ -341,6 +341,92 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ClearExceptMatchingContentHashAsync_KeepsClipboardSourceEntryWhenHashMismatches()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-20);
+        await svc.AddAsync(CreateTextSnapshot("KeepByHash", seqNum: 1, timestamp: t0));
+        await svc.AddAsync(CreateTextSnapshot("KeepByBound", seqNum: 2, timestamp: t0.AddSeconds(3)));
+        await svc.AddAsync(CreateTextSnapshot("Remove", seqNum: 3, timestamp: t0.AddSeconds(6)));
+
+        string hashKeepByHash = svc.Entries.First(e => e.Summary == "KeepByHash").ContentHash;
+        string idBound = svc.Entries.First(e => e.Summary == "KeepByBound").Id;
+
+        svc.SetClipboardSourceHistoryEntryId(idBound);
+
+        await svc.ClearExceptMatchingContentHashAsync(hashKeepByHash);
+
+        Assert.Equal(2, svc.Entries.Count);
+        Assert.Contains(svc.Entries, e => e.Summary == "KeepByHash");
+        Assert.Contains(svc.Entries, e => e.Summary == "KeepByBound");
+        Assert.DoesNotContain(svc.Entries, e => e.Summary == "Remove");
+    }
+
+    [Fact]
+    public async Task ClearAsync_ClearsClipboardSourceHistoryEntryId()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("A", seqNum: 1));
+
+        string id = svc.Entries[0].Id;
+        svc.SetClipboardSourceHistoryEntryId(id);
+
+        await svc.ClearAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("B", seqNum: 2));
+        await svc.AddAsync(CreateTextSnapshot("C", seqNum: 3));
+        string hashB = svc.Entries.First(e => e.Summary == "B").ContentHash;
+
+        await svc.ClearExceptMatchingContentHashAsync(hashB);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("B", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_NewInsert_ClearsClipboardSourceHistoryEntryId()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("First", seqNum: 1));
+
+        string firstId = svc.Entries[0].Id;
+        svc.SetClipboardSourceHistoryEntryId(firstId);
+
+        await svc.AddAsync(CreateTextSnapshot("Second", seqNum: 2));
+
+        string hashSecond = svc.Entries.First(e => e.Summary == "Second").ContentHash;
+
+        await svc.ClearExceptMatchingContentHashAsync(hashSecond);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Second", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task RemoveAsync_RemovingBoundEntry_AllowsClearExceptToDropFormerBound()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("Bound", seqNum: 1));
+        await svc.AddAsync(CreateTextSnapshot("Other", seqNum: 2));
+
+        string boundId = svc.Entries.First(e => e.Summary == "Bound").Id;
+        string otherHash = svc.Entries.First(e => e.Summary == "Other").ContentHash;
+
+        svc.SetClipboardSourceHistoryEntryId(boundId);
+        await svc.RemoveAsync(boundId);
+
+        await svc.ClearExceptMatchingContentHashAsync(otherHash);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Other", svc.Entries[0].Summary);
+    }
+
+    [Fact]
     public async Task RestoreGroupAsync_ClearAndRestore_KeepsOrderedEntries()
     {
         using var svc = CreateService();

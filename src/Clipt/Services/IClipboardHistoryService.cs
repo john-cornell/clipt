@@ -20,8 +20,15 @@ public interface IClipboardHistoryService : IDisposable
     Task MoveAsync(string entryId, int direction);
     Task ClearAsync();
     /// <summary>
+    /// Sets the history entry id whose snapshot was last written to the system clipboard from Clipt (restore, etc.).
+    /// Pass null when the clipboard no longer corresponds to a specific history row (e.g. cleared or new external copy).
+    /// </summary>
+    void SetClipboardSourceHistoryEntryId(string? entryId);
+
+    /// <summary>
     /// Removes entries whose <see cref="ClipboardHistoryEntry.ContentHash"/> does not match.
     /// When <paramref name="contentHashHex"/> is null or empty, removes all entries (same as <see cref="ClearAsync"/>).
+    /// When a non-empty hash is used, the entry set via <see cref="SetClipboardSourceHistoryEntryId"/> is also kept if still present.
     /// </summary>
     Task ClearExceptMatchingContentHashAsync(string? contentHashHex);
     Task<ClipboardSnapshot?> RestoreAsync(string entryId);

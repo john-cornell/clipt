@@ -22,6 +22,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     private readonly string _groupsArchiveRoot;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly List<ClipboardHistoryEntry> _entries = [];
+    private string? _clipboardSourceHistoryEntryId;
     private bool _disposed;
 
     private static JsonSerializerOptions JsonOptions => CliptJsonOptions.Shared;
@@ -116,6 +117,21 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
 
         EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetClipboardSourceHistoryEntryId(string? entryId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        _gate.Wait();
+        try
+        {
+            _clipboardSourceHistoryEntryId = string.IsNullOrEmpty(entryId) ? null : entryId;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task AddAsync(ClipboardSnapshot snapshot)
@@ -213,6 +229,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             };
 
             _entries.Insert(0, entry);
+            _clipboardSourceHistoryEntryId = null;
             EnforceCaps();
             await WriteIndexAsync().ConfigureAwait(false);
 
@@ -241,6 +258,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             int idx = _entries.FindIndex(e => e.Id == entryId);
             if (idx < 0)
                 return;
+
+            if (string.Equals(_clipboardSourceHistoryEntryId, entryId, StringComparison.Ordinal))
+                _clipboardSourceHistoryEntryId = null;
 
             DeleteBlobQuietly(_entries[idx].Id);
             _entries.RemoveAt(idx);
@@ -362,7 +382,13 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             }
             else
             {
-                var toRemove = _entries.Where(e => e.ContentHash != contentHashHex).ToList();
+                string? boundId = _clipboardSourceHistoryEntryId;
+                var toRemove = _entries
+                    .Where(e =>
+                        e.ContentHash != contentHashHex
+                        && !(boundId is { Length: > 0 }
+                            && string.Equals(e.Id, boundId, StringComparison.Ordinal)))
+                    .ToList();
                 foreach (var entry in toRemove)
                 {
                     DeleteBlobQuietly(entry.Id);
@@ -382,6 +408,8 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
 
     private async Task ClearAllEntriesUnderLockAsync()
     {
+        _clipboardSourceHistoryEntryId = null;
+
         foreach (var entry in _entries)
             DeleteBlobQuietly(entry.Id);
 

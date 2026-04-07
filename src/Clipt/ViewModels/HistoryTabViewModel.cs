@@ -545,6 +545,8 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     /// </summary>
     private async Task ClearSystemClipboardAsync()
     {
+        _historyService.SetClipboardSourceHistoryEntryId(null);
+
         Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
             _clipboardService.ClearClipboard(_hwndProvider());

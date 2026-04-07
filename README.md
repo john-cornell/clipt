@@ -32,7 +32,7 @@ Release assets match the filenames above (same links as the installer). If a lin
 ### Clipboard History
 
 - **Clipboard History** - Tracks every clipboard entry over time with content type, summary, and timestamps. Restore or delete entries from the History tab in the compact popup
-- **Clear history (keep current)** - **Clear history** in the popup History tab and **Clear history** in the tray menu remove older entries but keep any history line whose content still matches what is on the clipboard. Empty clipboard clears the full list. Purge-on-startup (optional) still wipes everything
+- **Clear history (keep current)** - **Clear history** in the popup History tab and **Clear history** in the tray menu remove older entries but keep any history line whose content still matches what is on the clipboard (by content hash). After **restoring** from history, the live clipboard may not match the stored hash (e.g. text placed via the OS text path); Clipt keeps the **last restored** history row anyway so clearing history does not drop the clip you are using. Empty clipboard clears the full list. Purge-on-startup (optional) still wipes everything
 - **Optional clear clipboard** - Tray: **Clear Clipboard When Clearing History** (like **Purge History on Startup**). Popup: **Clear clipboard too** next to **Clear history**. Both use the same saved setting; default is off. When on, the app clears the OS clipboard and then clears **all** history so the list matches (immediate refresh)
 - **Named Entries** - History entries get auto-generated descriptive names (first line of text, image dimensions, file names). Single-click any name to rename it inline; text is pre-selected so you can start typing immediately. "Click to edit" tooltip guides discoverability
 - **Smart Restore** - Restoring an entry writes all original clipboard formats (not just one), so paste works correctly everywhere. Restored items move to the top of the history list
@@ -74,13 +74,14 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.10.5** | 2026-03-25 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
+| **1.11.2** | 2026-04-07 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.10.5 | 2026-03-25 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
 | 1.9.8 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.8/CliptSetup.exe) | Saved groups: durable archive aligned with history JSON (shared serialization); group save/load/restore diagnostics in `clipt.log`; safer clear-and-restore when nothing can be resolved |
 | 1.9.4 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
 | 1.8.0 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.8.0/CliptSetup.exe) | Manual history reordering with up/down arrows; moving an entry to the top auto-restores it to the clipboard |

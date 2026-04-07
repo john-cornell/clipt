@@ -46,12 +46,16 @@ public static class ClipboardSnapshotWriter
 
         ClipboardSnapshot? snapshot = await historyService.RestoreAsync(entryId).ConfigureAwait(false);
         if (snapshot is null)
+        {
+            historyService.SetClipboardSourceHistoryEntryId(null);
             return;
+        }
 
         historyService.IsSuppressed = true;
         try
         {
             WriteSnapshotToClipboard(clipboardService, snapshot, hwnd);
+            historyService.SetClipboardSourceHistoryEntryId(entryId);
         }
         finally
         {
