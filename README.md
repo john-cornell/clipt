@@ -148,22 +148,39 @@ dotnet build src\Clipt\Clipt.csproj -c Release
 
 ### Signed installer (`build-setup.bat`)
 
-From the repo root, `build-setup.bat` builds **Release**, signs `Clipt.exe`, and compiles the Inno Setup installer. **Signing is always required** — the script does not skip it.
+From the repo root, `build-setup.bat` builds **Release**, signs `Clipt.exe` with `signtool`, and compiles the Inno Setup installer (passing `/SCliptSign=...` to `ISCC` so the compiler can sign setup/uninstaller artifacts). **Signing is always required** — the script does not skip it.
+
+**PFX password** is **not** stored in the repo. Provide it in one of these ways:
+
+| Method | How |
+|--------|-----|
+| Environment | `CODE_SIGNING_PFX_PASSWORD`, or `CERTIFICATE_PASSWORD`, or `SIGNING_PFX_PASSWORD` |
+| File | `installer\code-signing-password.txt` — single line (password only); **gitignored** |
+| Custom path | Set `CODE_SIGNING_PFX_PASSWORD_FILE` to a file path |
+| No PFX password | Set `ALLOW_EMPTY_PFX_PASSWORD=1` |
+
+Example (CMD): `set CODE_SIGNING_PFX_PASSWORD=your-export-password` then `build-setup.bat`.
+
+**SignTool** is resolved in this order: `SIGNTOOL_PATH` (full path to `signtool.exe`), `C:\buildtools\signtool.exe`, `signtool` on `PATH`, then `%ProgramFiles(x86)%\Windows Kits\10\bin\<version>\x64\` (newest 10.*).
 
 Prerequisites (if the script stops, it prints where to get each tool):
 
-1. **SignTool** — from the [Windows SDK](https://developer.microsoft.com/windows/downloads/windows-sdk/) or Visual Studio (e.g. *Desktop development with C++* / Windows SDK). The batch file looks for `signtool` on `PATH` and under `%ProgramFiles(x86)%\Windows Kits\10\bin\<version>\x64\`.
-2. **Code signing certificate** — `installer\CliptCodeSigning.pfx` (or change `SIGN_CERT` in the `.bat`).
+1. **SignTool** — [Windows SDK](https://developer.microsoft.com/windows/downloads/windows-sdk/) or Visual Studio (*Desktop development with C++* / Windows SDK), or set `SIGNTOOL_PATH`.
+2. **Code signing certificate** — `installer\CliptCodeSigning.pfx` (gitignored pattern `*.pfx`; or change `SIGN_CERT` in the `.bat`).
 3. **[Inno Setup 6](https://jrsoftware.org/isinfo.php)** — `ISCC.exe` in the default install path or on `PATH`.
+
+If an old password was ever committed to git, **rotate the PFX password** or replace the certificate.
 
 ### Installer only (unsigned / manual)
 
-To build the installer without the batch file (requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
+To build the installer **without** code signing (requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 ```
 dotnet build src\Clipt\Clipt.csproj -c Release
 iscc installer\Clipt.iss
 ```
+
+`build-setup.bat` passes `/DUSINGSIGNTOOL` and `/SCliptSign=...` to `ISCC` so the setup and uninstaller are signed. Plain `iscc` omits those, so you get an unsigned installer (fine for local testing).
 
 ## Running Tests
 

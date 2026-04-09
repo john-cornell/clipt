@@ -1,8 +1,8 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "SIGN_CERT=%~dp0installer\CliptCodeSigning.pfx"
-set "SIGN_PASS=CliptSign2026"
+set "RESOLVE_PW=%~dp0installer\resolve-pfx-password.ps1"
 
 echo === Building Clipt (Release) ===
 dotnet build src\Clipt\Clipt.csproj -c Release
@@ -25,27 +25,57 @@ if not exist "%SIGN_CERT%" (
 call :ResolveSignTool
 if errorlevel 1 exit /b 1
 
+set "PW_TMP="
+if "!ALLOW_EMPTY_PFX_PASSWORD!"=="1" (
+    echo Using PFX without password ^(ALLOW_EMPTY_PFX_PASSWORD=1^).
+) else (
+    set "PW_TMP=%TEMP%\clipt-pfx-password.txt"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "!RESOLVE_PW!" -OutFile "!PW_TMP!" 2>"!PW_TMP!.err"
+    if errorlevel 1 (
+        type "!PW_TMP!.err" 2>nul
+        del "!PW_TMP!" 2>nul
+        del "!PW_TMP!.err" 2>nul
+        exit /b 1
+    )
+    del "!PW_TMP!.err" 2>nul
+)
+
 echo.
 echo === Signing Clipt.exe ===
-"%SIGNTOOL_EXE%" sign /f "%SIGN_CERT%" /p %SIGN_PASS% /fd SHA256 /t http://timestamp.digicert.com "src\Clipt\bin\Release\net8.0-windows\Clipt.exe"
+if defined PW_TMP (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\sign-pe.ps1" -SignTool "%SIGNTOOL_EXE%" -Cert "%SIGN_CERT%" -Target "%~dp0src\Clipt\bin\Release\net8.0-windows\Clipt.exe" -PasswordFile "!PW_TMP!"
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\sign-pe.ps1" -SignTool "%SIGNTOOL_EXE%" -Cert "%SIGN_CERT%" -Target "%~dp0src\Clipt\bin\Release\net8.0-windows\Clipt.exe"
+)
 if errorlevel 1 (
     echo.
-    echo SIGNING FAILED - signtool returned an error. Check the .pfx password ^(SIGN_PASS^) and file path.
+    echo SIGNING FAILED - check PFX path, password ^(env or installer\code-signing-password.txt^), and signtool.
+    if defined PW_TMP del "!PW_TMP!" 2>nul
     exit /b 1
 )
 
 call :ResolveIscc
-if errorlevel 1 exit /b 1
+if errorlevel 1 (
+    if defined PW_TMP del "!PW_TMP!" 2>nul
+    exit /b 1
+)
 
 echo.
 echo === Compiling Installer ===
-"%ISCC_EXE%" "/SCliptSign=$q%SIGNTOOL_EXE%$q sign /f $q%SIGN_CERT%$q /p %SIGN_PASS% /fd SHA256 /t http://timestamp.digicert.com $f" installer\Clipt.iss
+if defined PW_TMP (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\run-iscc-with-sign.ps1" -IsccExe "%ISCC_EXE%" -IssPath "%~dp0installer\Clipt.iss" -SignToolExe "%SIGNTOOL_EXE%" -SignCert "%SIGN_CERT%" -PasswordFile "!PW_TMP!"
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\run-iscc-with-sign.ps1" -IsccExe "%ISCC_EXE%" -IssPath "%~dp0installer\Clipt.iss" -SignToolExe "%SIGNTOOL_EXE%" -SignCert "%SIGN_CERT%"
+)
 if errorlevel 1 (
     echo.
     echo INSTALLER COMPILE FAILED
-    echo  If Inno reported a SignTool error, confirm the same signtool path works from a command prompt.
+    echo  If Inno reported a SignTool error, confirm signtool and PFX password.
+    if defined PW_TMP del "!PW_TMP!" 2>nul
     exit /b 1
 )
+
+if defined PW_TMP del "!PW_TMP!" 2>nul
 
 echo.
 echo === Done ===
@@ -76,6 +106,15 @@ rem ---------------------------------------------------------------------------
 :ResolveSignTool
 set "SIGNTOOL_EXE="
 
+if defined SIGNTOOL_PATH if exist "!SIGNTOOL_PATH!" (
+    set "SIGNTOOL_EXE=!SIGNTOOL_PATH!"
+    goto :SignToolFound
+)
+if exist "C:\buildtools\signtool.exe" (
+    set "SIGNTOOL_EXE=C:\buildtools\signtool.exe"
+    goto :SignToolFound
+)
+
 where signtool >nul 2>&1
 if not errorlevel 1 (
     for /f "delims=" %%i in ('where signtool 2^>nul') do (
@@ -103,6 +142,8 @@ echo ======================================================================
 echo.
 echo   Install the Windows SDK (includes SignTool^):
 echo     https://developer.microsoft.com/windows/downloads/windows-sdk/
+echo.
+echo   Or set SIGNTOOL_PATH to your signtool.exe ^(e.g. C:\buildtools\signtool.exe^).
 echo.
 echo   In Visual Studio Installer you can add the workload:
 echo     "Desktop development with C++"  OR  individual "Windows SDK" / signing tools.

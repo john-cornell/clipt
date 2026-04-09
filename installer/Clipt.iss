@@ -1,5 +1,6 @@
 ; Clipt - Inno Setup Installer Script
-; Build: iscc installer\Clipt.iss
+; Build (unsigned): iscc installer\Clipt.iss
+; Build (signed): build-setup.bat (passes /DUSINGSIGNTOOL + /SCliptSign=... to ISCC)
 ; Requires: dotnet build src\Clipt\Clipt.csproj -c Release (run first)
 
 #define MyAppName "Clipt"
@@ -25,6 +26,10 @@ PrivilegesRequired=lowest
 MinVersion=10.0
 CloseApplications=force
 CloseApplicationsFilter=*.exe,*.dll
+#ifdef USINGSIGNTOOL
+SignTool=CliptSign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
