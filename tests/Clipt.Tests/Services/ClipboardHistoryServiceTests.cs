@@ -62,6 +62,43 @@ public class ClipboardHistoryServiceTests : IDisposable
         };
     }
 
+    /// <summary>
+    /// Same Unicode text as <see cref="CreateTextSnapshot"/> but with an extra non-Unicode format so
+    /// <see cref="ClipboardHistoryService.ComputeContentHash"/> (aggregate) differs from a minimal clip.
+    /// </summary>
+    private static ClipboardSnapshot CreateTextSnapshotWithExtraRawFormat(
+        string text, uint seqNum = 1, DateTime? timestamp = null)
+    {
+        byte[] unicodeData = Encoding.Unicode.GetBytes(text + "\0");
+        byte[] extra = [0xAB, 0xCD];
+        return new ClipboardSnapshot
+        {
+            Timestamp = timestamp ?? DateTime.UtcNow,
+            SequenceNumber = seqNum,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(
+                new ClipboardFormatInfo
+                {
+                    FormatId = ClipboardConstants.CF_UNICODETEXT,
+                    FormatName = "CF_UNICODETEXT",
+                    IsStandard = true,
+                    DataSize = unicodeData.Length,
+                    Memory = new MemoryInfo("0x0", "0x0", unicodeData.Length, []),
+                    RawData = unicodeData,
+                },
+                new ClipboardFormatInfo
+                {
+                    FormatId = 0xC001,
+                    FormatName = "CliptTestExtra",
+                    IsStandard = false,
+                    DataSize = extra.Length,
+                    Memory = new MemoryInfo("0x0", "0x0", extra.Length, []),
+                    RawData = extra,
+                }),
+        };
+    }
+
     [Fact]
     public async Task AddAsync_PersistsToDisk()
     {
@@ -106,6 +143,27 @@ public class ClipboardHistoryServiceTests : IDisposable
         Assert.Equal(2, svc.Entries.Count);
         Assert.Equal("Second", svc.Entries[0].Summary);
         Assert.Equal("First", svc.Entries[1].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_SameUnicodeText_DifferentFormats_DoesNotDuplicate()
+    {
+        var minimal = CreateTextSnapshot("Hello", seqNum: 1);
+        var rich = CreateTextSnapshotWithExtraRawFormat("Hello", seqNum: 2);
+
+        Assert.NotEqual(
+            ClipboardHistoryService.ComputeContentHash(minimal),
+            ClipboardHistoryService.ComputeContentHash(rich));
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(minimal);
+        Assert.Single(svc.Entries);
+
+        await svc.AddAsync(rich);
+        Assert.Single(svc.Entries);
+        Assert.Equal("Hello", svc.Entries[0].Summary);
     }
 
     [Fact]
@@ -561,6 +619,68 @@ public class ClipboardHistoryServiceTests : IDisposable
         Assert.NotNull(restored);
         string text = Encoding.Unicode.GetString(restored.Formats[0].RawData).TrimEnd('\0');
         Assert.Equal("Archived payload", text);
+    }
+
+    [Fact]
+    public async Task RestoreGroupAsync_MaterializedEntry_EmptyArchivedContentHash_AddAsync_DoesNotDuplicate()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("Live", seqNum: 1));
+        await svc.ClearAsync();
+
+        string groupsPath = Path.Combine(_tempDir, "groups.json");
+        string groupId = "group1";
+        string archivedId = "arch1";
+        string groupBlobDir = Path.Combine(_tempDir, "groups", groupId, "blobs");
+        Directory.CreateDirectory(groupBlobDir);
+
+        ClipboardSnapshot archivedSnapshot = CreateTextSnapshot("Archived payload", seqNum: 99);
+        byte[] archivedBlob = ClipboardHistoryService.SerializeSnapshot(archivedSnapshot);
+        await File.WriteAllBytesAsync(Path.Combine(groupBlobDir, archivedId + ".bin"), archivedBlob);
+
+        string expectedHash = ClipboardHistoryService.ComputeContentHash(archivedSnapshot);
+
+        string groupsJson = """
+            {
+              "groups": [
+                {
+                  "id": "group1",
+                  "name": "Archived",
+                  "createdUtc": "2026-01-01T00:00:00Z",
+                  "entryIds": ["arch1"],
+                  "archivedEntries": [
+                    {
+                      "id": "arch1",
+                      "sourceEntryId": "old-id",
+                      "name": "My Named Item",
+                      "timestampUtc": "2026-01-01T00:00:00Z",
+                      "sequenceNumber": 99,
+                      "ownerProcess": "test",
+                      "ownerPid": 1,
+                      "summary": "Archived payload",
+                      "contentType": 1,
+                      "dataSizeBytes": 10,
+                      "contentHash": ""
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(groupsPath, groupsJson);
+
+        await svc.RestoreGroupAsync([archivedId], GroupRestoreMode.ClearAndRestore);
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("My Named Item", svc.Entries[0].Name);
+        Assert.Equal(expectedHash, svc.Entries[0].ContentHash);
+
+        await svc.AddAsync(CreateTextSnapshot("Archived payload", seqNum: 500));
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("My Named Item", svc.Entries[0].Name);
+        Assert.Equal(expectedHash, svc.Entries[0].ContentHash);
     }
 
     [Fact]

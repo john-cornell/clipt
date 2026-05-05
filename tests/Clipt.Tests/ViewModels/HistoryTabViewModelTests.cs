@@ -1301,7 +1301,28 @@ public class HistoryTabViewModelTests
         vm.BeginSaveSelectedCommand.Execute(null);
 
         Assert.True(vm.IsNamingGroup);
-        Assert.Equal("New group", vm.NewGroupName);
+        Assert.Equal("Hello", vm.NewGroupName);
+    }
+
+    [Fact]
+    public void BeginSaveSelected_UsesFirstSelectedInDisplayOrder_WhenMultipleSelected()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Alpha", ContentType.Text),
+            CreateEntry("b", "Beta", ContentType.Text, minutesAgo: 10),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.EnterSaveSelectionModeCommand.Execute(null);
+        vm.DisplayEntries[1].IsSelected = true;
+        vm.DisplayEntries[0].IsSelected = true;
+
+        vm.BeginSaveSelectedCommand.Execute(null);
+
+        Assert.Equal("Alpha", vm.NewGroupName);
     }
 
     [Fact]

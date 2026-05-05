@@ -195,6 +195,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 }
             }
 
+            if (TrySuppressDuplicateByUnicodeText(snapshot, contentHashDetails))
+                return;
+
             ContentType newContentType = DetermineContentType(snapshot);
 
             var disabledTypes = _settingsService.LoadDisabledHistoryTypes();
@@ -582,8 +585,35 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 return null;
             }
 
-            EnsureDirectoriesExist();
             string newHistoryId = Guid.NewGuid().ToString("N");
+            var provisionalEntry = new ClipboardHistoryEntry
+            {
+                Id = newHistoryId,
+                Name = string.IsNullOrWhiteSpace(archived.Name) ? "Clip" : archived.Name,
+                TimestampUtc = archived.TimestampUtc == default ? DateTime.UtcNow : archived.TimestampUtc,
+                SequenceNumber = archived.SequenceNumber,
+                OwnerProcess = string.IsNullOrWhiteSpace(archived.OwnerProcess) ? "(unknown)" : archived.OwnerProcess,
+                OwnerPid = archived.OwnerPid,
+                Summary = archived.Summary ?? string.Empty,
+                ContentType = archived.ContentType,
+                DataSizeBytes = blobData.LongLength,
+                ContentHash = string.Empty,
+            };
+
+            ClipboardSnapshot deserializedFromBlob;
+            try
+            {
+                deserializedFromBlob = DeserializeSnapshot(blobData, provisionalEntry);
+            }
+            catch (Exception ex) when (
+                ex is InvalidDataException or EndOfStreamException or IOException)
+            {
+                return null;
+            }
+
+            string contentHash = ComputeContentHash(deserializedFromBlob);
+
+            EnsureDirectoriesExist();
             string targetBlob = GetBlobPath(newHistoryId);
             try
             {
@@ -597,15 +627,15 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             return new ClipboardHistoryEntry
             {
                 Id = newHistoryId,
-                Name = string.IsNullOrWhiteSpace(archived.Name) ? "Clip" : archived.Name,
-                TimestampUtc = archived.TimestampUtc == default ? DateTime.UtcNow : archived.TimestampUtc,
-                SequenceNumber = archived.SequenceNumber,
-                OwnerProcess = string.IsNullOrWhiteSpace(archived.OwnerProcess) ? "(unknown)" : archived.OwnerProcess,
-                OwnerPid = archived.OwnerPid,
-                Summary = archived.Summary ?? string.Empty,
-                ContentType = archived.ContentType,
+                Name = provisionalEntry.Name,
+                TimestampUtc = provisionalEntry.TimestampUtc,
+                SequenceNumber = provisionalEntry.SequenceNumber,
+                OwnerProcess = provisionalEntry.OwnerProcess,
+                OwnerPid = provisionalEntry.OwnerPid,
+                Summary = provisionalEntry.Summary,
+                ContentType = provisionalEntry.ContentType,
                 DataSizeBytes = blobData.LongLength,
-                ContentHash = archived.ContentHash ?? string.Empty,
+                ContentHash = contentHash,
             };
         }
 
@@ -774,6 +804,126 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             _logger.Warn(message);
         else if (_logger.Level >= AppLogLevel.Debug)
             _logger.Debug(message);
+    }
+
+    /// <summary>
+    /// Live <see cref="CaptureSnapshot"/> often includes more formats (e.g. OEM, locale) than a stored
+    /// blob, so <see cref="ComputeAggregateHash"/> can differ for the same text. Suppress a second
+    /// history row by comparing <c>CF_UNICODETEXT</c> payloads.
+    /// </summary>
+    private bool TrySuppressDuplicateByUnicodeText(
+        ClipboardSnapshot live,
+        ContentHashDetails contentHashDetails)
+    {
+        if (!TryGetUnicodeRawData(live, out byte[]? liveUcs) || liveUcs is not { Length: > 0 })
+            return false;
+
+        if (_clipboardSourceHistoryEntryId is { Length: > 0 } boundId
+            && TryUnicodeTextMatchesEntryBlob(liveUcs, boundId))
+        {
+            LogDuplicateSuppressed(
+                $"History duplicate suppressed: reason=unicodeTextMatch boundEntryId={boundId} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}",
+                contentHashDetails);
+            if (_logger.Level >= AppLogLevel.Debug)
+            {
+                ClipboardHistoryEntry? be = _entries.FirstOrDefault(e => e.Id == boundId);
+                if (be is not null)
+                {
+                    _logger.Debug(
+                        $"AddAsync exit: unicodeTextMatch bound id={be.Id} name={be.Name}");
+                }
+            }
+
+            return true;
+        }
+
+        int unicodeLookback = Math.Min(_entries.Count, ContentHashLookback);
+        for (int i = 0; i < unicodeLookback; i++)
+        {
+            if (!TryUnicodeTextMatchesEntryBlob(liveUcs, _entries[i].Id))
+                continue;
+
+            LogDuplicateSuppressed(
+                $"History duplicate suppressed: reason=unicodeTextMatch lookbackIndex={i} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}",
+                contentHashDetails);
+            if (_logger.Level >= AppLogLevel.Debug)
+            {
+                _logger.Debug(
+                    $"AddAsync exit: unicodeTextMatch lookback id={_entries[i].Id} name={_entries[i].Name}");
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryUnicodeTextMatchesEntryBlob(byte[] liveUcs, string entryId)
+    {
+        ClipboardHistoryEntry? entry = _entries.FirstOrDefault(e => e.Id == entryId);
+        if (entry is null)
+            return false;
+
+        string blobPath = GetBlobPath(entryId);
+        if (!File.Exists(blobPath))
+            return false;
+
+        byte[] blobData;
+        try
+        {
+            blobData = File.ReadAllBytes(blobPath);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+
+        ClipboardSnapshot stored;
+        try
+        {
+            stored = DeserializeSnapshot(blobData, entry);
+        }
+        catch (Exception ex) when (
+            ex is InvalidDataException or EndOfStreamException or IOException)
+        {
+            return false;
+        }
+
+        if (!TryGetUnicodeRawData(stored, out byte[]? storedUcs) || storedUcs is not { Length: > 0 })
+            return false;
+
+        return UnicodeRawPayloadEquals(liveUcs, storedUcs);
+    }
+
+    private static bool TryGetUnicodeRawData(ClipboardSnapshot snapshot, out byte[]? raw)
+    {
+        var format = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
+        if (format is null || format.RawData.Length == 0)
+        {
+            raw = null;
+            return false;
+        }
+
+        raw = format.RawData;
+        return true;
+    }
+
+    private static bool UnicodeRawPayloadEquals(byte[] a, byte[] b) =>
+        UnicodeRawPayloadEquals(a.AsSpan(), b.AsSpan());
+
+    private static bool UnicodeRawPayloadEquals(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+    {
+        a = TrimTrailingNullBytes(a);
+        b = TrimTrailingNullBytes(b);
+        return a.SequenceEqual(b);
+    }
+
+    private static ReadOnlySpan<byte> TrimTrailingNullBytes(ReadOnlySpan<byte> s)
+    {
+        while (s.Length > 0 && s[s.Length - 1] == 0)
+            s = s[..^1];
+
+        return s;
     }
 
     private readonly record struct ContentHashDetails(

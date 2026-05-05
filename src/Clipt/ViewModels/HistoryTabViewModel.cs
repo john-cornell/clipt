@@ -212,8 +212,17 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanBeginSaveSelected))]
     private void BeginSaveSelected()
     {
+        string suggested = "New group";
+        HistoryEntryDisplayItem? firstSelected = DisplayEntries.FirstOrDefault(e => e.IsSelected);
+        if (firstSelected is not null)
+        {
+            string trimmed = firstSelected.Name.Trim();
+            if (trimmed.Length > 0)
+                suggested = trimmed;
+        }
+
         IsNamingGroup = true;
-        NewGroupName = "New group";
+        NewGroupName = suggested;
     }
 
     private bool CanBeginSaveSelected() =>
