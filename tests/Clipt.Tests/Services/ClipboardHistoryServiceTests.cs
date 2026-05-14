@@ -14,6 +14,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     private readonly string _tempDir;
     private readonly Mock<ISettingsService> _settingsMock;
     private readonly Mock<IAppLogger> _loggerMock;
+    private readonly Mock<IHistorySizeOverflowPrompt> _promptMock;
 
     public ClipboardHistoryServiceTests()
     {
@@ -22,9 +23,14 @@ public class ClipboardHistoryServiceTests : IDisposable
         _settingsMock = new Mock<ISettingsService>();
         _settingsMock.Setup(s => s.LoadMaxHistoryEntries()).Returns(10);
         _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
+        _settingsMock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.TrimOldest);
         _settingsMock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
         _loggerMock = new Mock<IAppLogger>();
         _loggerMock.Setup(l => l.Level).Returns(AppLogLevel.Off);
+        _promptMock = new Mock<IHistorySizeOverflowPrompt>();
+        _promptMock
+            .Setup(p => p.PromptAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HistorySizeOverflowAnswer.TrimOldest);
     }
 
     public void Dispose()
@@ -38,7 +44,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     private ClipboardHistoryService CreateService() =>
-        new(_settingsMock.Object, _loggerMock.Object, _tempDir);
+        new(_settingsMock.Object, _loggerMock.Object, _tempDir, _promptMock.Object);
 
     private static ClipboardSnapshot CreateTextSnapshot(
         string text, uint seqNum = 1, DateTime? timestamp = null)
@@ -202,6 +208,44 @@ public class ClipboardHistoryServiceTests : IDisposable
         long totalSize = svc.Entries.Sum(e => e.DataSizeBytes);
         Assert.True(totalSize <= 200 || svc.Entries.Count == 1,
             $"Total size {totalSize} should be <= 200 or only 1 entry should remain");
+    }
+
+    [Fact]
+    public async Task AddAsync_AllowOverLimit_DoesNotEvictForSize()
+    {
+        _settingsMock.Setup(s => s.LoadMaxHistoryEntries()).Returns(100);
+        _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(200L);
+        _settingsMock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.AllowOverLimit);
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var t0 = DateTime.UtcNow.AddSeconds(-60);
+        string largeText = new string('A', 50);
+        for (uint i = 1; i <= 10; i++)
+            await svc.AddAsync(CreateTextSnapshot(largeText + i, seqNum: i,
+                timestamp: t0.AddSeconds(i * 3)));
+
+        Assert.Equal(10, svc.Entries.Count);
+        Assert.True(svc.Entries.Sum(e => e.DataSizeBytes) > 200);
+    }
+
+    [Fact]
+    public async Task AddAsync_AskMode_SkipIncoming_DoesNotPersist()
+    {
+        _settingsMock.Setup(s => s.LoadMaxHistoryEntries()).Returns(10);
+        _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(80L);
+        _settingsMock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.AskEachTime);
+        _promptMock
+            .Setup(p => p.PromptAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HistorySizeOverflowAnswer.SkipIncoming);
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot(new string('Z', 200), seqNum: 1));
+
+        Assert.Empty(svc.Entries);
     }
 
     [Fact]

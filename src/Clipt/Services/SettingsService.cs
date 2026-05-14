@@ -11,6 +11,9 @@ public sealed class SettingsService : ISettingsService
     private const string StartupModeValueName = "StartupMode";
     private const string MaxHistoryEntriesValueName = "MaxHistoryEntries";
     private const string MaxHistorySizeBytesValueName = "MaxHistorySizeBytes";
+    private const string HistorySizeOverflowModeValueName = "HistorySizeOverflowMode";
+    private const string MaxClipboardFormatCaptureBytesValueName = "MaxClipboardFormatCaptureBytes";
+    private const string ClipboardFormatOversizeModeValueName = "ClipboardFormatOversizeMode";
     private const string PurgeHistoryOnStartupValueName = "PurgeHistoryOnStartup";
     private const string ClearClipboardWhenClearingHistoryValueName = "ClearClipboardWhenClearingHistory";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
@@ -27,6 +30,7 @@ public sealed class SettingsService : ISettingsService
     private const string LogLevelValueName = "LogLevel";
     private const int DefaultMaxHistoryEntries = 10;
     private const long DefaultMaxHistorySizeBytes = 100L * 1024 * 1024;
+    private const long DefaultMaxClipboardFormatCaptureBytes = 64 * 1024;
 
     public StartupMode LoadStartupMode()
     {
@@ -131,6 +135,115 @@ public sealed class SettingsService : ISettingsService
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
             key.SetValue(MaxHistorySizeBytesValueName, bytes.ToString(), RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public HistorySizeOverflowMode LoadHistorySizeOverflowMode()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(HistorySizeOverflowModeValueName) is string value
+                && Enum.TryParse<HistorySizeOverflowMode>(value, ignoreCase: true, out var mode)
+                && Enum.IsDefined(mode))
+            {
+                return mode;
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return HistorySizeOverflowMode.TrimOldest;
+    }
+
+    public void SaveHistorySizeOverflowMode(HistorySizeOverflowMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+            mode = HistorySizeOverflowMode.TrimOldest;
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(HistorySizeOverflowModeValueName, mode.ToString(), RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public long LoadMaxClipboardFormatCaptureBytes()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            object? raw = key?.GetValue(MaxClipboardFormatCaptureBytesValueName);
+
+            if (raw is long longVal && longVal > 0)
+                return Math.Min(longVal, int.MaxValue);
+
+            if (raw is int intVal && intVal > 0)
+                return Math.Min(intVal, (long)int.MaxValue);
+
+            if (raw is string strVal && long.TryParse(strVal, out long parsed) && parsed > 0)
+                return Math.Min(parsed, int.MaxValue);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return DefaultMaxClipboardFormatCaptureBytes;
+    }
+
+    public void SaveMaxClipboardFormatCaptureBytes(long bytes)
+    {
+        if (bytes <= 0)
+            bytes = DefaultMaxClipboardFormatCaptureBytes;
+        else
+            bytes = Math.Clamp(bytes, 1024L, int.MaxValue);
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(MaxClipboardFormatCaptureBytesValueName, bytes.ToString(), RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public ClipboardFormatOversizeMode LoadClipboardFormatOversizeMode()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(ClipboardFormatOversizeModeValueName) is string value
+                && !string.IsNullOrWhiteSpace(value))
+            {
+                string trimmed = value.Trim();
+                if (string.Equals(trimmed, "CaptureFull", StringComparison.OrdinalIgnoreCase))
+                    return ClipboardFormatOversizeMode.TruncateToCap;
+
+                if (Enum.TryParse<ClipboardFormatOversizeMode>(trimmed, ignoreCase: true, out var mode)
+                    && Enum.IsDefined(mode))
+                {
+                    return mode;
+                }
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return ClipboardFormatOversizeMode.TruncateToCap;
+    }
+
+    public void SaveClipboardFormatOversizeMode(ClipboardFormatOversizeMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+            mode = ClipboardFormatOversizeMode.TruncateToCap;
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(ClipboardFormatOversizeModeValueName, mode.ToString(), RegistryValueKind.String);
         }
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }

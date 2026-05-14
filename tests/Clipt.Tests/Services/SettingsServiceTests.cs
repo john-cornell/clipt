@@ -160,6 +160,71 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void SaveAndLoadHistorySizeOverflowMode_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveHistorySizeOverflowMode(HistorySizeOverflowMode.AllowOverLimit);
+        Assert.Equal(HistorySizeOverflowMode.AllowOverLimit, service.LoadHistorySizeOverflowMode());
+
+        service.SaveHistorySizeOverflowMode(HistorySizeOverflowMode.AskEachTime);
+        Assert.Equal(HistorySizeOverflowMode.AskEachTime, service.LoadHistorySizeOverflowMode());
+
+        service.SaveHistorySizeOverflowMode(HistorySizeOverflowMode.TrimOldest);
+        Assert.Equal(HistorySizeOverflowMode.TrimOldest, service.LoadHistorySizeOverflowMode());
+    }
+
+    [Fact]
+    public void SaveHistorySizeOverflowMode_InvalidValue_FallsBackToTrimOldest()
+    {
+        var service = new SettingsService();
+        service.SaveHistorySizeOverflowMode((HistorySizeOverflowMode)99);
+        Assert.Equal(HistorySizeOverflowMode.TrimOldest, service.LoadHistorySizeOverflowMode());
+    }
+
+    [Fact]
+    public void SaveAndLoadMaxClipboardFormatCaptureBytes_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveMaxClipboardFormatCaptureBytes(1024 * 1024);
+        Assert.Equal(1024 * 1024, service.LoadMaxClipboardFormatCaptureBytes());
+
+        service.SaveMaxClipboardFormatCaptureBytes(64 * 1024);
+        Assert.Equal(64 * 1024, service.LoadMaxClipboardFormatCaptureBytes());
+    }
+
+    [Fact]
+    public void SaveAndLoadClipboardFormatOversizeMode_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveClipboardFormatOversizeMode(ClipboardFormatOversizeMode.AskEachFormat);
+        Assert.Equal(ClipboardFormatOversizeMode.AskEachFormat, service.LoadClipboardFormatOversizeMode());
+
+        service.SaveClipboardFormatOversizeMode(ClipboardFormatOversizeMode.TruncateToCap);
+        Assert.Equal(ClipboardFormatOversizeMode.TruncateToCap, service.LoadClipboardFormatOversizeMode());
+    }
+
+    [Fact]
+    public void LoadClipboardFormatOversizeMode_LegacyCaptureFull_MapsToTruncate()
+    {
+        using (var key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath))
+            key.SetValue("ClipboardFormatOversizeMode", "CaptureFull", RegistryValueKind.String);
+
+        var service = new SettingsService();
+        Assert.Equal(ClipboardFormatOversizeMode.TruncateToCap, service.LoadClipboardFormatOversizeMode());
+    }
+
+    [Fact]
+    public void SaveClipboardFormatOversizeMode_InvalidValue_FallsBackToTruncate()
+    {
+        var service = new SettingsService();
+        service.SaveClipboardFormatOversizeMode((ClipboardFormatOversizeMode)99);
+        Assert.Equal(ClipboardFormatOversizeMode.TruncateToCap, service.LoadClipboardFormatOversizeMode());
+    }
+
+    [Fact]
     public void LoadPurgeHistoryOnStartup_DefaultsFalse()
     {
         var service = new SettingsService();

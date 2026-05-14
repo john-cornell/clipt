@@ -13,6 +13,9 @@ public class TrayIconServiceTests
         mock.Setup(s => s.LoadStartupMode()).Returns(StartupMode.FullWindow);
         mock.Setup(s => s.LoadMaxHistoryEntries()).Returns(10);
         mock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
+        mock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.TrimOldest);
+        mock.Setup(s => s.LoadMaxClipboardFormatCaptureBytes()).Returns(64 * 1024);
+        mock.Setup(s => s.LoadClipboardFormatOversizeMode()).Returns(ClipboardFormatOversizeMode.TruncateToCap);
         mock.Setup(s => s.LoadRunOnStartup()).Returns(false);
         mock.Setup(s => s.LoadPurgeHistoryOnStartup()).Returns(false);
         mock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());

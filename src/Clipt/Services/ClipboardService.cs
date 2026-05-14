@@ -8,8 +8,20 @@ namespace Clipt.Services;
 
 public sealed class ClipboardService : IClipboardService
 {
-    private const int DefaultMaxCaptureBytes = 64 * 1024;
-    private const long ImageMaxCaptureBytes = 256L * 1024 * 1024;
+    /// <summary>Hard ceiling for copying a single format from the clipboard (largest span <c>Marshal.Copy</c> supports).</summary>
+    public const long NonImageFormatAbsoluteMaxBytes = int.MaxValue;
+
+    private const long DefaultMaxFormatCaptureBytes = 64 * 1024;
+    private const long ImageMaxCaptureBytes = int.MaxValue;
+
+    private readonly ISettingsService _settingsService;
+    private readonly IClipboardFormatOversizePrompt _oversizePrompt;
+
+    public ClipboardService(ISettingsService settingsService, IClipboardFormatOversizePrompt oversizePrompt)
+    {
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _oversizePrompt = oversizePrompt ?? throw new ArgumentNullException(nameof(oversizePrompt));
+    }
 
     public ClipboardSnapshot CaptureSnapshot(nint hwnd)
     {
@@ -30,7 +42,7 @@ public sealed class ClipboardService : IClipboardService
         try
         {
             uint sequenceNumber = NativeMethods.GetClipboardSequenceNumber();
-            var formats = EnumerateFormats();
+            ImmutableArray<ClipboardFormatInfo> formats = EnumerateFormats();
             return new ClipboardSnapshot
             {
                 Timestamp = DateTime.UtcNow,
@@ -46,14 +58,14 @@ public sealed class ClipboardService : IClipboardService
         }
     }
 
-    private static ImmutableArray<ClipboardFormatInfo> EnumerateFormats()
+    private ImmutableArray<ClipboardFormatInfo> EnumerateFormats()
     {
         var builder = ImmutableArray.CreateBuilder<ClipboardFormatInfo>();
         uint formatId = 0;
 
         while ((formatId = NativeMethods.EnumClipboardFormats(formatId)) != 0)
         {
-            var info = CaptureFormatData(formatId);
+            ClipboardFormatInfo? info = CaptureFormatData(formatId);
             if (info is not null)
                 builder.Add(info);
         }
@@ -61,7 +73,7 @@ public sealed class ClipboardService : IClipboardService
         return builder.ToImmutable();
     }
 
-    private static ClipboardFormatInfo? CaptureFormatData(uint formatId)
+    private ClipboardFormatInfo? CaptureFormatData(uint formatId)
     {
         string name = ClipboardConstants.GetFormatName(formatId);
         bool isStandard = ClipboardConstants.IsStandardFormat(formatId);
@@ -120,11 +132,12 @@ public sealed class ClipboardService : IClipboardService
 
         try
         {
-            long maxCapture = IsImageFormat(formatId)
-                ? ImageMaxCaptureBytes
-                : DefaultMaxCaptureBytes;
-            int captureSize = (int)Math.Min(dataSize, maxCapture);
+            long capBytes = GetEffectiveFormatCaptureCapBytes();
+            long bytesToCopy = IsImageFormat(formatId)
+                ? Math.Min(dataSize, ImageMaxCaptureBytes)
+                : ComputeNonImageBytesToCopy(dataSize, capBytes, formatId, name);
 
+            int captureSize = LongToIntCopyLength(bytesToCopy);
             byte[] rawData = new byte[captureSize];
 
             if (captureSize > 0)
@@ -148,6 +161,58 @@ public sealed class ClipboardService : IClipboardService
         {
             NativeMethods.GlobalUnlock(handle);
         }
+    }
+
+    private long GetEffectiveFormatCaptureCapBytes()
+    {
+        long v = _settingsService.LoadMaxClipboardFormatCaptureBytes();
+        if (v <= 0)
+            v = DefaultMaxFormatCaptureBytes;
+
+        return Math.Clamp(v, 1024, NonImageFormatAbsoluteMaxBytes);
+    }
+
+    private long ComputeNonImageBytesToCopy(long dataSize, long capBytes, uint formatId, string formatName)
+    {
+        ClipboardFormatOversizeMode mode = _settingsService.LoadClipboardFormatOversizeMode();
+        ClipboardFormatOversizeReply ask = ClipboardFormatOversizeReply.TruncateToCap;
+        if (dataSize > capBytes && mode == ClipboardFormatOversizeMode.AskEachFormat)
+            ask = _oversizePrompt.Prompt(formatId, formatName, dataSize, capBytes);
+
+        return ComputeNonImageBytesToCapture(dataSize, capBytes, mode, ask);
+    }
+
+    /// <summary>Deterministic capture length for non-image formats (used by the capture path and unit tests).</summary>
+    internal static long ComputeNonImageBytesToCapture(
+        long globalAllocSize,
+        long capBytes,
+        ClipboardFormatOversizeMode mode,
+        ClipboardFormatOversizeReply askResultIfOversized)
+    {
+        if (globalAllocSize <= 0)
+            return 0;
+
+        capBytes = Math.Clamp(capBytes, 1024, NonImageFormatAbsoluteMaxBytes);
+
+        if (globalAllocSize <= capBytes)
+            return Math.Min(globalAllocSize, NonImageFormatAbsoluteMaxBytes);
+
+        return mode switch
+        {
+            ClipboardFormatOversizeMode.AskEachFormat => askResultIfOversized == ClipboardFormatOversizeReply.CaptureFull
+                ? Math.Min(globalAllocSize, NonImageFormatAbsoluteMaxBytes)
+                : capBytes,
+            _ => capBytes,
+        };
+    }
+
+    private static int LongToIntCopyLength(long bytes)
+    {
+        if (bytes <= 0)
+            return 0;
+        if (bytes > int.MaxValue)
+            return int.MaxValue;
+        return (int)bytes;
     }
 
     private static (string Name, int Pid) GetClipboardOwnerInfo()

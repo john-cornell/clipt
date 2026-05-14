@@ -1,9 +1,34 @@
 using Clipt.Models;
+using Clipt.Services;
 
 namespace Clipt.Tests.Services;
 
 public class ClipboardServiceTests
 {
+    [Theory]
+    [InlineData(500, 10_000, ClipboardFormatOversizeMode.TruncateToCap, ClipboardFormatOversizeReply.TruncateToCap, 500)]
+    [InlineData(50_000, 10_000, ClipboardFormatOversizeMode.TruncateToCap, ClipboardFormatOversizeReply.TruncateToCap, 10_000)]
+    [InlineData(50_000, 10_000, ClipboardFormatOversizeMode.AskEachFormat, ClipboardFormatOversizeReply.TruncateToCap, 10_000)]
+    [InlineData(50_000, 10_000, ClipboardFormatOversizeMode.AskEachFormat, ClipboardFormatOversizeReply.CaptureFull, 50_000)]
+    [InlineData(300_000_000, 10_000, ClipboardFormatOversizeMode.TruncateToCap, ClipboardFormatOversizeReply.TruncateToCap, 10_000)]
+    [InlineData(300_000_000, 10_000, ClipboardFormatOversizeMode.AskEachFormat, ClipboardFormatOversizeReply.CaptureFull, 300_000_000)]
+    [InlineData(5_000_000_000L, 10_000, ClipboardFormatOversizeMode.AskEachFormat, ClipboardFormatOversizeReply.CaptureFull, int.MaxValue)]
+    public void ComputeNonImageBytesToCapture_ReturnsExpected(
+        long globalAllocSize,
+        long capBytes,
+        ClipboardFormatOversizeMode mode,
+        ClipboardFormatOversizeReply askReply,
+        long expected)
+    {
+        long actual = ClipboardService.ComputeNonImageBytesToCapture(
+            globalAllocSize,
+            capBytes,
+            mode,
+            askReply);
+
+        Assert.Equal(expected, actual);
+    }
+
     [Theory]
     [InlineData(100, "100 B")]
     [InlineData(1024, "1.0 KB")]

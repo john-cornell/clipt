@@ -13,6 +13,15 @@ public interface ISettingsService
     long LoadMaxHistorySizeBytes();
     void SaveMaxHistorySizeBytes(long bytes);
 
+    HistorySizeOverflowMode LoadHistorySizeOverflowMode();
+    void SaveHistorySizeOverflowMode(HistorySizeOverflowMode mode);
+
+    long LoadMaxClipboardFormatCaptureBytes();
+    void SaveMaxClipboardFormatCaptureBytes(long bytes);
+
+    ClipboardFormatOversizeMode LoadClipboardFormatOversizeMode();
+    void SaveClipboardFormatOversizeMode(ClipboardFormatOversizeMode mode);
+
     bool LoadPurgeHistoryOnStartup();
     void SavePurgeHistoryOnStartup(bool enabled);
 

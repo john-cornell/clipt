@@ -336,11 +336,13 @@ public partial class App : Application
     private static void ConfigureServices(IServiceCollection services)
     {
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<IClipboardFormatOversizePrompt, WpfClipboardFormatOversizePrompt>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IAppLogger, AppLogger>();
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<ITrayIconService, TrayIconService>();
+        services.AddSingleton<IHistorySizeOverflowPrompt, WpfHistorySizeOverflowPrompt>();
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
         services.AddSingleton<MainViewModel>();

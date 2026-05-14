@@ -4,7 +4,7 @@
 ; Requires: dotnet build src\Clipt\Clipt.csproj -c Release (run first)
 
 #define MyAppName "Clipt"
-#define MyAppVersion "1.11.5"
+#define MyAppVersion "1.11.9"
 #define MyAppPublisher "Clipt"
 #define MyAppExeName "Clipt.exe"
 

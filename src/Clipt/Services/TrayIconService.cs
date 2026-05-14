@@ -19,6 +19,9 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _historyTypeSubmenuRoot;
     private WinForms.ToolStripMenuItem? _maxEntriesSubmenuRoot;
     private WinForms.ToolStripMenuItem? _maxSizeSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _overflowModeSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _formatCaptureCapSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _formatOversizeModeSubmenuRoot;
     private WinForms.ToolStripMenuItem? _logLevelSubmenuRoot;
     private Action<bool>? _syncClearClipboardPreference;
     private bool _disposed;
@@ -31,6 +34,21 @@ public sealed class TrayIconService : ITrayIconService
         ("250 MB", 250L * 1024 * 1024),
         ("500 MB", 500L * 1024 * 1024),
         ("Unlimited", 0),
+    ];
+
+    private static readonly (string Label, long Bytes)[] FormatCaptureCapOptions =
+    [
+        ("16 KB", 16 * 1024),
+        ("64 KB", 64 * 1024),
+        ("256 KB", 256 * 1024),
+        ("1 MB", 1024 * 1024),
+        ("4 MB", 4 * 1024 * 1024),
+        ("16 MB", 16 * 1024 * 1024),
+        ("64 MB", 64 * 1024 * 1024),
+        ("256 MB", 256L * 1024 * 1024),
+        ("500 MB", 500L * 1024 * 1024),
+        ("1 GB", 1024L * 1024 * 1024),
+        ("Unlimited (~2 GB)", int.MaxValue),
     ];
 
     private static readonly ContentType[] ToggleableContentTypes =
@@ -139,6 +157,9 @@ public sealed class TrayIconService : ITrayIconService
 
         menu.Items.Add(BuildMaxEntriesSubmenu());
         menu.Items.Add(BuildMaxSizeSubmenu());
+        menu.Items.Add(BuildOverflowModeSubmenu());
+        menu.Items.Add(BuildFormatCaptureCapSubmenu());
+        menu.Items.Add(BuildFormatOversizeModeSubmenu());
 
         menu.Items.Add(BuildLoggingSubmenu());
 
@@ -195,6 +216,9 @@ public sealed class TrayIconService : ITrayIconService
         if (ReferenceEquals(clicked, _historyTypeSubmenuRoot)
             || ReferenceEquals(clicked, _maxEntriesSubmenuRoot)
             || ReferenceEquals(clicked, _maxSizeSubmenuRoot)
+            || ReferenceEquals(clicked, _overflowModeSubmenuRoot)
+            || ReferenceEquals(clicked, _formatCaptureCapSubmenuRoot)
+            || ReferenceEquals(clicked, _formatOversizeModeSubmenuRoot)
             || ReferenceEquals(clicked, _logLevelSubmenuRoot))
             return true;
 
@@ -203,6 +227,9 @@ public sealed class TrayIconService : ITrayIconService
             return ReferenceEquals(owner, _historyTypeSubmenuRoot)
                 || ReferenceEquals(owner, _maxEntriesSubmenuRoot)
                 || ReferenceEquals(owner, _maxSizeSubmenuRoot)
+                || ReferenceEquals(owner, _overflowModeSubmenuRoot)
+                || ReferenceEquals(owner, _formatCaptureCapSubmenuRoot)
+                || ReferenceEquals(owner, _formatOversizeModeSubmenuRoot)
                 || ReferenceEquals(owner, _logLevelSubmenuRoot);
         }
 
@@ -266,6 +293,88 @@ public sealed class TrayIconService : ITrayIconService
                 Tag = bytes,
             };
             item.Click += OnMaxSizeOptionClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        parent.DropDownItems.Add(new WinForms.ToolStripSeparator());
+        var customLimitItem = new WinForms.ToolStripMenuItem("Custom limit (MB)…");
+        customLimitItem.Click += OnCustomMaxHistorySizeClicked;
+        parent.DropDownItems.Add(customLimitItem);
+
+        return parent;
+    }
+
+    private WinForms.ToolStripMenuItem BuildOverflowModeSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("When total history exceeds cap");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
+        _overflowModeSubmenuRoot = parent;
+        HistorySizeOverflowMode current = _settingsService.LoadHistorySizeOverflowMode();
+
+        foreach (var (label, mode) in new (string Label, HistorySizeOverflowMode Mode)[]
+        {
+            ("Make room (remove oldest clips)", HistorySizeOverflowMode.TrimOldest),
+            ("Allow going over the limit", HistorySizeOverflowMode.AllowOverLimit),
+            ("Ask me each time", HistorySizeOverflowMode.AskEachTime),
+        })
+        {
+            var item = new WinForms.ToolStripMenuItem(label)
+            {
+                Checked = mode == current,
+                Tag = mode,
+            };
+            item.Click += OnOverflowModeOptionClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        return parent;
+    }
+
+    private WinForms.ToolStripMenuItem BuildFormatCaptureCapSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Max capture per format (not raw bitmaps)");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
+        _formatCaptureCapSubmenuRoot = parent;
+        long current = _settingsService.LoadMaxClipboardFormatCaptureBytes();
+
+        foreach (var (label, bytes) in FormatCaptureCapOptions)
+        {
+            var item = new WinForms.ToolStripMenuItem(label)
+            {
+                Checked = bytes == current,
+                Tag = bytes,
+            };
+            item.Click += OnFormatCaptureCapClicked;
+            parent.DropDownItems.Add(item);
+        }
+
+        parent.DropDownItems.Add(new WinForms.ToolStripSeparator());
+        var customItem = new WinForms.ToolStripMenuItem("Custom capture cap (MB)…");
+        customItem.Click += OnCustomFormatCaptureCapClicked;
+        parent.DropDownItems.Add(customItem);
+
+        return parent;
+    }
+
+    private WinForms.ToolStripMenuItem BuildFormatOversizeModeSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("When a format exceeds capture cap");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
+        _formatOversizeModeSubmenuRoot = parent;
+        ClipboardFormatOversizeMode current = _settingsService.LoadClipboardFormatOversizeMode();
+
+        foreach (var (label, mode) in new (string Label, ClipboardFormatOversizeMode Mode)[]
+        {
+            ("Always use capture cap (no prompt)", ClipboardFormatOversizeMode.TruncateToCap),
+            ("Ask when a format exceeds the cap", ClipboardFormatOversizeMode.AskEachFormat),
+        })
+        {
+            var item = new WinForms.ToolStripMenuItem(label)
+            {
+                Checked = mode == current,
+                Tag = mode,
+            };
+            item.Click += OnFormatOversizeModeClicked;
             parent.DropDownItems.Add(item);
         }
 
@@ -380,6 +489,197 @@ public sealed class TrayIconService : ITrayIconService
             return;
 
         _settingsService.SaveMaxHistorySizeBytes(value);
+        SyncMaxSizeMenuChecks();
+    }
+
+    private void SyncMaxSizeMenuChecks()
+    {
+        if (_maxSizeSubmenuRoot is null)
+            return;
+
+        long current = _settingsService.LoadMaxHistorySizeBytes();
+        foreach (WinForms.ToolStripItem item in _maxSizeSubmenuRoot.DropDownItems)
+        {
+            if (item is WinForms.ToolStripMenuItem mi && mi.Tag is long presetBytes)
+                mi.Checked = presetBytes == current;
+        }
+    }
+
+    private void OnCustomMaxHistorySizeClicked(object? sender, EventArgs e)
+    {
+        long currentBytes = _settingsService.LoadMaxHistorySizeBytes();
+        decimal initialMb = currentBytes <= 0
+            ? 100
+            : Math.Clamp((decimal)(currentBytes / (1024d * 1024d)), 1, 999_999);
+
+        using var form = new WinForms.Form
+        {
+            Text = "Custom history limit",
+            FormBorderStyle = WinForms.FormBorderStyle.FixedDialog,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            ShowInTaskbar = false,
+            StartPosition = WinForms.FormStartPosition.CenterScreen,
+            ClientSize = new Size(300, 110),
+        };
+
+        var label = new WinForms.Label
+        {
+            Text = "Limit in megabytes (0 = unlimited):",
+            Location = new Point(12, 14),
+            AutoSize = true,
+        };
+
+        var nud = new WinForms.NumericUpDown
+        {
+            Location = new Point(12, 40),
+            Width = 160,
+            Minimum = 0,
+            Maximum = 999_999,
+            DecimalPlaces = 0,
+            Increment = 1,
+            Value = initialMb,
+        };
+
+        var ok = new WinForms.Button
+        {
+            Text = "OK",
+            DialogResult = WinForms.DialogResult.OK,
+            Location = new Point(190, 68),
+            Width = 90,
+        };
+
+        var cancel = new WinForms.Button
+        {
+            Text = "Cancel",
+            DialogResult = WinForms.DialogResult.Cancel,
+            Location = new Point(96, 68),
+            Width = 90,
+        };
+
+        form.Controls.Add(label);
+        form.Controls.Add(nud);
+        form.Controls.Add(ok);
+        form.Controls.Add(cancel);
+        form.AcceptButton = ok;
+        form.CancelButton = cancel;
+
+        if (form.ShowDialog() != WinForms.DialogResult.OK)
+            return;
+
+        long newBytes = nud.Value == 0 ? 0 : (long)nud.Value * 1024 * 1024;
+        _settingsService.SaveMaxHistorySizeBytes(newBytes);
+        SyncMaxSizeMenuChecks();
+    }
+
+    private void OnOverflowModeOptionClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not HistorySizeOverflowMode mode)
+            return;
+
+        _settingsService.SaveHistorySizeOverflowMode(mode);
+
+        if (clicked.OwnerItem is WinForms.ToolStripMenuItem parent)
+        {
+            foreach (WinForms.ToolStripMenuItem sibling in parent.DropDownItems)
+                sibling.Checked = ReferenceEquals(sibling, clicked);
+        }
+    }
+
+    private void OnFormatCaptureCapClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not long value)
+            return;
+
+        _settingsService.SaveMaxClipboardFormatCaptureBytes(value);
+        SyncFormatCaptureCapMenuChecks();
+    }
+
+    private void SyncFormatCaptureCapMenuChecks()
+    {
+        if (_formatCaptureCapSubmenuRoot is null)
+            return;
+
+        long current = _settingsService.LoadMaxClipboardFormatCaptureBytes();
+        foreach (WinForms.ToolStripItem item in _formatCaptureCapSubmenuRoot.DropDownItems)
+        {
+            if (item is WinForms.ToolStripMenuItem mi && mi.Tag is long presetBytes)
+                mi.Checked = presetBytes == current;
+        }
+    }
+
+    private void OnCustomFormatCaptureCapClicked(object? sender, EventArgs e)
+    {
+        long currentBytes = _settingsService.LoadMaxClipboardFormatCaptureBytes();
+        int initialMb = (int)Math.Clamp(
+            currentBytes < 1024 ? 1 : currentBytes / (1024 * 1024), 1, 2047);
+
+        using var form = new WinForms.Form
+        {
+            Text = "Custom capture cap",
+            FormBorderStyle = WinForms.FormBorderStyle.FixedDialog,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            ShowInTaskbar = false,
+            StartPosition = WinForms.FormStartPosition.CenterScreen,
+            ClientSize = new Size(320, 110),
+        };
+
+        var label = new WinForms.Label
+        {
+            Text = "Megabytes per non-image format (1–2047; ~2 GB max per format):",
+            Location = new Point(12, 14),
+            AutoSize = true,
+        };
+
+        var nud = new WinForms.NumericUpDown
+        {
+            Location = new Point(12, 40),
+            Width = 120,
+            Minimum = 1,
+            Maximum = 2047,
+            DecimalPlaces = 0,
+            Increment = 1,
+            Value = initialMb,
+        };
+
+        var ok = new WinForms.Button
+        {
+            Text = "OK",
+            DialogResult = WinForms.DialogResult.OK,
+            Location = new Point(200, 68),
+            Width = 90,
+        };
+
+        var cancel = new WinForms.Button
+        {
+            Text = "Cancel",
+            DialogResult = WinForms.DialogResult.Cancel,
+            Location = new Point(106, 68),
+            Width = 90,
+        };
+
+        form.Controls.Add(label);
+        form.Controls.Add(nud);
+        form.Controls.Add(ok);
+        form.Controls.Add(cancel);
+        form.AcceptButton = ok;
+        form.CancelButton = cancel;
+
+        if (form.ShowDialog() != WinForms.DialogResult.OK)
+            return;
+
+        long newBytes = (long)nud.Value * 1024 * 1024;
+        _settingsService.SaveMaxClipboardFormatCaptureBytes(newBytes);
+        SyncFormatCaptureCapMenuChecks();
+    }
+
+    private void OnFormatOversizeModeClicked(object? sender, EventArgs e)
+    {
+        if (sender is not WinForms.ToolStripMenuItem clicked || clicked.Tag is not ClipboardFormatOversizeMode mode)
+            return;
+
+        _settingsService.SaveClipboardFormatOversizeMode(mode);
 
         if (clicked.OwnerItem is WinForms.ToolStripMenuItem parent)
         {

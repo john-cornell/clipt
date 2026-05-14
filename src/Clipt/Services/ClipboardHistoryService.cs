@@ -24,6 +24,8 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     private readonly List<ClipboardHistoryEntry> _entries = [];
     private string? _clipboardSourceHistoryEntryId;
     private bool _disposed;
+    private readonly IHistorySizeOverflowPrompt _overflowPrompt;
+    private bool _skipSizeEvictionOnce;
 
     private static JsonSerializerOptions JsonOptions => CliptJsonOptions.Shared;
 
@@ -39,15 +41,23 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         set => Interlocked.Exchange(ref _suppressed, value ? 1 : 0);
     }
 
-    public ClipboardHistoryService(ISettingsService settingsService, IAppLogger logger)
-        : this(settingsService, logger, GetDefaultHistoryDirectory())
+    public ClipboardHistoryService(
+        ISettingsService settingsService,
+        IAppLogger logger,
+        IHistorySizeOverflowPrompt overflowPrompt)
+        : this(settingsService, logger, GetDefaultHistoryDirectory(), overflowPrompt)
     {
     }
 
-    internal ClipboardHistoryService(ISettingsService settingsService, IAppLogger logger, string historyDirectory)
+    internal ClipboardHistoryService(
+        ISettingsService settingsService,
+        IAppLogger logger,
+        string historyDirectory,
+        IHistorySizeOverflowPrompt overflowPrompt)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _overflowPrompt = overflowPrompt ?? throw new ArgumentNullException(nameof(overflowPrompt));
         _historyDir = historyDirectory ?? throw new ArgumentNullException(nameof(historyDirectory));
         _blobsDir = Path.Combine(_historyDir, "blobs");
         _indexPath = Path.Combine(_historyDir, "index.json");
@@ -208,11 +218,49 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 return;
             }
 
-            string id = Guid.NewGuid().ToString("N");
-
             EnsureDirectoriesExist();
 
             byte[] blobData = SerializeSnapshot(snapshot);
+
+            long maxSizeBytes = _settingsService.LoadMaxHistorySizeBytes();
+            if (maxSizeBytes > 0)
+            {
+                long currentTotal = ComputeTotalSize();
+                long incomingLen = blobData.LongLength;
+                if (currentTotal + incomingLen > maxSizeBytes)
+                {
+                    HistorySizeOverflowMode overflowMode = _settingsService.LoadHistorySizeOverflowMode();
+                    switch (overflowMode)
+                    {
+                        case HistorySizeOverflowMode.AllowOverLimit:
+                            break;
+                        case HistorySizeOverflowMode.AskEachTime:
+                            HistorySizeOverflowAnswer answer = await _overflowPrompt
+                                .PromptAsync(maxSizeBytes, currentTotal, incomingLen)
+                                .ConfigureAwait(false);
+                            switch (answer)
+                            {
+                                case HistorySizeOverflowAnswer.SkipIncoming:
+                                    if (_logger.Level >= AppLogLevel.Debug)
+                                        _logger.Debug("AddAsync exit: user skipped add (history over size limit)");
+                                    return;
+                                case HistorySizeOverflowAnswer.AllowOverLimitOnce:
+                                    _skipSizeEvictionOnce = true;
+                                    break;
+                                case HistorySizeOverflowAnswer.TrimOldest:
+                                default:
+                                    break;
+                            }
+
+                            break;
+                        case HistorySizeOverflowMode.TrimOldest:
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            string id = Guid.NewGuid().ToString("N");
 
             string blobPath = GetBlobPath(id);
             await File.WriteAllBytesAsync(blobPath, blobData).ConfigureAwait(false);
@@ -935,6 +983,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     {
         int maxEntries = _settingsService.LoadMaxHistoryEntries();
         long maxSizeBytes = _settingsService.LoadMaxHistorySizeBytes();
+        HistorySizeOverflowMode overflowMode = _settingsService.LoadHistorySizeOverflowMode();
 
         while (_entries.Count > maxEntries)
         {
@@ -943,7 +992,13 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             _entries.RemoveAt(_entries.Count - 1);
         }
 
-        if (maxSizeBytes > 0)
+        bool skipSizeEviction =
+            maxSizeBytes <= 0
+            || overflowMode == HistorySizeOverflowMode.AllowOverLimit
+            || _skipSizeEvictionOnce;
+        _skipSizeEvictionOnce = false;
+
+        if (!skipSizeEviction)
         {
             while (_entries.Count > 1 && ComputeTotalSize() > maxSizeBytes)
             {
