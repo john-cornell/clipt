@@ -4,6 +4,58 @@ A forensic-level Windows clipboard history manager and inspector built with WPF 
 
 Clipt goes far beyond simple paste, it's a history manager, as well as it enumerating every format present on the clipboard, shows raw bytes, text encodings, image previews, file-drop lists, HTML/RTF source, and native memory diagnostics.
 
+## Downloads
+
+Each **CliptSetup.exe** link points at a file attached to that version’s [GitHub Release](https://github.com/john-cornell/clipt/releases). If you get **404**, the release exists but no installer was uploaded yet — open the release page and check **Assets**, or upload with `gh release upload TAG installer/Output/CliptSetup.exe` after building the installer.
+
+### Latest
+
+| Version | Date | Installer | Notes |
+|---------|------|-----------|-------|
+| **1.14.8** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |
+
+<details>
+<summary><strong>Previous releases</strong> (click to expand)</summary>
+
+| Version | Date | Installer | Notes |
+|---------|------|-----------|-------|
+| 1.14.6 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.6/CliptSetup.exe) | Dynamic **Show tabs** menu (Plugins + all plugin tray tabs); per-plugin tab visibility in settings |
+| 1.14.5 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.5/CliptSetup.exe) | Fix ellipsis mojibake; **Plugins** tab last; **Show tabs** in tray and popup menus |
+| 1.14.4 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.4/CliptSetup.exe) | Fix startup hang (DI cycle, tray-first init); always-on startup logs to `%LOCALAPPDATA%\Clipt\clipt.log` |
+| 1.14.3 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.3/CliptSetup.exe) | Plugin rescan refreshes tray tabs; tray-open sync publishes debug events; init-failure rollback; filter block reasons |
+| 1.12.1 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.12.1/CliptSetup.exe) | **Plugins** tab in tray popup; extensible plugin framework; bundled **Where In** plugin (multi-line GUID list → SQL `WHERE IN` clause); installer ships plugin DLLs to `{app}\Plugins` |
+| 1.11.2 | 2026-04-07 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
+| 1.10.5 | 2026-03-25 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
+| 1.9.8 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.8/CliptSetup.exe) | Saved groups: durable archive aligned with history JSON (shared serialization); group save/load/restore diagnostics in `clipt.log`; safer clear-and-restore when nothing can be resolved |
+| 1.9.4 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
+| 1.8.0 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.8.0/CliptSetup.exe) | Manual history reordering with up/down arrows; moving an entry to the top auto-restores it to the clipboard |
+| 1.7.2 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
+| 1.7.1 | 2026-03-22 | [Release](https://github.com/john-cornell/clipt/releases/tag/v1.7.1) (no installer uploaded) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle — use **1.7.2** installer above |
+| 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
+| 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
+| 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
+| 1.6.13 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.13/CliptSetup.exe) | Step-based preview expansion: Native raw hex (256→16K→Full of captured bytes), tray text (500→8K→Full), history text summaries (More/Less from blob); drop duplicate FirstBytes capture |
+| 1.6.12 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.12/CliptSetup.exe) | Fix duplicate screenshot history entries with canonical image hashing; add tray log levels (Off/Warn/Debug) and richer `clipt.log` diagnostics |
+| 1.6.9 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.9/CliptSetup.exe) | Fix IsSuppressed staying true after clear-clipboard: add .Unwrap() to Dispatcher.InvokeAsync calls so the inner async Task is fully awaited |
+| 1.6.8 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.8/CliptSetup.exe) | Clean clear-clipboard flow: single-branch instead of double-call; fix thread-safety for CaptureSnapshot in tray clear path |
+| 1.6.7 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.7/CliptSetup.exe) | **Clear clipboard too**: second history pass + immediate **Refresh** so the list goes empty with the clipboard; tray clear refreshes too |
+| 1.6.6 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.6/CliptSetup.exe) | Fix **Clear clipboard too** / tray option: run clipboard empty on the WPF UI thread (required for OpenClipboard with listener HWND) |
+| 1.6.5 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.5/CliptSetup.exe) | Tray: **Clear Clipboard When Clearing History** (same setting as popup); tray **Clear history** respects it; smoother tray clear (menu dismiss delay) |
+| 1.6.4 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.4/CliptSetup.exe) | Popup: optional **Clear clipboard too** when clearing history (default off); button renamed to **Clear history** |
+| 1.6.3 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.3/CliptSetup.exe) | Clear All / tray Clear history keeps entries matching current clipboard content; content-hash matching API |
+| 1.6.2 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.2/CliptSetup.exe) | Single-click rename with "Click to edit" tooltip and auto-select-all, fix tooltip rendering in history items, fix first-click edit flash |
+| 1.6.0 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.0/CliptSetup.exe) | Named history entries with inline rename, per-type history filtering, run-on-startup, purge-on-startup, delete-with-auto-advance, clear clipboard, configurable limits via tray menu, DI refactor with SettingsService |
+| 1.4.11 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.11/CliptSetup.exe) | Custom clipboard-eye tray icons (red/green) replacing plain circles, multi-resolution ICO with 5 sizes |
+| 1.4.10 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.10/CliptSetup.exe) | Click-to-preview full-size images, pin popup window, fix image restore (multi-format), clipboard history with dedup, inline thumbnails, code-signed |
+| 1.3.0 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.3.0/CliptSetup.exe) | System tray icon (red/green), compact popup with Clipboard and History tabs, expand-to-full, startup mode, minimize-to-tray, version in title bar |
+| 1.2.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.1/CliptSetup.exe) | Fix hex/ASCII cross-selection reliability and highlight offset |
+| 1.2.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.0/CliptSetup.exe) | Separate Text and Hex tabs; hex-only cross-selection between hex and ASCII columns |
+| 1.1.2 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.2/CliptSetup.exe) | Improved hex editor selection suppression logic |
+| 1.1.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.1/CliptSetup.exe) | Hex editor selection model, text tab improvements, expanded test coverage |
+| 1.0.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.0.0/CliptSetup.exe) | Initial release - full clipboard inspection with light/dark themes |
+
+</details>
+
 ## Videos
 
 ### Featured
@@ -110,58 +162,6 @@ public sealed class MyFilterPlugin : ICliptClipboardFilterPlugin, ICliptPluginLi
 ```
 
 See `src/Clipt.Plugins.WhereIn` for a tray action reference and `src/Clipt.Plugins.OwnerBlocker` for filter, coordinator, lifetime, and tray tab together.
-
-## Downloads
-
-Each **CliptSetup.exe** link points at a file attached to that version’s [GitHub Release](https://github.com/john-cornell/clipt/releases). If you get **404**, the release exists but no installer was uploaded yet — open the release page and check **Assets**, or upload with `gh release upload TAG installer/Output/CliptSetup.exe` after building the installer.
-
-### Latest
-
-| Version | Date | Installer | Notes |
-|---------|------|-----------|-------|
-| **1.14.8** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |
-
-<details>
-<summary><strong>Previous releases</strong> (click to expand)</summary>
-
-| Version | Date | Installer | Notes |
-|---------|------|-----------|-------|
-| 1.14.6 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.6/CliptSetup.exe) | Dynamic **Show tabs** menu (Plugins + all plugin tray tabs); per-plugin tab visibility in settings |
-| 1.14.5 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.5/CliptSetup.exe) | Fix ellipsis mojibake; **Plugins** tab last; **Show tabs** in tray and popup menus |
-| 1.14.4 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.4/CliptSetup.exe) | Fix startup hang (DI cycle, tray-first init); always-on startup logs to `%LOCALAPPDATA%\Clipt\clipt.log` |
-| 1.14.3 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.3/CliptSetup.exe) | Plugin rescan refreshes tray tabs; tray-open sync publishes debug events; init-failure rollback; filter block reasons |
-| 1.12.1 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.12.1/CliptSetup.exe) | **Plugins** tab in tray popup; extensible plugin framework; bundled **Where In** plugin (multi-line GUID list → SQL `WHERE IN` clause); installer ships plugin DLLs to `{app}\Plugins` |
-| 1.11.2 | 2026-04-07 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
-| 1.10.5 | 2026-03-25 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
-| 1.9.8 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.8/CliptSetup.exe) | Saved groups: durable archive aligned with history JSON (shared serialization); group save/load/restore diagnostics in `clipt.log`; safer clear-and-restore when nothing can be resolved |
-| 1.9.4 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
-| 1.8.0 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.8.0/CliptSetup.exe) | Manual history reordering with up/down arrows; moving an entry to the top auto-restores it to the clipboard |
-| 1.7.2 | 2026-03-22 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.7.2/CliptSetup.exe) | Tray popup title bar: **Expand** beside app title/version; **Pin** on the far right (chrome-style hover); matches shipped binary version |
-| 1.7.1 | 2026-03-22 | [Release](https://github.com/john-cornell/clipt/releases/tag/v1.7.1) (no installer uploaded) | Fix Run on Startup (quoted path for spaces); sync clipboard to history on popup open; context menu submenus open leftward; first expand/pin title bar restyle — use **1.7.2** installer above |
-| 1.6.19 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.19/CliptSetup.exe) | Image preview Save As button (PNG/BMP/JPEG/GIF/TIFF); fix preview close crash and thread-affinity crash in BitmapFrame encoding |
-| 1.6.15 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.15/CliptSetup.exe) | Tray text preview: hide 500/2K/8K/Full step controls when the clip fits the first step (no useful expansion) |
-| 1.6.14 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.14/CliptSetup.exe) | Tray context menu stays open when changing settings (toggles, history types, max entries/size, log level); still closes for Open Full Window, Clear History, and Exit |
-| 1.6.13 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.13/CliptSetup.exe) | Step-based preview expansion: Native raw hex (256→16K→Full of captured bytes), tray text (500→8K→Full), history text summaries (More/Less from blob); drop duplicate FirstBytes capture |
-| 1.6.12 | 2026-03-20 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.12/CliptSetup.exe) | Fix duplicate screenshot history entries with canonical image hashing; add tray log levels (Off/Warn/Debug) and richer `clipt.log` diagnostics |
-| 1.6.9 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.9/CliptSetup.exe) | Fix IsSuppressed staying true after clear-clipboard: add .Unwrap() to Dispatcher.InvokeAsync calls so the inner async Task is fully awaited |
-| 1.6.8 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.8/CliptSetup.exe) | Clean clear-clipboard flow: single-branch instead of double-call; fix thread-safety for CaptureSnapshot in tray clear path |
-| 1.6.7 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.7/CliptSetup.exe) | **Clear clipboard too**: second history pass + immediate **Refresh** so the list goes empty with the clipboard; tray clear refreshes too |
-| 1.6.6 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.6/CliptSetup.exe) | Fix **Clear clipboard too** / tray option: run clipboard empty on the WPF UI thread (required for OpenClipboard with listener HWND) |
-| 1.6.5 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.5/CliptSetup.exe) | Tray: **Clear Clipboard When Clearing History** (same setting as popup); tray **Clear history** respects it; smoother tray clear (menu dismiss delay) |
-| 1.6.4 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.4/CliptSetup.exe) | Popup: optional **Clear clipboard too** when clearing history (default off); button renamed to **Clear history** |
-| 1.6.3 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.3/CliptSetup.exe) | Clear All / tray Clear history keeps entries matching current clipboard content; content-hash matching API |
-| 1.6.2 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.2/CliptSetup.exe) | Single-click rename with "Click to edit" tooltip and auto-select-all, fix tooltip rendering in history items, fix first-click edit flash |
-| 1.6.0 | 2026-03-19 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.6.0/CliptSetup.exe) | Named history entries with inline rename, per-type history filtering, run-on-startup, purge-on-startup, delete-with-auto-advance, clear clipboard, configurable limits via tray menu, DI refactor with SettingsService |
-| 1.4.11 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.11/CliptSetup.exe) | Custom clipboard-eye tray icons (red/green) replacing plain circles, multi-resolution ICO with 5 sizes |
-| 1.4.10 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.4.10/CliptSetup.exe) | Click-to-preview full-size images, pin popup window, fix image restore (multi-format), clipboard history with dedup, inline thumbnails, code-signed |
-| 1.3.0 | 2026-03-18 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.3.0/CliptSetup.exe) | System tray icon (red/green), compact popup with Clipboard and History tabs, expand-to-full, startup mode, minimize-to-tray, version in title bar |
-| 1.2.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.1/CliptSetup.exe) | Fix hex/ASCII cross-selection reliability and highlight offset |
-| 1.2.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.2.0/CliptSetup.exe) | Separate Text and Hex tabs; hex-only cross-selection between hex and ASCII columns |
-| 1.1.2 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.2/CliptSetup.exe) | Improved hex editor selection suppression logic |
-| 1.1.1 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.1.1/CliptSetup.exe) | Hex editor selection model, text tab improvements, expanded test coverage |
-| 1.0.0 | 2026-03-17 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.0.0/CliptSetup.exe) | Initial release - full clipboard inspection with light/dark themes |
-
-</details>
 
 ### System Requirements
 
