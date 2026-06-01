@@ -1,8 +1,8 @@
 namespace Clipt.Services;
 
-internal static class BlockedProcessNames
+internal static class OwnerBlockUiRules
 {
-    public static bool IsBlockable(string? processName)
+    public static bool IsBlockableProcessName(string? processName)
     {
         if (string.IsNullOrWhiteSpace(processName))
             return false;

@@ -25,7 +25,7 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _logLevelSubmenuRoot;
     private WinForms.ToolStripMenuItem? _showInNotificationSubmenuRoot;
     private WinForms.ToolStripMenuItem? _showPluginsTabItem;
-    private WinForms.ToolStripMenuItem? _showDebugTabItem;
+    private WinForms.ToolStripMenuItem? _showBlockerTabItem;
     private Action<bool>? _syncClearClipboardPreference;
     private Action<bool, bool>? _syncTrayTabVisibility;
     private bool _disposed;
@@ -223,7 +223,7 @@ public sealed class TrayIconService : ITrayIconService
             || ReferenceEquals(clicked, _purgeHistoryItem)
             || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem)
             || ReferenceEquals(clicked, _showPluginsTabItem)
-            || ReferenceEquals(clicked, _showDebugTabItem))
+            || ReferenceEquals(clicked, _showBlockerTabItem))
             return true;
 
         if (ReferenceEquals(clicked, _historyTypeSubmenuRoot)
@@ -264,12 +264,12 @@ public sealed class TrayIconService : ITrayIconService
         _showPluginsTabItem.Click += OnShowPluginsTabToggle;
         parent.DropDownItems.Add(_showPluginsTabItem);
 
-        _showDebugTabItem = new WinForms.ToolStripMenuItem("Debug")
+        _showBlockerTabItem = new WinForms.ToolStripMenuItem("Blocker")
         {
-            Checked = _settingsService.LoadShowDebugTrayTab(),
+            Checked = _settingsService.LoadShowBlockerTrayTab(),
         };
-        _showDebugTabItem.Click += OnShowDebugTabToggle;
-        parent.DropDownItems.Add(_showDebugTabItem);
+        _showBlockerTabItem.Click += OnShowBlockerTabToggle;
+        parent.DropDownItems.Add(_showBlockerTabItem);
 
         return parent;
     }
@@ -282,17 +282,17 @@ public sealed class TrayIconService : ITrayIconService
         bool next = !_showPluginsTabItem.Checked;
         _settingsService.SaveShowPluginsTrayTab(next);
         _showPluginsTabItem.Checked = next;
-        _syncTrayTabVisibility?.Invoke(next, _settingsService.LoadShowDebugTrayTab());
+        _syncTrayTabVisibility?.Invoke(next, _settingsService.LoadShowBlockerTrayTab());
     }
 
-    private void OnShowDebugTabToggle(object? sender, EventArgs e)
+    private void OnShowBlockerTabToggle(object? sender, EventArgs e)
     {
-        if (_showDebugTabItem is null)
+        if (_showBlockerTabItem is null)
             return;
 
-        bool next = !_showDebugTabItem.Checked;
-        _settingsService.SaveShowDebugTrayTab(next);
-        _showDebugTabItem.Checked = next;
+        bool next = !_showBlockerTabItem.Checked;
+        _settingsService.SaveShowBlockerTrayTab(next);
+        _showBlockerTabItem.Checked = next;
         _syncTrayTabVisibility?.Invoke(_settingsService.LoadShowPluginsTrayTab(), next);
     }
 

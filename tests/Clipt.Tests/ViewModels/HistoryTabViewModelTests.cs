@@ -15,6 +15,7 @@ public class HistoryTabViewModelTests
     private readonly Mock<ISettingsService> _settingsMock;
     private readonly Mock<ITrayIconService> _trayMock;
     private readonly Mock<IClipboardGroupService> _groupMock;
+    private readonly Mock<ICliptPluginHost> _pluginHostMock;
 
     public HistoryTabViewModelTests()
     {
@@ -23,13 +24,15 @@ public class HistoryTabViewModelTests
         _clipboardMock = new Mock<IClipboardService>();
         _settingsMock = new Mock<ISettingsService>();
         _settingsMock.Setup(s => s.LoadClearClipboardWhenClearingHistory()).Returns(false);
-        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         _trayMock = new Mock<ITrayIconService>();
         _groupMock = new Mock<IClipboardGroupService>();
         _groupMock.Setup(g => g.Groups).Returns(Array.Empty<ClipboardGroup>());
+        _pluginHostMock = new Mock<ICliptPluginHost>();
+        _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(true);
+        _pluginHostMock.Setup(h => h.IsOwnerBlocked(It.IsAny<string?>(), It.IsAny<string?>()))
+            .Returns(false);
+        _pluginHostMock.Setup(h => h.BlockOwnerAsync(It.IsAny<string?>(), It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
     }
 
     private HistoryTabViewModel CreateVm()
@@ -40,7 +43,8 @@ public class HistoryTabViewModelTests
             () => (nint)0,
             _settingsMock.Object,
             _trayMock.Object,
-            _groupMock.Object);
+            _groupMock.Object,
+            _pluginHostMock.Object);
     }
 
     private static ClipboardHistoryEntry CreateEntry(

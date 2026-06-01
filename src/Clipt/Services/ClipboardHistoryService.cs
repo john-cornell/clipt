@@ -185,17 +185,6 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 return HistoryAddResult.SkippedByPluginFilter;
             }
 
-            if (ClipboardBlockRules.IsSnapshotBlocked(_settingsService, snapshot))
-            {
-                if (_logger.Level >= AppLogLevel.Debug)
-                {
-                    _logger.Debug(
-                        $"AddAsync exit: blocked owner={snapshot.OwnerProcessName} pid={snapshot.OwnerProcessId} class={snapshot.OwnerWindowClass}");
-                }
-
-                return HistoryAddResult.SkippedBlockedProcess;
-            }
-
             ContentHashDetails contentHashDetails = ComputeContentHashDetails(snapshot);
             string contentHash = contentHashDetails.Hash;
 

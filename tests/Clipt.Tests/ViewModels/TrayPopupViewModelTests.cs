@@ -14,12 +14,12 @@ public class TrayPopupViewModelTests
     {
         var settings = new Mock<ISettingsService>();
         settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(false);
-        settings.Setup(s => s.LoadShowDebugTrayTab()).Returns(true);
+        settings.Setup(s => s.LoadShowBlockerTrayTab()).Returns(true);
 
         var vm = new TrayPopupViewModel(settings.Object);
 
         Assert.False(vm.ShowPluginsTab);
-        Assert.True(vm.ShowDebugTab);
+        Assert.True(vm.ShowBlockerTab);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class TrayPopupViewModelTests
         vm.SetTabVisibility(false, true);
 
         Assert.False(vm.ShowPluginsTab);
-        Assert.True(vm.ShowDebugTab);
+        Assert.True(vm.ShowBlockerTab);
     }
 
     [Fact]

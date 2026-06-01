@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows.Media.Imaging;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Plugins;
 using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,7 +26,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     private bool _showPluginsTab;
 
     [ObservableProperty]
-    private bool _showDebugTab;
+    private bool _showBlockerTab;
 
     [ObservableProperty]
     private string _clipboardSummary = "Clipboard is empty";
@@ -81,8 +82,9 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     [ObservableProperty]
     private PluginsTabViewModel? _pluginsTab;
 
-    [ObservableProperty]
-    private TrayDebugTabViewModel? _debugTab;
+    public ObservableCollection<PluginTrayTabItem> PluginTrayTabs { get; } = [];
+
+    public event EventHandler? PluginTrayTabsChanged;
 
     private string? _trayUnicodeFullText;
     private int _trayUnicodeFullCharCount;
@@ -94,19 +96,49 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         if (_settingsService is null)
         {
             ShowPluginsTab = true;
-            ShowDebugTab = true;
+            ShowBlockerTab = true;
             return;
         }
 
         ShowPluginsTab = _settingsService.LoadShowPluginsTrayTab();
-        ShowDebugTab = _settingsService.LoadShowDebugTrayTab();
+        ShowBlockerTab = _settingsService.LoadShowBlockerTrayTab();
     }
 
-    public void SetTabVisibility(bool showPlugins, bool showDebug)
+    public void SetTabVisibility(bool showPlugins, bool showBlocker)
     {
         ShowPluginsTab = showPlugins;
-        ShowDebugTab = showDebug;
+        ShowBlockerTab = showBlocker;
     }
+
+    public void RefreshPluginTrayTabs(IPluginRegistry registry, ICliptPluginHost pluginHost)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(pluginHost);
+
+        PluginTrayTabs.Clear();
+
+        foreach (ICliptTrayTabPlugin tabPlugin in registry.TrayTabPlugins)
+        {
+            if (tabPlugin is not ICliptTrayTabViewFactory factory)
+                continue;
+
+            ICliptHost scope = pluginHost.CreateHostScope(tabPlugin.Id);
+            object viewModel = factory.CreateViewModel(scope);
+            object view = factory.CreateView(viewModel);
+
+            PluginTrayTabs.Add(new PluginTrayTabItem
+            {
+                PluginId = tabPlugin.Id,
+                Header = tabPlugin.TabHeader,
+                Content = view,
+            });
+        }
+
+        PluginTrayTabsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    partial void OnShowBlockerTabChanged(bool value) =>
+        PluginTrayTabsChanged?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
     private void ExpandToFull()

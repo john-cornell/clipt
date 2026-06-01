@@ -26,10 +26,6 @@ public class ClipboardHistoryServiceTests : IDisposable
         _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
         _settingsMock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.TrimOldest);
         _settingsMock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
-        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         _loggerMock = new Mock<IAppLogger>();
         _loggerMock.Setup(l => l.Level).Returns(AppLogLevel.Off);
         _promptMock = new Mock<IHistorySizeOverflowPrompt>();
@@ -1524,8 +1520,9 @@ public class ClipboardHistoryServiceTests : IDisposable
     [Fact]
     public async Task AddAsync_BlockedWindowClassPrefix_SkipsEntry()
     {
-        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "WisprClipboard_" });
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(new CliptPluginFilterResult(false, "clipt.plugins.owner-blocker", "Blocked process"));
 
         using var svc = CreateService();
         await svc.LoadAsync();
@@ -1543,15 +1540,16 @@ public class ClipboardHistoryServiceTests : IDisposable
 
         HistoryAddResult result = await svc.AddAsync(snapshot);
 
-        Assert.Equal(HistoryAddResult.SkippedBlockedProcess, result);
+        Assert.Equal(HistoryAddResult.SkippedByPluginFilter, result);
         Assert.Empty(svc.Entries);
     }
 
     [Fact]
     public async Task AddAsync_BlockedProcessName_SkipsEntry()
     {
-        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wispr" });
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(new CliptPluginFilterResult(false, "clipt.plugins.owner-blocker", "Blocked process"));
 
         using var svc = CreateService();
         await svc.LoadAsync();
@@ -1568,15 +1566,16 @@ public class ClipboardHistoryServiceTests : IDisposable
 
         HistoryAddResult result = await svc.AddAsync(snapshot);
 
-        Assert.Equal(HistoryAddResult.SkippedBlockedProcess, result);
+        Assert.Equal(HistoryAddResult.SkippedByPluginFilter, result);
         Assert.Empty(svc.Entries);
     }
 
     [Fact]
     public async Task AddAsync_BlockedProcessName_DoesNotRaiseEvent()
     {
-        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
-            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wispr" });
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(new CliptPluginFilterResult(false, "clipt.plugins.owner-blocker", "Blocked process"));
 
         using var svc = CreateService();
         await svc.LoadAsync();

@@ -2,12 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Clipt.Models;
+using Clipt.Services;
 using Clipt.ViewModels;
 
 namespace Clipt.Views;
 
 public partial class TrayPopupWindow : Window
 {
+    private const string PluginTabTag = "PluginTab";
+
     private DateTime _lastHiddenUtc = DateTime.MinValue;
 
     public TrayPopupWindow(TrayPopupViewModel viewModel)
@@ -20,6 +24,8 @@ public partial class TrayPopupWindow : Window
 
         SubscribeToHistoryTab(viewModel.HistoryTab);
         TrackGroupsTab(viewModel.GroupsTab);
+        viewModel.PluginTrayTabsChanged += (_, _) => SyncPluginTrayTabs();
+        SyncPluginTrayTabs();
 
         viewModel.PropertyChanged += (_, e) =>
         {
@@ -27,8 +33,60 @@ public partial class TrayPopupWindow : Window
                 SubscribeToHistoryTab(viewModel.HistoryTab);
             if (e.PropertyName == nameof(TrayPopupViewModel.GroupsTab))
                 TrackGroupsTab(viewModel.GroupsTab);
+            if (e.PropertyName == nameof(TrayPopupViewModel.ShowBlockerTab))
+                UpdatePluginTabVisibility();
         };
     }
+
+    private void SyncPluginTrayTabs()
+    {
+        var vm = (TrayPopupViewModel)DataContext;
+
+        for (int i = TrayTabControl.Items.Count - 1; i >= 0; i--)
+        {
+            if (TrayTabControl.Items[i] is TabItem { Tag: string tag } && tag == PluginTabTag)
+                TrayTabControl.Items.RemoveAt(i);
+        }
+
+        foreach (PluginTrayTabItem tab in vm.PluginTrayTabs)
+        {
+            TrayTabControl.Items.Add(CreatePluginTabItem(tab, vm));
+        }
+    }
+
+    private void UpdatePluginTabVisibility()
+    {
+        var vm = (TrayPopupViewModel)DataContext;
+
+        foreach (object item in TrayTabControl.Items)
+        {
+            if (item is not TabItem tabItem || tabItem.Tag is not string tag || tag != PluginTabTag)
+                continue;
+
+            if (tabItem.Header is not string header)
+                continue;
+
+            PluginTrayTabItem? pluginTab = vm.PluginTrayTabs.FirstOrDefault(t => t.Header == header);
+            if (pluginTab is null)
+                continue;
+
+            tabItem.Visibility = GetPluginTabVisibility(pluginTab, vm);
+        }
+    }
+
+    private static TabItem CreatePluginTabItem(PluginTrayTabItem tab, TrayPopupViewModel vm) =>
+        new()
+        {
+            Tag = PluginTabTag,
+            Header = tab.Header,
+            Content = tab.Content,
+            Visibility = GetPluginTabVisibility(tab, vm),
+        };
+
+    private static Visibility GetPluginTabVisibility(PluginTrayTabItem tab, TrayPopupViewModel vm) =>
+        tab.PluginId == "clipt.plugins.owner-blocker" && !vm.ShowBlockerTab
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
     private HistoryTabViewModel? _subscribedHistoryTab;
     private GroupsTabViewModel? _subscribedGroupsTab;

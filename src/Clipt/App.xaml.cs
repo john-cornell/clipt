@@ -19,7 +19,6 @@ public partial class App : Application
     private HistoryTabViewModel? _historyTabViewModel;
     private GroupsTabViewModel? _groupsTabViewModel;
     private PluginsTabViewModel? _pluginsTabViewModel;
-    private TrayDebugTabViewModel? _trayDebugTabViewModel;
     private MainWindow? _mainWindow;
     private ClipboardListenerService? _listenerService;
     private IClipboardService? _clipboardService;
@@ -67,18 +66,20 @@ public partial class App : Application
         _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
         _groupsTabViewModel = _serviceProvider.GetRequiredService<GroupsTabViewModel>();
         _pluginsTabViewModel = _serviceProvider.GetRequiredService<PluginsTabViewModel>();
-        _trayDebugTabViewModel = _serviceProvider.GetRequiredService<TrayDebugTabViewModel>();
         _pluginHost = _serviceProvider.GetRequiredService<ICliptPluginHost>();
         _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
+        _settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
 
         var pluginRegistry = _serviceProvider.GetRequiredService<PluginRegistry>();
         pluginRegistry.SetHost(_pluginHost);
+        if (_pluginHost is CliptPluginHost concreteHost)
+            OwnerBlockerSettingsMigrator.MigrateLegacyRegistrySettings(concreteHost);
         pluginRegistry.Initialize();
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
         _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
         _trayPopupViewModel.PluginsTab = _pluginsTabViewModel;
-        _trayPopupViewModel.DebugTab = _trayDebugTabViewModel;
+        _trayPopupViewModel.RefreshPluginTrayTabs(pluginRegistry, _pluginHost);
 
         _pluginsTabViewModel.PluginOutputWritten += OnPluginOutputWritten;
         _pluginsTabViewModel.Refresh();
@@ -111,8 +112,7 @@ public partial class App : Application
 
         Dispatcher.Invoke(() => _groupsTabViewModel?.Refresh());
 
-        _settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
-        var settings = _settingsService;
+        var settings = _settingsService!;
         if (settings.LoadPurgeHistoryOnStartup())
         {
             try
@@ -199,7 +199,6 @@ public partial class App : Application
                     ? await _historyService!.AddAsync(snapshot).ConfigureAwait(false)
                     : HistoryAddResult.SkippedEmptyFormats;
                 _pluginHost?.PublishClipboardEvent(snapshot, addResult);
-                _trayDebugTabViewModel?.RecordEvent(snapshot, addResult);
             }
             catch (InvalidOperationException)
             {
@@ -228,6 +227,7 @@ public partial class App : Application
         _historyTabViewModel?.Refresh();
         _groupsTabViewModel?.Refresh();
         _pluginsTabViewModel?.Refresh();
+        RefreshTrayPluginTabs();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -267,6 +267,7 @@ public partial class App : Application
         _historyTabViewModel?.Refresh();
         _groupsTabViewModel?.Refresh();
         _pluginsTabViewModel?.Refresh();
+        RefreshTrayPluginTabs();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -316,6 +317,16 @@ public partial class App : Application
 
         if (_mainWindow.WindowState == WindowState.Minimized)
             _mainWindow.WindowState = WindowState.Normal;
+    }
+
+    private void RefreshTrayPluginTabs()
+    {
+        if (_trayPopupViewModel is null || _pluginHost is null || _serviceProvider is null)
+            return;
+
+        _trayPopupViewModel.RefreshPluginTrayTabs(
+            _serviceProvider.GetRequiredService<IPluginRegistry>(),
+            _pluginHost);
     }
 
     private ClipboardSnapshot? RefreshTrayPopup()
@@ -394,7 +405,6 @@ public partial class App : Application
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
         services.AddSingleton<MainViewModel>();
-        services.AddSingleton<TrayDebugTabViewModel>();
         services.AddSingleton<TrayPopupViewModel>(sp => new TrayPopupViewModel(
             sp.GetRequiredService<ISettingsService>()));
         services.AddSingleton<GroupsTabViewModel>(sp => new GroupsTabViewModel(
@@ -408,7 +418,8 @@ public partial class App : Application
             () => sp.GetRequiredService<ClipboardListenerService>().Hwnd,
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<ITrayIconService>(),
-            sp.GetRequiredService<IClipboardGroupService>()));
+            sp.GetRequiredService<IClipboardGroupService>(),
+            sp.GetRequiredService<ICliptPluginHost>()));
         services.AddSingleton<PluginsTabViewModel>(sp => new PluginsTabViewModel(
             sp.GetRequiredService<IPluginRegistry>(),
             sp.GetRequiredService<IClipboardService>(),

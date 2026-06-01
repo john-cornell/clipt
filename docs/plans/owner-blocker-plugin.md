@@ -471,12 +471,12 @@ Use mock `ICliptHost` / mock coordinator — no real registry writes in unit tes
 - [x] B5. Tests: port `TrayDebugTabViewModelTests`, `ClipboardBlockRulesTests`
 
 ### Phase C — Cut over
-- [ ] C1. Settings migration from registry → plugin JSON
-- [ ] C2. Dynamic plugin tabs in `TrayPopupWindow`; remove Debug tab
-- [ ] C3. Wire `HistoryTabViewModel` to `ICliptPluginHost`
-- [ ] C4. Delete core blocking/debug code and settings APIs
-- [ ] C5. Rebuild WhereIn; update installer/README/build-setup.bat
-- [ ] C6. Version bump 1.14.0 (`Clipt.csproj`, `Clipt.iss`)
+- [x] C1. Settings migration from registry → plugin JSON
+- [x] C2. Dynamic plugin tabs in `TrayPopupWindow`; remove Debug tab
+- [x] C3. Wire `HistoryTabViewModel` to `ICliptPluginHost`
+- [x] C4. Delete core blocking/debug code and settings APIs
+- [x] C5. Rebuild WhereIn; update installer/README/build-setup.bat
+- [x] C6. Version bump 1.14.1 (`Clipt.csproj`, `Clipt.iss`)
 
 ### Phase D — Polish
 - [ ] D1. README plugin authoring section

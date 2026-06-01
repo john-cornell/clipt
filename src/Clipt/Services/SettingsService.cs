@@ -17,10 +17,9 @@ public sealed class SettingsService : ISettingsService
     private const string PurgeHistoryOnStartupValueName = "PurgeHistoryOnStartup";
     private const string ClearClipboardWhenClearingHistoryValueName = "ClearClipboardWhenClearingHistory";
     private const string ShowPluginsTrayTabValueName = "ShowPluginsTrayTab";
-    private const string ShowDebugTrayTabValueName = "ShowDebugTrayTab";
+    private const string ShowBlockerTrayTabValueName = "ShowBlockerTrayTab";
+    private const string LegacyShowDebugTrayTabValueName = "ShowDebugTrayTab";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
-    private const string BlockedHistoryProcessNamesValueName = "BlockedHistoryProcessNames";
-    private const string BlockedHistoryWindowClassPrefixesValueName = "BlockedHistoryWindowClassPrefixes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupApprovedRunKeyPath =
         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
@@ -307,9 +306,17 @@ public sealed class SettingsService : ISettingsService
 
     public void SaveShowPluginsTrayTab(bool show) => SaveBoolSetting(ShowPluginsTrayTabValueName, show);
 
-    public bool LoadShowDebugTrayTab() => LoadBoolSetting(ShowDebugTrayTabValueName, defaultValue: true);
+    public bool LoadShowBlockerTrayTab()
+    {
+        bool? blocker = LoadOptionalBoolSetting(ShowBlockerTrayTabValueName);
+        if (blocker.HasValue)
+            return blocker.Value;
 
-    public void SaveShowDebugTrayTab(bool show) => SaveBoolSetting(ShowDebugTrayTabValueName, show);
+        bool? legacyDebug = LoadOptionalBoolSetting(LegacyShowDebugTrayTabValueName);
+        return legacyDebug ?? true;
+    }
+
+    public void SaveShowBlockerTrayTab(bool show) => SaveBoolSetting(ShowBlockerTrayTabValueName, show);
 
     public IReadOnlySet<ContentType> LoadDisabledHistoryTypes()
     {
@@ -352,92 +359,6 @@ public sealed class SettingsService : ISettingsService
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
             key.SetValue(DisabledHistoryTypesValueName, value, RegistryValueKind.String);
-        }
-        catch (System.Security.SecurityException) { }
-        catch (UnauthorizedAccessException) { }
-    }
-
-    public IReadOnlySet<string> LoadBlockedHistoryProcessNames()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
-            if (key?.GetValue(BlockedHistoryProcessNamesValueName) is string raw
-                && !string.IsNullOrWhiteSpace(raw))
-            {
-                var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (string part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    if (!string.IsNullOrWhiteSpace(part))
-                        result.Add(part);
-                }
-
-                return result;
-            }
-        }
-        catch (System.Security.SecurityException) { }
-        catch (IOException) { }
-
-        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    }
-
-    public void SaveBlockedHistoryProcessNames(IReadOnlySet<string> processNames)
-    {
-        ArgumentNullException.ThrowIfNull(processNames);
-
-        string value = string.Join(",", processNames
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
-
-        try
-        {
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
-            key.SetValue(BlockedHistoryProcessNamesValueName, value, RegistryValueKind.String);
-        }
-        catch (System.Security.SecurityException) { }
-        catch (UnauthorizedAccessException) { }
-    }
-
-    public IReadOnlySet<string> LoadBlockedHistoryWindowClassPrefixes()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
-            if (key?.GetValue(BlockedHistoryWindowClassPrefixesValueName) is string raw
-                && !string.IsNullOrWhiteSpace(raw))
-            {
-                var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (string part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    if (!string.IsNullOrWhiteSpace(part))
-                        result.Add(part);
-                }
-
-                return result;
-            }
-        }
-        catch (System.Security.SecurityException) { }
-        catch (IOException) { }
-
-        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    }
-
-    public void SaveBlockedHistoryWindowClassPrefixes(IReadOnlySet<string> classPrefixes)
-    {
-        ArgumentNullException.ThrowIfNull(classPrefixes);
-
-        string value = string.Join(",", classPrefixes
-            .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Select(prefix => prefix.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(prefix => prefix, StringComparer.OrdinalIgnoreCase));
-
-        try
-        {
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
-            key.SetValue(BlockedHistoryWindowClassPrefixesValueName, value, RegistryValueKind.String);
         }
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }
@@ -588,6 +509,11 @@ public sealed class SettingsService : ISettingsService
 
     private static bool LoadBoolSetting(string valueName, bool defaultValue)
     {
+        return LoadOptionalBoolSetting(valueName) ?? defaultValue;
+    }
+
+    private static bool? LoadOptionalBoolSetting(string valueName)
+    {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
@@ -597,7 +523,7 @@ public sealed class SettingsService : ISettingsService
         catch (System.Security.SecurityException) { }
         catch (IOException) { }
 
-        return defaultValue;
+        return null;
     }
 
     private static void SaveBoolSetting(string valueName, bool enabled)
