@@ -17,4 +17,6 @@ public interface ICliptHost
     IReadOnlySet<string> GetBlockedProcessNames();
 
     IReadOnlySet<string> GetBlockedWindowClassPrefixes();
+
+    void NotifyHistoryOwnerBlockUiChanged();
 }

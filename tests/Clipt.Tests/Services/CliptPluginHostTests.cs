@@ -174,6 +174,8 @@ public class CliptPluginHostTests
 
         public IReadOnlySet<string> GetBlockedWindowClassPrefixes() =>
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public bool ShowHistoryBlockButton => true;
     }
 
     private sealed class TestPluginRegistry : IPluginRegistry

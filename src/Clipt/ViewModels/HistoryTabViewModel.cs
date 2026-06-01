@@ -100,6 +100,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         _hwndProvider = hwndProvider ?? throw new ArgumentNullException(nameof(hwndProvider));
 
         _historyService.EntriesChanged += OnEntriesChanged;
+        _pluginHost.HistoryOwnerBlockUiChanged += (_, _) => Refresh();
 
         AlsoClearClipboardOnClearHistory = _settingsService.LoadClearClipboardWhenClearingHistory();
     }
@@ -366,12 +367,11 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             string ownerProcess = entry.OwnerProcess;
             bool isFirst = i == 0;
             bool isLast = i == entries.Count - 1;
-            bool canBlockOwner = HasOwnerBlockCoordinator
+            bool showBlockUi = HasOwnerBlockCoordinator && _pluginHost.ShowHistoryOwnerBlockButton;
+            bool canBlockOwner = showBlockUi
                 && OwnerBlockUiRules.IsBlockableProcessName(ownerProcess);
-            bool isOwnerBlocked = _pluginHost.IsOwnerBlocked(entry.OwnerProcess, null);
-            bool showBlockUnavailableHint = !HasOwnerBlockCoordinator
-                && OwnerBlockUiRules.IsBlockableProcessName(ownerProcess)
-                && !isOwnerBlocked;
+            bool isOwnerBlocked = showBlockUi
+                && _pluginHost.IsOwnerBlocked(entry.OwnerProcess, null);
             var item = new HistoryEntryDisplayItem
             {
                 Id = entry.Id,
@@ -386,7 +386,6 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                     : string.Empty,
                 IsOwnerBlocked = isOwnerBlocked,
                 CanShowBlockOwner = canBlockOwner,
-                ShowOwnerBlockUnavailableHint = showBlockUnavailableHint,
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
@@ -742,7 +741,6 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public required string BlockableProcessName { get; init; }
     public required bool IsOwnerBlocked { get; init; }
     public required bool CanShowBlockOwner { get; init; }
-    public required bool ShowOwnerBlockUnavailableHint { get; init; }
     public bool CanBlockOwner => CanShowBlockOwner && !IsOwnerBlocked;
     public IAsyncRelayCommand? BlockOwnerCommand { get; set; }
     public required string RelativeTime { get; init; }

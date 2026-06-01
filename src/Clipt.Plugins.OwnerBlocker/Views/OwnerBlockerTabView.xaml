@@ -5,6 +5,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" MaxHeight="130" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -16,7 +17,15 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,8" />
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+        <CheckBox Grid.Row="1"
+                  Content="Show Block button in History"
+                  IsChecked="{Binding ShowHistoryBlockButton, Mode=TwoWay}"
+                  FontSize="10"
+                  Foreground="{DynamicResource ForegroundBrush}"
+                  ToolTip="Show or hide the Block button on history rows for blockable owner processes"
+                  Margin="0,0,0,8" />
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
             <Button Content="Block last owner"
                     Command="{Binding BlockLastOwnerCommand}"
                     FontSize="10" Padding="8,2" Margin="0,0,6,0"
@@ -30,7 +39,7 @@
                     ToolTip="Remove every blocked process and window class" />
         </StackPanel>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 Padding="8,6"
@@ -158,7 +167,7 @@
             </ScrollViewer>
         </Border>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="4">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

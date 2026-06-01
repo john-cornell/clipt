@@ -51,6 +51,52 @@
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                     Padding="10,6,0,6" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <DockPanel>
+                    <!-- Options menu -->
+                    <Menu DockPanel.Dock="Right"
+                          x:Name="TrayOptionsMenu"
+                          Background="Transparent"
+                          VerticalAlignment="Center"
+                          Margin="0,0,4,0">
+                        <Menu.Resources>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource ForegroundBrush}" />
+                            </Style>
+                        </Menu.Resources>
+                        <MenuItem Header="&#x2261;"
+                                  FontSize="16"
+                                  Padding="6,2"
+                                  ToolTip="Tray popup options">
+                            <MenuItem Header="Show tabs"
+                                      x:Name="ShowTabsRootMenuItem"
+                                      ToolTip="Show or hide optional tray popup tabs" />
+                            <Separator />
+                            <MenuItem Header="Save group&#x2026;"
+                                      Command="{Binding HistoryTab.EnterSaveSelectionModeCommand}"
+                                      ToolTip="Select entries to save as a named group" />
+                            <MenuItem Header="Reorder items"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding HistoryTab.ShowMoveControls, Mode=TwoWay}"
+                                      ToolTip="Show up/down controls to reorder history" />
+                            <MenuItem Header="Long text (More/Less)"
+                                      IsCheckable="True"
+                                      IsChecked="{Binding HistoryTab.ShowTextExpandControls, Mode=TwoWay}"
+                                      ToolTip="Show More and Less under text entries when the summary may be long" />
+                            <Separator />
+                            <MenuItem Header="Clear">
+                                <MenuItem Header="Clear selected&#x2026;"
+                                          Command="{Binding HistoryTab.EnterDeleteSelectionModeCommand}"
+                                          ToolTip="Select entries in the list, then delete the checked items" />
+                                <MenuItem Header="Clear all"
+                                          Command="{Binding HistoryTab.ClearAllIncludingClipboardCommand}"
+                                          ToolTip="Remove all history and clear the system clipboard" />
+                                <MenuItem Header="Clear history only"
+                                          Command="{Binding HistoryTab.ClearHistoryOnlyCommand}"
+                                          ToolTip="Remove history; keep current clipboard content" />
+                            </MenuItem>
+                        </MenuItem>
+                    </Menu>
+
                     <!-- Pin button: far right, close-button style -->
                     <ToggleButton DockPanel.Dock="Right"
                                   IsChecked="{Binding IsPinned}"
@@ -142,7 +188,7 @@
 
             <!-- Tabs -->
             <TabControl x:Name="TrayTabControl" Grid.Row="1" Margin="0">
-                <TabItem Header="Plugins" Visibility="{Binding ShowPluginsTab, RelativeSource={RelativeSource AncestorType=TabControl}, Converter={StaticResource BoolToVis}}" DataContext="{Binding PluginsTab}">
+                <TabItem Header="Plugins" DataContext="{Binding PluginsTab}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -389,63 +435,10 @@
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0" Margin="10,6,10,4">
-                            <DockPanel
-                                Visibility="{Binding ShowNormalHistoryChrome, Converter={StaticResource BoolToVis}}">
-                                <Menu DockPanel.Dock="Right"
-                                      Background="Transparent"
-                                      VerticalAlignment="Center"
-                                      Margin="8,0,0,0">
-                                    <Menu.Resources>
-                                        <Style TargetType="MenuItem">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource ForegroundBrush}" />
-                                        </Style>
-                                    </Menu.Resources>
-                                    <MenuItem Header="&#x2261;"
-                                              FontSize="16"
-                                              Padding="6,2"
-                                              ToolTip="History actions">
-                                        <MenuItem Header="Show tabs"
-                                                  ToolTip="Show or hide optional tray popup tabs"
-                                                  ItemsSource="{Binding TrayTabShowMenuItems, RelativeSource={RelativeSource AncestorType=Window}}">
-                                            <MenuItem.ItemContainerStyle>
-                                                <Style TargetType="MenuItem">
-                                                    <Setter Property="Header" Value="{Binding Header}" />
-                                                    <Setter Property="IsCheckable" Value="True" />
-                                                    <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
-                                                </Style>
-                                            </MenuItem.ItemContainerStyle>
-                                        </MenuItem>
-                                        <Separator />
-                                        <MenuItem Header="Save group&#x2026;"
-                                                  Command="{Binding EnterSaveSelectionModeCommand}"
-                                                  ToolTip="Select entries to save as a named group" />
-                                        <MenuItem Header="Reorder items"
-                                                  IsCheckable="True"
-                                                  IsChecked="{Binding ShowMoveControls, Mode=TwoWay}"
-                                                  ToolTip="Show up/down controls to reorder history" />
-                                        <MenuItem Header="Long text (More/Less)"
-                                                  IsCheckable="True"
-                                                  IsChecked="{Binding ShowTextExpandControls, Mode=TwoWay}"
-                                                  ToolTip="Show More and Less under text entries when the summary may be long" />
-                                        <Separator />
-                                        <MenuItem Header="Clear">
-                                            <MenuItem Header="Clear selected&#x2026;"
-                                                      Command="{Binding EnterDeleteSelectionModeCommand}"
-                                                      ToolTip="Select entries in the list, then delete the checked items" />
-                                            <MenuItem Header="Clear all"
-                                                      Command="{Binding ClearAllIncludingClipboardCommand}"
-                                                      ToolTip="Remove all history and clear the system clipboard" />
-                                            <MenuItem Header="Clear history only"
-                                                      Command="{Binding ClearHistoryOnlyCommand}"
-                                                      ToolTip="Remove history; keep current clipboard content" />
-                                        </MenuItem>
-                                    </MenuItem>
-                                </Menu>
-                                <TextBlock Text="{Binding StatusText}"
-                                           Foreground="{DynamicResource ForegroundDimBrush}"
-                                           FontSize="11" VerticalAlignment="Center" />
-                            </DockPanel>
+                            <TextBlock Text="{Binding StatusText}"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       FontSize="11" VerticalAlignment="Center"
+                                       Visibility="{Binding ShowNormalHistoryChrome, Converter={StaticResource BoolToVis}}" />
                             <DockPanel
                                 Visibility="{Binding ShowSelectionHistoryChrome, Converter={StaticResource BoolToVis}}">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
@@ -709,8 +702,13 @@
                                                            VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"
                                                            ToolTip="Process that owned the clipboard when this was captured" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="4" Grid.ColumnSpan="2"
+                                                        Grid.Row="2" Orientation="Horizontal"
+                                                        HorizontalAlignment="Right" Margin="0,3,0,0">
                                                 <Button Content="Block"
-                                                        FontSize="9" Padding="6,0" Margin="6,0,0,0"
+                                                        FontSize="9" Padding="6,0" Margin="0,0,6,0"
                                                         Command="{Binding BlockOwnerCommand}"
                                                         ToolTip="Block this process and remove its history entries">
                                                     <Button.Style>
@@ -724,28 +722,10 @@
                                                         </Style>
                                                     </Button.Style>
                                                 </Button>
-                                                <TextBlock Text="Block (Owner Blocker plugin required)"
-                                                           FontSize="9"
-                                                           Foreground="{DynamicResource ForegroundDimBrush}"
-                                                           FontStyle="Italic"
-                                                           Margin="6,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           ToolTip="Install or enable Clipt.Plugins.OwnerBlocker.dll to block clipboard polluters from this process">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding ShowOwnerBlockUnavailableHint}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
                                                 <TextBlock Text="blocked"
                                                            FontSize="9"
                                                            Foreground="{DynamicResource ForegroundDimBrush}"
-                                                           Margin="6,0,0,0"
+                                                           Margin="0,0,6,0"
                                                            VerticalAlignment="Center">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -758,11 +738,6 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="4" Grid.ColumnSpan="2"
-                                                        Grid.Row="2" Orientation="Horizontal"
-                                                        HorizontalAlignment="Right" Margin="0,3,0,0">
                                                 <Button Content="Restore" FontSize="10"
                                                         Padding="8,1"
                                                         Command="{Binding RestoreCommand}" Margin="0,0,4,0"

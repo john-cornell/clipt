@@ -13,4 +13,6 @@ public interface IOwnerBlockerSettingsStore
     void UnblockWindowClass(string classPrefix);
 
     void ClearAll();
+
+    bool ShowHistoryBlockButton { get; set; }
 }

@@ -29,6 +29,7 @@ public class HistoryTabViewModelTests
         _groupMock.Setup(g => g.Groups).Returns(Array.Empty<ClipboardGroup>());
         _pluginHostMock = new Mock<ICliptPluginHost>();
         _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(true);
+        _pluginHostMock.Setup(h => h.ShowHistoryOwnerBlockButton).Returns(true);
         _pluginHostMock.Setup(h => h.IsOwnerBlocked(It.IsAny<string?>(), It.IsAny<string?>()))
             .Returns(false);
         _pluginHostMock.Setup(h => h.BlockOwnerAsync(It.IsAny<string?>(), It.IsAny<string?>()))
@@ -1594,9 +1595,10 @@ public class HistoryTabViewModelTests
     }
 
     [Fact]
-    public void Refresh_WithoutOwnerBlockCoordinator_ShowsBlockUnavailableHintForBlockableProcess()
+    public void Refresh_WithoutOwnerBlockCoordinator_HidesBlockButton()
     {
         _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(false);
+        _pluginHostMock.Setup(h => h.ShowHistoryOwnerBlockButton).Returns(false);
         var entries = new List<ClipboardHistoryEntry>
         {
             CreateEntry("a", "A", ContentType.Text, ownerProcess: "Wispr"),
@@ -1608,13 +1610,32 @@ public class HistoryTabViewModelTests
 
         var item = Assert.Single(vm.DisplayEntries);
         Assert.False(item.CanShowBlockOwner);
-        Assert.True(item.ShowOwnerBlockUnavailableHint);
+        Assert.False(item.IsOwnerBlocked);
     }
 
     [Fact]
-    public void Refresh_WithOwnerBlockCoordinator_DoesNotShowBlockUnavailableHint()
+    public void Refresh_WithOwnerBlockCoordinator_DoesNotShowBlockWhenPluginOptionDisabled()
     {
         _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(true);
+        _pluginHostMock.Setup(h => h.ShowHistoryOwnerBlockButton).Returns(false);
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text, ownerProcess: "Wispr"),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = Assert.Single(vm.DisplayEntries);
+        Assert.False(item.CanShowBlockOwner);
+    }
+
+    [Fact]
+    public void Refresh_WithOwnerBlockCoordinator_ShowsBlockForBlockableProcess()
+    {
+        _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(true);
+        _pluginHostMock.Setup(h => h.ShowHistoryOwnerBlockButton).Returns(true);
         var entries = new List<ClipboardHistoryEntry>
         {
             CreateEntry("a", "A", ContentType.Text, ownerProcess: "Wispr"),
@@ -1626,6 +1647,5 @@ public class HistoryTabViewModelTests
 
         var item = Assert.Single(vm.DisplayEntries);
         Assert.True(item.CanShowBlockOwner);
-        Assert.False(item.ShowOwnerBlockUnavailableHint);
     }
 }

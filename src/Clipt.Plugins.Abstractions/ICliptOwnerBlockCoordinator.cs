@@ -9,4 +9,7 @@ public interface ICliptOwnerBlockCoordinator
     IReadOnlySet<string> GetBlockedProcessNames();
 
     IReadOnlySet<string> GetBlockedWindowClassPrefixes();
+
+    /// <summary>When false, history rows hide Block / blocked owner chrome.</summary>
+    bool ShowHistoryBlockButton { get; }
 }

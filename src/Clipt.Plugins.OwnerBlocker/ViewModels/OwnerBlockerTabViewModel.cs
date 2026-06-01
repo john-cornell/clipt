@@ -21,6 +21,9 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasBlockedWindowClassItems;
 
+    [ObservableProperty]
+    private bool _showHistoryBlockButton;
+
     public ObservableCollection<BlockedOwnerItem> BlockedProcessItems { get; } = [];
     public ObservableCollection<BlockedOwnerItem> BlockedWindowClassItems { get; } = [];
     public ObservableCollection<ClipboardDebugEventItem> RecentEvents { get; } = [];
@@ -31,7 +34,17 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        _showHistoryBlockButton = _settings.ShowHistoryBlockButton;
         RefreshBlockedList();
+    }
+
+    partial void OnShowHistoryBlockButtonChanged(bool value)
+    {
+        if (_settings.ShowHistoryBlockButton == value)
+            return;
+
+        _settings.ShowHistoryBlockButton = value;
+        _host.NotifyHistoryOwnerBlockUiChanged();
     }
 
     public void RecordEvent(CliptPluginClipboardEventArgs args)

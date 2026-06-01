@@ -27,9 +27,16 @@ public partial class TrayPopupWindow : Window
         TrackGroupsTab(viewModel.GroupsTab);
         MovePluginsTabToEnd();
         viewModel.PluginTrayTabsChanged += (_, _) => SyncPluginTrayTabs();
+        viewModel.TrayTabShowMenuItemsChanged += (_, _) => RebuildShowTabsSubmenu();
+        viewModel.OptionalTrayTabVisibilityChanged += (_, _) =>
+        {
+            UpdateOptionalTabVisibility();
+            RebuildShowTabsSubmenu();
+        };
         SyncPluginTrayTabs();
+        RebuildShowTabsSubmenu();
+        UpdateOptionalTabVisibility();
 
-        viewModel.OptionalTrayTabVisibilityChanged += (_, _) => UpdatePluginTabVisibility();
         viewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TrayPopupViewModel.HistoryTab))
@@ -37,7 +44,7 @@ public partial class TrayPopupWindow : Window
             if (e.PropertyName == nameof(TrayPopupViewModel.GroupsTab))
                 TrackGroupsTab(viewModel.GroupsTab);
             if (e.PropertyName == nameof(TrayPopupViewModel.ShowPluginsTab))
-                UpdatePluginTabVisibility();
+                UpdateOptionalTabVisibility();
         };
     }
 
@@ -59,6 +66,82 @@ public partial class TrayPopupWindow : Window
         {
             TrayTabControl.Items.Insert(insertIndex, CreatePluginTabItem(tab, vm));
             insertIndex++;
+        }
+
+        UpdateOptionalTabVisibility();
+        RebuildShowTabsSubmenu();
+    }
+
+    private void RebuildShowTabsSubmenu()
+    {
+        if (ShowTabsRootMenuItem is null)
+            return;
+
+        ShowTabsRootMenuItem.Items.Clear();
+
+        if (DataContext is not TrayPopupViewModel vm)
+            return;
+
+        foreach (TrayTabShowMenuItem entry in vm.TrayTabShowMenuItems)
+        {
+            TrayTabShowMenuItem captured = entry;
+            var item = new MenuItem
+            {
+                Header = captured.Header,
+                IsCheckable = true,
+                IsChecked = captured.IsVisible,
+            };
+            item.Click += (_, _) => captured.IsVisible = item.IsChecked;
+            ShowTabsRootMenuItem.Items.Add(item);
+        }
+    }
+
+    private void UpdateOptionalTabVisibility()
+    {
+        if (DataContext is not TrayPopupViewModel vm)
+            return;
+
+        int pluginsIndex = FindTabIndexByHeader(PluginsTabHeader);
+        if (pluginsIndex >= 0 && TrayTabControl.Items[pluginsIndex] is TabItem pluginsTab)
+        {
+            pluginsTab.Visibility = vm.IsOptionalTrayTabVisible(null)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        foreach (object item in TrayTabControl.Items)
+        {
+            if (item is not TabItem tabItem || tabItem.Tag is not string tag || tag != PluginTabTag)
+                continue;
+
+            if (tabItem.Header is not string header)
+                continue;
+
+            PluginTrayTabItem? pluginTab = vm.PluginTrayTabs.FirstOrDefault(t => t.Header == header);
+            if (pluginTab is null)
+                continue;
+
+            tabItem.Visibility = GetPluginTabVisibility(pluginTab, vm);
+        }
+
+        EnsureSelectedTabIsVisible();
+    }
+
+    private void EnsureSelectedTabIsVisible()
+    {
+        if (TrayTabControl.SelectedItem is TabItem selected
+            && selected.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        foreach (object item in TrayTabControl.Items)
+        {
+            if (item is TabItem { Visibility: Visibility.Visible } visibleTab)
+            {
+                TrayTabControl.SelectedItem = visibleTab;
+                return;
+            }
         }
     }
 
@@ -87,26 +170,6 @@ public partial class TrayPopupWindow : Window
         }
 
         return -1;
-    }
-
-    private void UpdatePluginTabVisibility()
-    {
-        var vm = (TrayPopupViewModel)DataContext;
-
-        foreach (object item in TrayTabControl.Items)
-        {
-            if (item is not TabItem tabItem || tabItem.Tag is not string tag || tag != PluginTabTag)
-                continue;
-
-            if (tabItem.Header is not string header)
-                continue;
-
-            PluginTrayTabItem? pluginTab = vm.PluginTrayTabs.FirstOrDefault(t => t.Header == header);
-            if (pluginTab is null)
-                continue;
-
-            tabItem.Visibility = GetPluginTabVisibility(pluginTab, vm);
-        }
     }
 
     private static TabItem CreatePluginTabItem(PluginTrayTabItem tab, TrayPopupViewModel vm) =>

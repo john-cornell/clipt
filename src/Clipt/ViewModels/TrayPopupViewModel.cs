@@ -90,6 +90,8 @@ public sealed partial class TrayPopupViewModel : ObservableObject
 
     public event EventHandler? OptionalTrayTabVisibilityChanged;
 
+    public event EventHandler? TrayTabShowMenuItemsChanged;
+
     private string? _trayUnicodeFullText;
     private int _trayUnicodeFullCharCount;
 
@@ -144,6 +146,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
             ShowPluginsTab));
 
         SyncTrayShowTabsMenu();
+        TrayTabShowMenuItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void OnTrayTabShowMenuItemChanged(string? pluginId, bool isVisible)

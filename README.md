@@ -45,7 +45,7 @@ Release assets match the filenames above (same links as the installer). If a lin
 ### System Tray and Window Management
 
 - **System Tray Icon** - Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit. The tray menu stays open while you flip settings (history limits, log level, etc.); it closes after **Open Full Window**, **Clear History**, or **Exit**
-- **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window. Tabs: **Plugins**, **Clipboard**, **History**, **Groups**, plus optional plugin tabs such as **Blocker** (Owner Blocker). Tray menu **Show** toggles **Plugins** and **Blocker**
+- **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window. Tabs: **Clipboard**, **History**, **Groups**, optional plugin tabs such as **Blocker** (Owner Blocker), then **Plugins** last. Title bar **≡** menu: **Show tabs** (dynamic submenu for every optional tab), **Save group…**, **Reorder items**, **Long text (More/Less)**, and **Clear** — available on every tab, not only History. Tray icon menu **Show tabs** stays in sync
 - **Pin Popup** - Pin toggle in the **top-right** of the compact popup title bar keeps the window open when you click elsewhere
 - **Expand to Full** - Button **next to the title** (Clipt + version) opens the full Clipt inspector window
 - **Run on Startup** - Toggle Windows startup registration from the tray menu; writes a quoted path to the current-user Run registry key (handles spaces in usernames)
@@ -76,7 +76,7 @@ Tray popup **Plugins** tab: discover, register, and run clipboard transform plug
 - **Tray tab plugins** - Plugins that implement `ICliptTrayTabViewFactory` contribute extra tabs to the compact popup (header and order come from the plugin)
 - **Plugin settings** - Plugins that implement `ICliptPluginLifetime` receive an `ICliptHost` scope for JSON settings under `%LOCALAPPDATA%\Clipt\Plugins\{plugin-id}\settings.json`
 - **Where In** (bundled) - Example action plugin in `src/Clipt.Plugins.WhereIn`. Copy a multi-line list of GUIDs (optional header row for the column name), open **Plugins**, and click **Run** to produce a SQL `WHERE … IN ('…','…')` clause on the clipboard. **First line is column name** is on by default; turn it off to treat every line as a value (default column `Id`). Invalid lines are skipped; only GUID-shaped values are included
-- **Owner Blocker** (bundled) - Filter + **Blocker** tray tab in `src/Clipt.Plugins.OwnerBlocker`. Block clipboard history from specific owner processes and `WisprClipboard_*` window classes; includes a debug event log and blocked-owner lists. Legacy block lists in registry migrate to plugin settings on first run. Remove the DLL to disable blocking entirely
+- **Owner Blocker** (bundled) - Filter + **Blocker** tray tab in `src/Clipt.Plugins.OwnerBlocker`. Block clipboard history from specific owner processes and `WisprClipboard_*` window classes; includes a debug event log and blocked-owner lists. **Block** on History rows (right-aligned with Restore/Delete) when the plugin is loaded; toggle visibility from the Blocker tab (**Show Block button in History**). Legacy block lists in registry migrate to plugin settings on first run. Remove the DLL to disable blocking entirely
 
 #### Writing a plugin
 
@@ -119,13 +119,17 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.14.3** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.3/CliptSetup.exe) | Plugin rescan refreshes tray tabs; tray-open sync publishes debug events; init-failure rollback; filter block reasons |
+| **1.14.8** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.14.6 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.6/CliptSetup.exe) | Dynamic **Show tabs** menu (Plugins + all plugin tray tabs); per-plugin tab visibility in settings |
+| 1.14.5 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.5/CliptSetup.exe) | Fix ellipsis mojibake; **Plugins** tab last; **Show tabs** in tray and popup menus |
+| 1.14.4 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.4/CliptSetup.exe) | Fix startup hang (DI cycle, tray-first init); always-on startup logs to `%LOCALAPPDATA%\Clipt\clipt.log` |
+| 1.14.3 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.3/CliptSetup.exe) | Plugin rescan refreshes tray tabs; tray-open sync publishes debug events; init-failure rollback; filter block reasons |
 | 1.12.1 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.12.1/CliptSetup.exe) | **Plugins** tab in tray popup; extensible plugin framework; bundled **Where In** plugin (multi-line GUID list → SQL `WHERE IN` clause); installer ships plugin DLLs to `{app}\Plugins` |
 | 1.11.2 | 2026-04-07 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
 | 1.10.5 | 2026-03-25 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |

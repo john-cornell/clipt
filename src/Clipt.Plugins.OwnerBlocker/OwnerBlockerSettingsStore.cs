@@ -20,6 +20,19 @@ internal sealed class OwnerBlockerSettingsStore : IOwnerBlockerSettingsStore
     public IReadOnlySet<string> BlockedClassPrefixes { get; private set; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+    public bool ShowHistoryBlockButton
+    {
+        get => _settings.ShowHistoryBlockButton;
+        set
+        {
+            if (_settings.ShowHistoryBlockButton == value)
+                return;
+
+            _settings.ShowHistoryBlockButton = value;
+            Persist();
+        }
+    }
+
     public void BlockSnapshotSource(string? processName, string? windowClass)
     {
         if (BlockedProcessNames.IsBlockable(processName))

@@ -7,6 +7,10 @@ public interface ICliptPluginHost
 {
     bool HasOwnerBlockCoordinator { get; }
 
+    bool ShowHistoryOwnerBlockButton { get; }
+
+    event EventHandler? HistoryOwnerBlockUiChanged;
+
     CliptPluginFilterResult EvaluateFilters(ClipboardSnapshot snapshot);
 
     void PublishClipboardEvent(ClipboardSnapshot snapshot, HistoryAddResult addResult);

@@ -80,6 +80,9 @@ public sealed class OwnerBlockerPlugin :
         _settingsStore?.BlockedClassPrefixes
         ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+    public bool ShowHistoryBlockButton =>
+        _settingsStore?.ShowHistoryBlockButton ?? true;
+
     public object CreateViewModel(ICliptHost host)
     {
         if (_settingsStore is null)

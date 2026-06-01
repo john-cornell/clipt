@@ -108,6 +108,8 @@ public class OwnerBlockerRulesTests
             _processes.Clear();
             _classes.Clear();
         }
+
+        public bool ShowHistoryBlockButton { get; set; } = true;
     }
 }
 
@@ -219,11 +221,44 @@ public class OwnerBlockerPluginTests
         public IReadOnlySet<string> GetBlockedWindowClassPrefixes() =>
             _coordinator?.GetBlockedWindowClassPrefixes()
             ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public void NotifyHistoryOwnerBlockUiChanged() =>
+            HistoryOwnerBlockUiChanged?.Invoke(this, EventArgs.Empty);
+
+        public event EventHandler? HistoryOwnerBlockUiChanged;
     }
 }
 
 public class OwnerBlockerTabViewModelTests
 {
+    [Fact]
+    public void ShowHistoryBlockButton_DefaultsTrue()
+    {
+        var host = new OwnerBlockerPluginTests.TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+
+        Assert.True(plugin.ShowHistoryBlockButton);
+    }
+
+    [Fact]
+    public void ShowHistoryBlockButton_ToggleNotifiesHost()
+    {
+        var host = new OwnerBlockerPluginTests.TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+        host.AttachCoordinator(plugin);
+        var vm = (OwnerBlockerTabViewModel)plugin.CreateViewModel(host);
+
+        int notifyCount = 0;
+        host.HistoryOwnerBlockUiChanged += (_, _) => notifyCount++;
+
+        vm.ShowHistoryBlockButton = false;
+
+        Assert.False(plugin.ShowHistoryBlockButton);
+        Assert.Equal(1, notifyCount);
+    }
+
     [Fact]
     public void RecordEvent_AddsToRecentEvents_WithOwnerMetadata()
     {

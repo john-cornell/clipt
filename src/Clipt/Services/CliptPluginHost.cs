@@ -20,7 +20,12 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
     public event EventHandler<CliptPluginClipboardEventArgs>? ClipboardProcessed;
 
+    public event EventHandler? HistoryOwnerBlockUiChanged;
+
     public bool HasOwnerBlockCoordinator => _registry.OwnerBlockCoordinator is not null;
+
+    public bool ShowHistoryOwnerBlockButton =>
+        _registry.OwnerBlockCoordinator?.ShowHistoryBlockButton ?? false;
 
     public CliptPluginFilterResult EvaluateFilters(ClipboardSnapshot snapshot)
     {
@@ -85,6 +90,9 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
         return new CliptPluginHostScope(this, pluginId);
     }
+
+    internal void RaiseHistoryOwnerBlockUiChanged() =>
+        HistoryOwnerBlockUiChanged?.Invoke(this, EventArgs.Empty);
 
     internal string GetPluginSettingsDirectory(string pluginId)
     {
@@ -169,6 +177,9 @@ public sealed class CliptPluginHost : ICliptPluginHost
         public IReadOnlySet<string> GetBlockedWindowClassPrefixes() =>
             _parent._registry.OwnerBlockCoordinator?.GetBlockedWindowClassPrefixes()
             ?? EmptyBlockedSets.ClassPrefixes;
+
+        public void NotifyHistoryOwnerBlockUiChanged() =>
+            _parent.RaiseHistoryOwnerBlockUiChanged();
     }
 
     private static class EmptyBlockedSets
