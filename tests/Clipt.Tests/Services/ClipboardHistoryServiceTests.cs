@@ -15,6 +15,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     private readonly Mock<ISettingsService> _settingsMock;
     private readonly Mock<IAppLogger> _loggerMock;
     private readonly Mock<IHistorySizeOverflowPrompt> _promptMock;
+    private readonly Mock<ICliptPluginHost> _pluginHostMock;
 
     public ClipboardHistoryServiceTests()
     {
@@ -35,6 +36,10 @@ public class ClipboardHistoryServiceTests : IDisposable
         _promptMock
             .Setup(p => p.PromptAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(HistorySizeOverflowAnswer.TrimOldest);
+        _pluginHostMock = new Mock<ICliptPluginHost>();
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(CliptPluginFilterResult.Allowed);
     }
 
     public void Dispose()
@@ -48,7 +53,7 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     private ClipboardHistoryService CreateService() =>
-        new(_settingsMock.Object, _loggerMock.Object, _tempDir, _promptMock.Object);
+        new(_settingsMock.Object, _loggerMock.Object, _tempDir, _promptMock.Object, _pluginHostMock.Object);
 
     private static ClipboardSnapshot CreateTextSnapshot(
         string text, uint seqNum = 1, DateTime? timestamp = null)
@@ -1498,6 +1503,22 @@ public class ClipboardHistoryServiceTests : IDisposable
 
         Assert.Single(svc.Entries);
         Assert.Equal("Mine", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_PluginFilterBlocks_SkipsEntry()
+    {
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(new CliptPluginFilterResult(false, "clipt.plugins.test", "blocked"));
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        HistoryAddResult result = await svc.AddAsync(CreateTextSnapshot("blocked clip"));
+
+        Assert.Equal(HistoryAddResult.SkippedByPluginFilter, result);
+        Assert.Empty(svc.Entries);
     }
 
     [Fact]

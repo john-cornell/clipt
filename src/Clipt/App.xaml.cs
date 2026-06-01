@@ -25,6 +25,7 @@ public partial class App : Application
     private IClipboardService? _clipboardService;
     private IClipboardHistoryService? _historyService;
     private ISettingsService? _settingsService;
+    private ICliptPluginHost? _pluginHost;
     private IAppLogger? _appLogger;
     private int _clipboardTrayDispatchOrdinal;
     private Mutex? _singleInstanceMutex;
@@ -67,7 +68,12 @@ public partial class App : Application
         _groupsTabViewModel = _serviceProvider.GetRequiredService<GroupsTabViewModel>();
         _pluginsTabViewModel = _serviceProvider.GetRequiredService<PluginsTabViewModel>();
         _trayDebugTabViewModel = _serviceProvider.GetRequiredService<TrayDebugTabViewModel>();
+        _pluginHost = _serviceProvider.GetRequiredService<ICliptPluginHost>();
         _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
+
+        var pluginRegistry = _serviceProvider.GetRequiredService<PluginRegistry>();
+        pluginRegistry.SetHost(_pluginHost);
+        pluginRegistry.Initialize();
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
         _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
@@ -192,6 +198,7 @@ public partial class App : Application
                 HistoryAddResult addResult = hasData
                     ? await _historyService!.AddAsync(snapshot).ConfigureAwait(false)
                     : HistoryAddResult.SkippedEmptyFormats;
+                _pluginHost?.PublishClipboardEvent(snapshot, addResult);
                 _trayDebugTabViewModel?.RecordEvent(snapshot, addResult);
             }
             catch (InvalidOperationException)
@@ -380,9 +387,12 @@ public partial class App : Application
         services.AddSingleton<ClipboardListenerService>();
         services.AddSingleton<ITrayIconService, TrayIconService>();
         services.AddSingleton<IHistorySizeOverflowPrompt, WpfHistorySizeOverflowPrompt>();
+        services.AddSingleton<PluginRegistry>();
+        services.AddSingleton<IPluginRegistry>(sp => sp.GetRequiredService<PluginRegistry>());
+        services.AddSingleton<CliptPluginHost>();
+        services.AddSingleton<ICliptPluginHost>(sp => sp.GetRequiredService<CliptPluginHost>());
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
-        services.AddSingleton<IPluginRegistry, PluginRegistry>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayDebugTabViewModel>();
         services.AddSingleton<TrayPopupViewModel>(sp => new TrayPopupViewModel(

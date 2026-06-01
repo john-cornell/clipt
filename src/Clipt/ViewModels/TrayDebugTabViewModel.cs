@@ -276,6 +276,7 @@ public sealed partial class ClipboardDebugEventItem : ObservableObject
         HistoryAddResult.SkippedDuplicate => "Skipped (duplicate)",
         HistoryAddResult.SkippedDisabledContentType => "Skipped (type disabled)",
         HistoryAddResult.SkippedBlockedProcess => "Blocked process",
+        HistoryAddResult.SkippedByPluginFilter => "Blocked by plugin filter",
         HistoryAddResult.SkippedUserOverflowPrompt => "Skipped (size limit)",
         _ => result.ToString(),
     };

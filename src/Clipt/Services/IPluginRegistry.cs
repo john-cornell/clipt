@@ -9,6 +9,14 @@ public interface IPluginRegistry
 
     IReadOnlyList<PluginLoadFailureInfo> LoadFailures { get; }
 
+    IReadOnlyList<ICliptClipboardFilterPlugin> FilterPlugins { get; }
+
+    IReadOnlyList<ICliptTrayTabPlugin> TrayTabPlugins { get; }
+
+    ICliptOwnerBlockCoordinator? OwnerBlockCoordinator { get; }
+
+    void SetHost(ICliptPluginHost host);
+
     void Initialize();
 
     void Rescan();

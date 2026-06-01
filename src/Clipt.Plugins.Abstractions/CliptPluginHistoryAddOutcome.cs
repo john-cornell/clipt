@@ -1,6 +1,6 @@
-namespace Clipt.Models;
+namespace Clipt.Plugins;
 
-public enum HistoryAddResult
+public enum CliptPluginHistoryAddOutcome
 {
     Added,
     SkippedEmptyFormats,

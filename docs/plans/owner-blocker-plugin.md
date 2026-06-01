@@ -456,12 +456,12 @@ Use mock `ICliptHost` / mock coordinator — no real registry writes in unit tes
 ## 12. TODO List
 
 ### Phase A — Host API
-- [ ] A1. Add abstractions (DTOs, filter, tray tab, lifetime, host, coordinator)
-- [ ] A2. Implement `CliptPluginHost` + adapter
-- [ ] A3. Extend `PluginRegistry` (capability index, lifetime, rescan shutdown)
-- [ ] A4. Integrate filter pipeline in `ClipboardHistoryService.AddAsync`
-- [ ] A5. Add `PublishClipboardEvent` hook in `App.xaml.cs`
-- [ ] A6. Tests: `CliptPluginHostTests`, `PluginRegistryLifetimeTests`, filter pipeline tests
+- [x] A1. Add abstractions (DTOs, filter, tray tab, lifetime, host, coordinator)
+- [x] A2. Implement `CliptPluginHost` + adapter
+- [x] A3. Extend `PluginRegistry` (capability index, lifetime, rescan shutdown)
+- [x] A4. Integrate filter pipeline in `ClipboardHistoryService.AddAsync`
+- [x] A5. Add `PublishClipboardEvent` hook in `App.xaml.cs`
+- [x] A6. Tests: `CliptPluginHostTests`, filter pipeline tests
 
 ### Phase B — OwnerBlocker plugin
 - [ ] B1. Create `Clipt.Plugins.OwnerBlocker` project + csproj copy targets

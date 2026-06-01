@@ -15,6 +15,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
 
     private readonly ISettingsService _settingsService;
     private readonly IAppLogger _logger;
+    private readonly ICliptPluginHost _pluginHost;
     private readonly string _historyDir;
     private readonly string _blobsDir;
     private readonly string _indexPath;
@@ -44,8 +45,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     public ClipboardHistoryService(
         ISettingsService settingsService,
         IAppLogger logger,
-        IHistorySizeOverflowPrompt overflowPrompt)
-        : this(settingsService, logger, GetDefaultHistoryDirectory(), overflowPrompt)
+        IHistorySizeOverflowPrompt overflowPrompt,
+        ICliptPluginHost pluginHost)
+        : this(settingsService, logger, GetDefaultHistoryDirectory(), overflowPrompt, pluginHost)
     {
     }
 
@@ -53,11 +55,13 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         ISettingsService settingsService,
         IAppLogger logger,
         string historyDirectory,
-        IHistorySizeOverflowPrompt overflowPrompt)
+        IHistorySizeOverflowPrompt overflowPrompt,
+        ICliptPluginHost pluginHost)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _overflowPrompt = overflowPrompt ?? throw new ArgumentNullException(nameof(overflowPrompt));
+        _pluginHost = pluginHost ?? throw new ArgumentNullException(nameof(pluginHost));
         _historyDir = historyDirectory ?? throw new ArgumentNullException(nameof(historyDirectory));
         _blobsDir = Path.Combine(_historyDir, "blobs");
         _indexPath = Path.Combine(_historyDir, "index.json");
@@ -169,7 +173,18 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             if (_logger.Level >= AppLogLevel.Debug)
                 _logger.Debug($"AddAsync enter: {DescribeSnapshotDebug(snapshot)}");
 
-            var blockedProcesses = _settingsService.LoadBlockedHistoryProcessNames();
+            CliptPluginFilterResult filterResult = _pluginHost.EvaluateFilters(snapshot);
+            if (!filterResult.Allow)
+            {
+                if (_logger.Level >= AppLogLevel.Debug)
+                {
+                    _logger.Debug(
+                        $"AddAsync exit: blocked by plugin filter pluginId={filterResult.PluginId} reason={filterResult.Reason}");
+                }
+
+                return HistoryAddResult.SkippedByPluginFilter;
+            }
+
             if (ClipboardBlockRules.IsSnapshotBlocked(_settingsService, snapshot))
             {
                 if (_logger.Level >= AppLogLevel.Debug)

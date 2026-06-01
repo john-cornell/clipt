@@ -1,3 +1,4 @@
+using Clipt.Models;
 using Clipt.Plugins;
 using Clipt.Plugins.WhereIn;
 using Clipt.Services;
@@ -51,10 +52,17 @@ public class WhereInPluginTests
 
 public class PluginsTabViewModelTests
 {
+    private static PluginRegistry CreateRegistry()
+    {
+        var logger = new Mock<IAppLogger>();
+        logger.Setup(l => l.Level).Returns(AppLogLevel.Off);
+        return new PluginRegistry(logger.Object);
+    }
+
     [Fact]
     public void Refresh_LoadsWhereInPluginFromPluginsFolder()
     {
-        var registry = new PluginRegistry();
+        var registry = CreateRegistry();
         var clipboard = new Mock<IClipboardService>();
         var vm = new PluginsTabViewModel(registry, clipboard.Object, () => nint.Zero);
 
@@ -67,7 +75,7 @@ public class PluginsTabViewModelTests
     [Fact]
     public async Task RunPlugin_WritesOutputToClipboard()
     {
-        var registry = new PluginRegistry();
+        var registry = CreateRegistry();
         registry.Initialize();
         var clipboard = new Mock<IClipboardService>();
         nint hwnd = new(42);
