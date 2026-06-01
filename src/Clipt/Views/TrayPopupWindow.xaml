@@ -712,6 +712,24 @@
                                                         </Style>
                                                     </Button.Style>
                                                 </Button>
+                                                <TextBlock Text="Block (Owner Blocker plugin required)"
+                                                           FontSize="9"
+                                                           Foreground="{DynamicResource ForegroundDimBrush}"
+                                                           FontStyle="Italic"
+                                                           Margin="6,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           ToolTip="Install or enable Clipt.Plugins.OwnerBlocker.dll to block clipboard polluters from this process">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ShowOwnerBlockUnavailableHint}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <TextBlock Text="blocked"
                                                            FontSize="9"
                                                            Foreground="{DynamicResource ForegroundDimBrush}"

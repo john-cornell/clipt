@@ -368,6 +368,10 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             bool isLast = i == entries.Count - 1;
             bool canBlockOwner = HasOwnerBlockCoordinator
                 && OwnerBlockUiRules.IsBlockableProcessName(ownerProcess);
+            bool isOwnerBlocked = _pluginHost.IsOwnerBlocked(entry.OwnerProcess, null);
+            bool showBlockUnavailableHint = !HasOwnerBlockCoordinator
+                && OwnerBlockUiRules.IsBlockableProcessName(ownerProcess)
+                && !isOwnerBlocked;
             var item = new HistoryEntryDisplayItem
             {
                 Id = entry.Id,
@@ -380,8 +384,9 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 BlockableProcessName = OwnerBlockUiRules.IsBlockableProcessName(entry.OwnerProcess)
                     ? entry.OwnerProcess
                     : string.Empty,
-                IsOwnerBlocked = _pluginHost.IsOwnerBlocked(entry.OwnerProcess, null),
+                IsOwnerBlocked = isOwnerBlocked,
                 CanShowBlockOwner = canBlockOwner,
+                ShowOwnerBlockUnavailableHint = showBlockUnavailableHint,
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
@@ -737,6 +742,7 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public required string BlockableProcessName { get; init; }
     public required bool IsOwnerBlocked { get; init; }
     public required bool CanShowBlockOwner { get; init; }
+    public required bool ShowOwnerBlockUnavailableHint { get; init; }
     public bool CanBlockOwner => CanShowBlockOwner && !IsOwnerBlocked;
     public IAsyncRelayCommand? BlockOwnerCommand { get; set; }
     public required string RelativeTime { get; init; }

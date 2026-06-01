@@ -48,7 +48,7 @@ public class HistoryTabViewModelTests
     }
 
     private static ClipboardHistoryEntry CreateEntry(
-        string id, string summary, ContentType type, int minutesAgo = 5)
+        string id, string summary, ContentType type, int minutesAgo = 5, string? ownerProcess = "test")
     {
         return new ClipboardHistoryEntry
         {
@@ -56,7 +56,7 @@ public class HistoryTabViewModelTests
             Name = summary,
             TimestampUtc = DateTime.UtcNow.AddMinutes(-minutesAgo),
             SequenceNumber = 1,
-            OwnerProcess = "test",
+            OwnerProcess = ownerProcess ?? "test",
             OwnerPid = 1,
             Summary = summary,
             ContentType = type,
@@ -1591,5 +1591,41 @@ public class HistoryTabViewModelTests
 
         Assert.False(vm.BeginSaveSelectedCommand.CanExecute(null));
         Assert.True(vm.DeleteSelectedCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Refresh_WithoutOwnerBlockCoordinator_ShowsBlockUnavailableHintForBlockableProcess()
+    {
+        _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(false);
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text, ownerProcess: "Wispr"),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = Assert.Single(vm.DisplayEntries);
+        Assert.False(item.CanShowBlockOwner);
+        Assert.True(item.ShowOwnerBlockUnavailableHint);
+    }
+
+    [Fact]
+    public void Refresh_WithOwnerBlockCoordinator_DoesNotShowBlockUnavailableHint()
+    {
+        _pluginHostMock.Setup(h => h.HasOwnerBlockCoordinator).Returns(true);
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "A", ContentType.Text, ownerProcess: "Wispr"),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var item = Assert.Single(vm.DisplayEntries);
+        Assert.True(item.CanShowBlockOwner);
+        Assert.False(item.ShowOwnerBlockUnavailableHint);
     }
 }

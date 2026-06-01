@@ -372,20 +372,20 @@ public partial class App : Application
         }
     }
 
-    private async void OnPluginOutputWritten(object? sender, EventArgs e)
+    private void OnPluginOutputWritten(object? sender, EventArgs e)
     {
-        if (_clipboardService is null || _listenerService is null || _historyService is null)
+        if (_clipboardService is null || _listenerService is null)
             return;
 
         try
         {
             var snapshot = _clipboardService.CaptureSnapshot(_listenerService.Hwnd);
             _trayPopupViewModel?.Update(snapshot);
-            if (snapshot.Formats.Length > 0)
-                await _historyService.AddAsync(snapshot).ConfigureAwait(false);
-            Dispatcher.Invoke(() => _historyTabViewModel?.Refresh());
+            _trayIconService?.UpdateIcon(snapshot.Formats.Length > 0);
         }
-        catch (InvalidOperationException) { }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static void ConfigureServices(IServiceCollection services)

@@ -479,9 +479,9 @@ Use mock `ICliptHost` / mock coordinator — no real registry writes in unit tes
 - [x] C6. Version bump 1.14.1 (`Clipt.csproj`, `Clipt.iss`)
 
 ### Phase D — Polish
-- [ ] D1. README plugin authoring section
-- [ ] D2. Graceful UI when plugin absent
-- [ ] D3. (Optional) Fix plugin output duplicate history race
+- [x] D1. README plugin authoring section
+- [x] D2. Graceful UI when plugin absent
+- [x] D3. (Optional) Fix plugin output duplicate history race
 
 ### Review (mandatory)
 - [ ] brutal-pr — Run brutal-pr skill to review work
