@@ -119,7 +119,7 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.14.2** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.2/CliptSetup.exe) | README plugin docs (filter/tray-tab authoring); History hint when Owner Blocker absent; fix duplicate history on plugin **Run** |
+| **1.14.3** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.3/CliptSetup.exe) | Plugin rescan refreshes tray tabs; tray-open sync publishes debug events; init-failure rollback; filter block reasons |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>

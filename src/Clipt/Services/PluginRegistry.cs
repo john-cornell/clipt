@@ -34,6 +34,8 @@ public sealed class PluginRegistry : IPluginRegistry
 
     public ICliptOwnerBlockCoordinator? OwnerBlockCoordinator => _ownerBlockCoordinator;
 
+    public event EventHandler? RescanCompleted;
+
     public void SetHost(ICliptPluginHost host)
     {
         _pluginHost = host ?? throw new ArgumentNullException(nameof(host));
@@ -65,6 +67,7 @@ public sealed class PluginRegistry : IPluginRegistry
         }
 
         _trayTabPlugins.Sort(static (a, b) => a.TabOrder.CompareTo(b.TabOrder));
+        RescanCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     private void ClearCapabilityIndexes()
@@ -163,21 +166,28 @@ public sealed class PluginRegistry : IPluginRegistry
 
         if (plugin is ICliptPluginLifetime lifetime)
         {
-            _lifetimePlugins.Add(lifetime);
             if (_pluginHost is not null)
             {
                 try
                 {
                     lifetime.Initialize(_pluginHost.CreateHostScope(plugin.Id));
+                    _lifetimePlugins.Add(lifetime);
                 }
                 catch (Exception ex)
                 {
+                    RemoveCapabilities(plugin);
+                    _registeredIds.Remove(plugin.Id);
                     _loadFailures.Add(new PluginLoadFailureInfo
                     {
                         AssemblyPath = source,
                         ErrorMessage = $"Plugin '{plugin.Id}' Initialize failed: {ex.Message}",
                     });
+                    return;
                 }
+            }
+            else
+            {
+                _lifetimePlugins.Add(lifetime);
             }
         }
 
@@ -187,6 +197,18 @@ public sealed class PluginRegistry : IPluginRegistry
             Source = source,
             IsRegistered = true,
         });
+    }
+
+    private void RemoveCapabilities(ICliptPlugin plugin)
+    {
+        if (plugin is ICliptClipboardFilterPlugin filter)
+            _filterPlugins.Remove(filter);
+
+        if (plugin is ICliptTrayTabPlugin trayTab)
+            _trayTabPlugins.Remove(trayTab);
+
+        if (plugin is ICliptOwnerBlockCoordinator coordinator && ReferenceEquals(_ownerBlockCoordinator, coordinator))
+            _ownerBlockCoordinator = null;
     }
 
     private void IndexCapabilities(ICliptPlugin plugin)

@@ -137,9 +137,6 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         PluginTrayTabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    partial void OnShowBlockerTabChanged(bool value) =>
-        PluginTrayTabsChanged?.Invoke(this, EventArgs.Empty);
-
     [RelayCommand]
     private void ExpandToFull()
     {

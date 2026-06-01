@@ -1,5 +1,8 @@
 namespace Clipt.Services;
 
+/// <summary>
+/// Host-side mirror of <c>Clipt.Plugins.OwnerBlocker.BlockedProcessNames</c> for History UI when the plugin is absent.
+/// </summary>
 internal static class OwnerBlockUiRules
 {
     public static bool IsBlockableProcessName(string? processName)

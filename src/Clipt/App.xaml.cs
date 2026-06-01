@@ -72,6 +72,7 @@ public partial class App : Application
 
         var pluginRegistry = _serviceProvider.GetRequiredService<PluginRegistry>();
         pluginRegistry.SetHost(_pluginHost);
+        pluginRegistry.RescanCompleted += OnPluginRegistryRescanned;
         if (_pluginHost is CliptPluginHost concreteHost)
             OwnerBlockerSettingsMigrator.MigrateLegacyRegistrySettings(concreteHost);
         pluginRegistry.Initialize();
@@ -351,12 +352,25 @@ public partial class App : Application
 
         try
         {
-            await _historyService.AddAsync(snapshot).ConfigureAwait(false);
+            HistoryAddResult addResult = await _historyService.AddAsync(snapshot).ConfigureAwait(false);
+            _pluginHost?.PublishClipboardEvent(snapshot, addResult);
         }
         catch (Exception ex) when (
             ex is ObjectDisposedException or IOException or UnauthorizedAccessException)
         {
         }
+    }
+
+    private void OnPluginRegistryRescanned(object? sender, EventArgs e)
+    {
+        if (Dispatcher.HasShutdownStarted)
+            return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            RefreshTrayPluginTabs();
+            _historyTabViewModel?.Refresh();
+        });
     }
 
     private void PerformInitialTrayRefresh()
@@ -454,6 +468,9 @@ public partial class App : Application
 
         if (_pluginsTabViewModel is not null)
             _pluginsTabViewModel.PluginOutputWritten -= OnPluginOutputWritten;
+
+        if (_serviceProvider?.GetService<PluginRegistry>() is PluginRegistry registry)
+            registry.RescanCompleted -= OnPluginRegistryRescanned;
 
         if (_listenerService is not null)
             _listenerService.ClipboardChanged -= OnClipboardChangedForTray;

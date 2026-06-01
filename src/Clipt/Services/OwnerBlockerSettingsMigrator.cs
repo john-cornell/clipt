@@ -7,7 +7,7 @@ namespace Clipt.Services;
 
 internal static class OwnerBlockerSettingsMigrator
 {
-    internal const string OwnerBlockerPluginId = "clipt.plugins.owner-blocker";
+    internal const string OwnerBlockerPluginId = PluginKnownIds.OwnerBlocker;
 
     private const string RegistryKeyPath = @"SOFTWARE\Clipt";
     private const string BlockedHistoryProcessNamesValueName = "BlockedHistoryProcessNames";
@@ -98,6 +98,7 @@ internal static class OwnerBlockerSettingsMigrator
         catch (IOException) { }
     }
 
+    // Mirrors Clipt.Plugins.OwnerBlocker.OwnerBlockerSettings JSON schema (BlockedProcesses, BlockedClassPrefixes).
     private sealed class OwnerBlockerMigrationSettings
     {
         public List<string> BlockedProcesses { get; set; } = [];

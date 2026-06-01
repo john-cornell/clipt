@@ -192,6 +192,8 @@ public class CliptPluginHostTests
 
         public ICliptOwnerBlockCoordinator? OwnerBlockCoordinator => Coordinator;
 
+        public event EventHandler? RescanCompleted;
+
         public void SetHost(ICliptPluginHost host) { }
 
         public void Initialize() { }

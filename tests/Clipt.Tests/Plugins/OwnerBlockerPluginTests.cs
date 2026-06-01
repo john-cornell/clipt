@@ -34,6 +34,26 @@ public class OwnerBlockerRulesTests
     }
 
     [Fact]
+    public void TryGetBlockReason_DistinguishesProcessAndWindowClass()
+    {
+        var store = new InMemoryOwnerBlockerSettingsStore();
+        store.BlockSnapshotSource("Wispr", null);
+
+        Assert.Equal(
+            "Blocked process",
+            OwnerBlockRules.TryGetBlockReason(store, CreateSnapshot(processName: "Wispr")));
+
+        store.ClearAll();
+        store.BlockSnapshotSource(null, "WisprClipboard_abc");
+
+        Assert.Equal(
+            "Blocked window class",
+            OwnerBlockRules.TryGetBlockReason(
+                store,
+                CreateSnapshot(processName: "(no owner)", windowClass: "WisprClipboard_abc")));
+    }
+
+    [Fact]
     public void BlockSnapshotSource_SavesProcessAndWisprClassPrefix()
     {
         var store = new InMemoryOwnerBlockerSettingsStore();
@@ -114,7 +134,7 @@ public class OwnerBlockerPluginTests
         });
 
         Assert.False(verdict.Allow);
-        Assert.Equal("Blocked process", verdict.Reason);
+        Assert.Equal("Blocked window class", verdict.Reason);
     }
 
     [Fact]

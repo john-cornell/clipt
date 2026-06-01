@@ -3,8 +3,20 @@ namespace Clipt.Plugins.OwnerBlocker;
 internal static class OwnerBlockRules
 {
     public static bool IsBlocked(IOwnerBlockerSettingsStore settings, CliptPluginClipboardSnapshot snapshot) =>
-        IsProcessBlocked(settings, snapshot.OwnerProcessName)
-        || IsWindowClassBlocked(settings, snapshot.OwnerWindowClass);
+        TryGetBlockReason(settings, snapshot) is not null;
+
+    public static string? TryGetBlockReason(
+        IOwnerBlockerSettingsStore settings,
+        CliptPluginClipboardSnapshot snapshot)
+    {
+        if (IsProcessBlocked(settings, snapshot.OwnerProcessName))
+            return "Blocked process";
+
+        if (IsWindowClassBlocked(settings, snapshot.OwnerWindowClass))
+            return "Blocked window class";
+
+        return null;
+    }
 
     public static bool IsProcessBlocked(IOwnerBlockerSettingsStore settings, string? processName)
     {

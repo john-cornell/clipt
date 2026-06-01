@@ -482,11 +482,12 @@ Use mock `ICliptHost` / mock coordinator — no real registry writes in unit tes
 - [x] D1. README plugin authoring section
 - [x] D2. Graceful UI when plugin absent
 - [x] D3. (Optional) Fix plugin output duplicate history race
+- [x] D4. Version bump 1.14.3 (`Clipt.csproj`, `Clipt.iss`) — PR review loop fixes
 
 ### Review (mandatory)
-- [ ] brutal-pr — Run brutal-pr skill to review work
-- [ ] brutal-address-pr — Use brutal-address-pr skill to address all issues from review
-- [ ] brutal-pr-review-loop — Finally use the brutal-pr-review-loop skill to confirm that has run properly
+- [x] brutal-pr — Run brutal-pr skill to review work
+- [x] brutal-address-pr — Use brutal-address-pr skill to address all issues from review
+- [x] brutal-pr-review-loop — Finally use the brutal-pr-review-loop skill to confirm that has run properly
 
 ---
 

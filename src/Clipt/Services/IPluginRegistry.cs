@@ -15,6 +15,8 @@ public interface IPluginRegistry
 
     ICliptOwnerBlockCoordinator? OwnerBlockCoordinator { get; }
 
+    event EventHandler? RescanCompleted;
+
     void SetHost(ICliptPluginHost host);
 
     void Initialize();

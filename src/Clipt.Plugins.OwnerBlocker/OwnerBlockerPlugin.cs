@@ -49,8 +49,9 @@ public sealed class OwnerBlockerPlugin :
         if (_settingsStore is null)
             return CliptPluginFilterVerdict.AllowSnapshot;
 
-        if (OwnerBlockRules.IsBlocked(_settingsStore, snapshot))
-            return CliptPluginFilterVerdict.BlockSnapshot("Blocked process");
+        string? reason = OwnerBlockRules.TryGetBlockReason(_settingsStore, snapshot);
+        if (reason is not null)
+            return CliptPluginFilterVerdict.BlockSnapshot(reason);
 
         return CliptPluginFilterVerdict.AllowSnapshot;
     }

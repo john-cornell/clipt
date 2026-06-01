@@ -84,7 +84,7 @@ public partial class TrayPopupWindow : Window
         };
 
     private static Visibility GetPluginTabVisibility(PluginTrayTabItem tab, TrayPopupViewModel vm) =>
-        tab.PluginId == "clipt.plugins.owner-blocker" && !vm.ShowBlockerTab
+        tab.PluginId == PluginKnownIds.OwnerBlocker && !vm.ShowBlockerTab
             ? Visibility.Collapsed
             : Visibility.Visible;
 
