@@ -1,0 +1,264 @@
+<UserControl x:Class="Clipt.Plugins.OwnerBlocker.Views.OwnerBlockerTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="10,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" MaxHeight="130" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Recent clipboard change events (including empty cleanups). Block polluters from event rows or the lists below."
+                   Foreground="{DynamicResource ForegroundDimBrush}"
+                   FontSize="10"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,8" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Block last owner"
+                    Command="{Binding BlockLastOwnerCommand}"
+                    FontSize="10" Padding="8,2" Margin="0,0,6,0"
+                    ToolTip="Block the most recent identifiable owner from the event log" />
+            <Button Content="Clear all blocked"
+                    Command="{Binding ClearBlockedProcessesCommand}"
+                    FontSize="10" Padding="8,2"
+                    Background="Transparent"
+                    Foreground="{DynamicResource AccentLightBrush}"
+                    BorderThickness="0"
+                    ToolTip="Remove every blocked process and window class" />
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                Padding="8,6"
+                Margin="0,0,0,8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="Blocked owners"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource ForegroundDimBrush}"
+                               Margin="0,0,0,6" />
+
+                    <TextBlock Text="No blocked owners."
+                               FontSize="10" FontStyle="Italic"
+                               Foreground="{DynamicResource ForegroundDimBrush}"
+                               Margin="0,0,0,4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasAnyBlockedOwners}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="Processes"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentLightBrush}"
+                               Margin="0,0,0,2">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBlockedProcessItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding BlockedProcessItems}" Margin="0,0,0,6">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBlockedProcessItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,1">
+                                    <Button DockPanel.Dock="Right"
+                                            Content="Remove"
+                                            Command="{Binding UnblockCommand}"
+                                            FontSize="9"
+                                            Padding="4,0"
+                                            Background="Transparent"
+                                            Foreground="{DynamicResource AccentLightBrush}"
+                                            BorderThickness="0"
+                                            ToolTip="Stop blocking this process" />
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource ForegroundBrush}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="Window classes"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentLightBrush}"
+                               Margin="0,0,0,2">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBlockedWindowClassItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding BlockedWindowClassItems}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBlockedWindowClassItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,1">
+                                    <Button DockPanel.Dock="Right"
+                                            Content="Remove"
+                                            Command="{Binding UnblockCommand}"
+                                            FontSize="9"
+                                            Padding="4,0"
+                                            Background="Transparent"
+                                            Foreground="{DynamicResource AccentLightBrush}"
+                                            BorderThickness="0"
+                                            ToolTip="Stop blocking this window class prefix" />
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="10"
+                                               FontFamily="Consolas"
+                                               Foreground="{DynamicResource ForegroundBrush}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                <Button DockPanel.Dock="Right"
+                        Content="Clear"
+                        Command="{Binding ClearRecentEventsCommand}"
+                        FontSize="10" Padding="8,2"
+                        Background="Transparent"
+                        Foreground="{DynamicResource AccentLightBrush}"
+                        BorderThickness="0"
+                        ToolTip="Clear the debug event log (does not change blocked processes)" />
+                <TextBlock Text="Events"
+                           FontSize="10" FontWeight="SemiBold"
+                           Foreground="{DynamicResource ForegroundDimBrush}"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding RecentEvents}">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="0,6">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,4">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Block"
+                                                FontSize="9" Padding="6,1" Margin="0,0,4,0"
+                                                Command="{Binding BlockOwnerCommand}"
+                                                ToolTip="Block this process/class and remove matching history">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CanBlockOwner}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <TextBlock Text="blocked"
+                                                   FontSize="9"
+                                                   Foreground="{DynamicResource ForegroundDimBrush}"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOwnerBlocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentLightBrush}"
+                                               Text="{Binding HistoryOutcome}" />
+                                </DockPanel>
+                                <TextBlock FontSize="9"
+                                           Foreground="{DynamicResource ForegroundDimBrush}"
+                                           Text="{Binding RelativeTime}"
+                                           Margin="0,1,0,4" />
+                                <TextBlock FontSize="10" TextWrapping="Wrap">
+                                    <Run Text="Owner: " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding OwnerProcess, Mode=OneWay}" />
+                                    <Run Text=" · PID " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding OwnerPid, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0">
+                                    <Run Text="HWND: " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding OwnerHwnd, Mode=OneWay}" FontFamily="Consolas" />
+                                </TextBlock>
+                                <TextBlock FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0">
+                                    <Run Text="Title: " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding WindowTitle, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0">
+                                    <Run Text="Class: " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding WindowClass, Mode=OneWay}" FontFamily="Consolas" />
+                                </TextBlock>
+                                <TextBlock FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0">
+                                    <Run Text="Formats: " Foreground="{DynamicResource ForegroundDimBrush}" />
+                                    <Run Text="{Binding FormatSummary, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </Grid>
+</UserControl>

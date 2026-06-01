@@ -464,11 +464,11 @@ Use mock `ICliptHost` / mock coordinator — no real registry writes in unit tes
 - [x] A6. Tests: `CliptPluginHostTests`, filter pipeline tests
 
 ### Phase B — OwnerBlocker plugin
-- [ ] B1. Create `Clipt.Plugins.OwnerBlocker` project + csproj copy targets
-- [ ] B2. Port rules + settings store
-- [ ] B3. Implement `OwnerBlockerPlugin` (filter + coordinator + lifetime)
-- [ ] B4. Port ViewModel + View from Debug tab
-- [ ] B5. Tests: port `TrayDebugTabViewModelTests`, `ClipboardBlockRulesTests`
+- [x] B1. Create `Clipt.Plugins.OwnerBlocker` project + csproj copy targets
+- [x] B2. Port rules + settings store
+- [x] B3. Implement `OwnerBlockerPlugin` (filter + coordinator + lifetime)
+- [x] B4. Port ViewModel + View from Debug tab
+- [x] B5. Tests: port `TrayDebugTabViewModelTests`, `ClipboardBlockRulesTests`
 
 ### Phase C — Cut over
 - [ ] C1. Settings migration from registry → plugin JSON

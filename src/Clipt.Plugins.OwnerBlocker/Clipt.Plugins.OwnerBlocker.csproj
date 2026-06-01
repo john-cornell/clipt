@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Clipt.Plugins.OwnerBlocker</RootNamespace>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Clipt.Tests" />
+  </ItemGroup>
+
+  <Target Name="CopyToCliptPluginsFolder" AfterTargets="Build">
+    <PropertyGroup>
+      <CliptPluginsDir>$(MSBuildThisFileDirectory)..\Clipt\bin\$(Configuration)\net8.0-windows\Plugins\</CliptPluginsDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(CliptPluginsDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(CliptPluginsDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)Clipt.Plugins.Abstractions.dll" DestinationFolder="$(CliptPluginsDir)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)Clipt.Plugins.Abstractions.dll')" />
+  </Target>
+
+</Project>

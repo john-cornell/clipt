@@ -23,6 +23,11 @@ if not exist "%PLUGINS_DIR%\Clipt.Plugins.Abstractions.dll" (
     echo PLUGIN BUILD FAILED - expected: %PLUGINS_DIR%\Clipt.Plugins.Abstractions.dll
     exit /b 1
 )
+if not exist "%PLUGINS_DIR%\Clipt.Plugins.OwnerBlocker.dll" (
+    echo.
+    echo PLUGIN BUILD FAILED - expected: %PLUGINS_DIR%\Clipt.Plugins.OwnerBlocker.dll
+    exit /b 1
+)
 echo Plugins ready: %PLUGINS_DIR%
 
 if not exist "%SIGN_CERT%" (

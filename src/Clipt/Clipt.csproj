@@ -35,6 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
     <ProjectReference Include="..\Clipt.Plugins.WhereIn\Clipt.Plugins.WhereIn.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Clipt.Plugins.OwnerBlocker\Clipt.Plugins.OwnerBlocker.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
