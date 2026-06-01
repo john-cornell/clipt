@@ -14,12 +14,33 @@ public class TrayPopupViewModelTests
     {
         var settings = new Mock<ISettingsService>();
         settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(false);
-        settings.Setup(s => s.LoadShowBlockerTrayTab()).Returns(true);
 
         var vm = new TrayPopupViewModel(settings.Object);
 
         Assert.False(vm.ShowPluginsTab);
-        Assert.True(vm.ShowBlockerTab);
+    }
+
+    [Fact]
+    public void RebuildTrayTabShowMenuItems_IncludesPluginTabsThenPlugins()
+    {
+        var settings = new Mock<ISettingsService>();
+        settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(true);
+        settings.Setup(s => s.IsPluginTrayTabVisible(It.IsAny<string>())).Returns(true);
+
+        var vm = new TrayPopupViewModel(settings.Object);
+        vm.PluginTrayTabs.Add(new PluginTrayTabItem
+        {
+            PluginId = "clipt.plugins.owner-blocker",
+            Header = "Blocker",
+            Content = new object(),
+        });
+
+        vm.RebuildTrayTabShowMenuItems();
+
+        Assert.Equal(2, vm.TrayTabShowMenuItems.Count);
+        Assert.Equal("Blocker", vm.TrayTabShowMenuItems[0].Header);
+        Assert.Equal("Plugins", vm.TrayTabShowMenuItems[1].Header);
+        Assert.Null(vm.TrayTabShowMenuItems[1].PluginId);
     }
 
     [Fact]
@@ -28,37 +49,25 @@ public class TrayPopupViewModelTests
         var settings = new Mock<ISettingsService>();
         var tray = new Mock<ITrayIconService>();
         settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(true);
-        settings.Setup(s => s.LoadShowBlockerTrayTab()).Returns(true);
 
         var vm = new TrayPopupViewModel(settings.Object, tray.Object);
+        vm.RebuildTrayTabShowMenuItems();
         vm.ShowPluginsTab = false;
 
         settings.Verify(s => s.SaveShowPluginsTrayTab(false), Times.Once);
-        tray.Verify(t => t.SetTrayTabVisibilityChecked(false, true), Times.Once);
+        tray.Verify(t => t.RebuildShowTabsMenu(It.IsAny<IReadOnlyList<TrayTabShowMenuEntry>>()), Times.AtLeastOnce);
     }
 
     [Fact]
-    public void SetTabVisibility_FromTrayMenu_DoesNotPersistAgain()
+    public void SetOptionalTrayTabVisibleFromTray_DoesNotDoublePersistFromMenuBinding()
     {
         var settings = new Mock<ISettingsService>();
         var tray = new Mock<ITrayIconService>();
         var vm = new TrayPopupViewModel(settings.Object, tray.Object);
 
-        vm.SetTabVisibility(false, true);
+        vm.SetOptionalTrayTabVisibleFromTray(null, false);
 
-        settings.Verify(s => s.SaveShowPluginsTrayTab(It.IsAny<bool>()), Times.Never);
-        settings.Verify(s => s.SaveShowBlockerTrayTab(It.IsAny<bool>()), Times.Never);
-    }
-
-    [Fact]
-    public void SetTabVisibility_UpdatesProperties()
-    {
-        var vm = new TrayPopupViewModel();
-
-        vm.SetTabVisibility(false, true);
-
-        Assert.False(vm.ShowPluginsTab);
-        Assert.True(vm.ShowBlockerTab);
+        settings.Verify(s => s.SaveShowPluginsTrayTab(false), Times.Once);
     }
 
     [Fact]

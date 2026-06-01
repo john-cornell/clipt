@@ -18,6 +18,7 @@ public sealed class SettingsService : ISettingsService
     private const string ClearClipboardWhenClearingHistoryValueName = "ClearClipboardWhenClearingHistory";
     private const string ShowPluginsTrayTabValueName = "ShowPluginsTrayTab";
     private const string ShowBlockerTrayTabValueName = "ShowBlockerTrayTab";
+    private const string HiddenPluginTrayTabIdsValueName = "HiddenPluginTrayTabIds";
     private const string LegacyShowDebugTrayTabValueName = "ShowDebugTrayTab";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
@@ -306,8 +307,22 @@ public sealed class SettingsService : ISettingsService
 
     public void SaveShowPluginsTrayTab(bool show) => SaveBoolSetting(ShowPluginsTrayTabValueName, show);
 
-    public bool LoadShowBlockerTrayTab()
+    public bool LoadShowBlockerTrayTab() => IsPluginTrayTabVisible(PluginKnownIds.OwnerBlocker);
+
+    public void SaveShowBlockerTrayTab(bool show) =>
+        SetPluginTrayTabVisible(PluginKnownIds.OwnerBlocker, show);
+
+    public bool IsPluginTrayTabVisible(string pluginId)
     {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return true;
+
+        if (LoadHiddenPluginTrayTabIds().Contains(pluginId))
+            return false;
+
+        if (!string.Equals(pluginId, PluginKnownIds.OwnerBlocker, StringComparison.OrdinalIgnoreCase))
+            return true;
+
         bool? blocker = LoadOptionalBoolSetting(ShowBlockerTrayTabValueName);
         if (blocker.HasValue)
             return blocker.Value;
@@ -316,7 +331,59 @@ public sealed class SettingsService : ISettingsService
         return legacyDebug ?? true;
     }
 
-    public void SaveShowBlockerTrayTab(bool show) => SaveBoolSetting(ShowBlockerTrayTabValueName, show);
+    public void SetPluginTrayTabVisible(string pluginId, bool visible)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return;
+
+        var hidden = new HashSet<string>(LoadHiddenPluginTrayTabIds(), StringComparer.OrdinalIgnoreCase);
+        if (visible)
+            hidden.Remove(pluginId);
+        else
+            hidden.Add(pluginId);
+
+        SaveHiddenPluginTrayTabIds(hidden);
+
+        if (string.Equals(pluginId, PluginKnownIds.OwnerBlocker, StringComparison.OrdinalIgnoreCase))
+            SaveBoolSetting(ShowBlockerTrayTabValueName, visible);
+    }
+
+    private HashSet<string> LoadHiddenPluginTrayTabIds()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(HiddenPluginTrayTabIdsValueName) is string raw
+                && !string.IsNullOrWhiteSpace(raw))
+            {
+                return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SaveHiddenPluginTrayTabIds(IReadOnlySet<string> hidden)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            if (hidden.Count == 0)
+                key.DeleteValue(HiddenPluginTrayTabIdsValueName, throwOnMissingValue: false);
+            else
+            {
+                key.SetValue(
+                    HiddenPluginTrayTabIdsValueName,
+                    string.Join(",", hidden.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)),
+                    RegistryValueKind.String);
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 
     public IReadOnlySet<ContentType> LoadDisabledHistoryTypes()
     {

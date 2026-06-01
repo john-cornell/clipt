@@ -1,3 +1,5 @@
+using Clipt.Models;
+
 namespace Clipt.Services;
 
 public interface ITrayIconService : IDisposable
@@ -16,14 +18,13 @@ public interface ITrayIconService : IDisposable
     void SetClearClipboardPreferenceSync(Action<bool>? sync);
 
     /// <summary>
-    /// Keeps tray popup tab visibility in sync when the tray menu toggles Show tabs.
+    /// Registers the handler invoked when a Show tabs menu item is toggled.
+    /// <paramref name="pluginId"/> is null for the built-in Plugins tab.
     /// </summary>
-    void SetTrayTabVisibilitySync(Action<bool, bool>? sync);
+    void SetShowTabsMenuToggleHandler(Action<string?, bool>? handler);
 
-    /// <summary>
-    /// Updates tray menu Show tabs checkmarks when the popup toggles tab visibility.
-    /// </summary>
-    void SetTrayTabVisibilityChecked(bool showPlugins, bool showBlocker);
+    /// <summary>Rebuilds Show tabs submenu entries (Plugins + plugin tray tabs).</summary>
+    void RebuildShowTabsMenu(IReadOnlyList<TrayTabShowMenuEntry> entries);
 
     /// <summary>
     /// Updates the tray menu check state when the popup checkbox changes.

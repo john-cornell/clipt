@@ -167,6 +167,7 @@ public partial class App : Application
         {
             _trayPopupViewModel.RefreshPluginTrayTabs(pluginRegistry, _pluginHost);
             LogInfo($"Plugin tray tabs: {_trayPopupViewModel.PluginTrayTabs.Count}.");
+            _trayIconService?.RebuildShowTabsMenu(_trayPopupViewModel.GetShowTabMenuEntries());
         }
         catch (Exception ex)
         {
@@ -218,12 +219,10 @@ public partial class App : Application
             });
         });
 
-        _trayIconService.SetTrayTabVisibilitySync((showPlugins, showDebug) =>
+        _trayIconService.SetShowTabsMenuToggleHandler((pluginId, visible) =>
         {
             Dispatcher.InvokeAsync(() =>
-            {
-                _trayPopupViewModel?.SetTabVisibility(showPlugins, showDebug);
-            });
+                _trayPopupViewModel?.SetOptionalTrayTabVisibleFromTray(pluginId, visible));
         });
 
         _trayIconService.TrayIconClicked += OnTrayIconClicked;

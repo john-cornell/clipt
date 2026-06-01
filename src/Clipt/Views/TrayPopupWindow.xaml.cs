@@ -29,13 +29,14 @@ public partial class TrayPopupWindow : Window
         viewModel.PluginTrayTabsChanged += (_, _) => SyncPluginTrayTabs();
         SyncPluginTrayTabs();
 
+        viewModel.OptionalTrayTabVisibilityChanged += (_, _) => UpdatePluginTabVisibility();
         viewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TrayPopupViewModel.HistoryTab))
                 SubscribeToHistoryTab(viewModel.HistoryTab);
             if (e.PropertyName == nameof(TrayPopupViewModel.GroupsTab))
                 TrackGroupsTab(viewModel.GroupsTab);
-            if (e.PropertyName == nameof(TrayPopupViewModel.ShowBlockerTab))
+            if (e.PropertyName == nameof(TrayPopupViewModel.ShowPluginsTab))
                 UpdatePluginTabVisibility();
         };
     }
@@ -118,9 +119,9 @@ public partial class TrayPopupWindow : Window
         };
 
     private static Visibility GetPluginTabVisibility(PluginTrayTabItem tab, TrayPopupViewModel vm) =>
-        tab.PluginId == PluginKnownIds.OwnerBlocker && !vm.ShowBlockerTab
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        vm.IsOptionalTrayTabVisible(tab.PluginId)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     private HistoryTabViewModel? _subscribedHistoryTab;
     private GroupsTabViewModel? _subscribedGroupsTab;

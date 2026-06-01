@@ -406,13 +406,15 @@
                                               Padding="6,2"
                                               ToolTip="History actions">
                                         <MenuItem Header="Show tabs"
-                                                  ToolTip="Show or hide optional tray popup tabs">
-                                            <MenuItem Header="Blocker"
-                                                      IsCheckable="True"
-                                                      IsChecked="{Binding ShowBlockerTab, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
-                                            <MenuItem Header="Plugins"
-                                                      IsCheckable="True"
-                                                      IsChecked="{Binding ShowPluginsTab, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                                                  ToolTip="Show or hide optional tray popup tabs"
+                                                  ItemsSource="{Binding TrayTabShowMenuItems, RelativeSource={RelativeSource AncestorType=Window}}">
+                                            <MenuItem.ItemContainerStyle>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Header" Value="{Binding Header}" />
+                                                    <Setter Property="IsCheckable" Value="True" />
+                                                    <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                                </Style>
+                                            </MenuItem.ItemContainerStyle>
                                         </MenuItem>
                                         <Separator />
                                         <MenuItem Header="Save group&#x2026;"

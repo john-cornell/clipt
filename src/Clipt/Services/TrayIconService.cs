@@ -23,11 +23,9 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _formatCaptureCapSubmenuRoot;
     private WinForms.ToolStripMenuItem? _formatOversizeModeSubmenuRoot;
     private WinForms.ToolStripMenuItem? _logLevelSubmenuRoot;
-    private WinForms.ToolStripMenuItem? _showInNotificationSubmenuRoot;
-    private WinForms.ToolStripMenuItem? _showPluginsTabItem;
-    private WinForms.ToolStripMenuItem? _showBlockerTabItem;
+    private WinForms.ToolStripMenuItem? _showTabsSubmenuRoot;
+    private Action<string?, bool>? _onShowTabToggled;
     private Action<bool>? _syncClearClipboardPreference;
-    private Action<bool, bool>? _syncTrayTabVisibility;
     private bool _disposed;
 
     private static readonly int[] MaxEntriesOptions = [5, 10, 25, 50];
@@ -111,18 +109,28 @@ public sealed class TrayIconService : ITrayIconService
         _syncClearClipboardPreference = sync;
     }
 
-    public void SetTrayTabVisibilitySync(Action<bool, bool>? sync)
+    public void SetShowTabsMenuToggleHandler(Action<string?, bool>? handler)
     {
-        _syncTrayTabVisibility = sync;
+        _onShowTabToggled = handler;
     }
 
-    public void SetTrayTabVisibilityChecked(bool showPlugins, bool showBlocker)
+    public void RebuildShowTabsMenu(IReadOnlyList<TrayTabShowMenuEntry> entries)
     {
-        if (_showPluginsTabItem is not null)
-            _showPluginsTabItem.Checked = showPlugins;
+        if (_showTabsSubmenuRoot is null)
+            return;
 
-        if (_showBlockerTabItem is not null)
-            _showBlockerTabItem.Checked = showBlocker;
+        _showTabsSubmenuRoot.DropDownItems.Clear();
+
+        foreach (TrayTabShowMenuEntry entry in entries)
+        {
+            var item = new WinForms.ToolStripMenuItem(entry.Header)
+            {
+                Checked = entry.IsVisible,
+                Tag = entry.PluginId ?? string.Empty,
+            };
+            item.Click += OnShowTabMenuItemClick;
+            _showTabsSubmenuRoot.DropDownItems.Add(item);
+        }
     }
 
     public void SetClearClipboardWhenClearingHistoryChecked(bool value)
@@ -230,9 +238,13 @@ public sealed class TrayIconService : ITrayIconService
         if (ReferenceEquals(clicked, _startModeItem)
             || ReferenceEquals(clicked, _runOnStartupItem)
             || ReferenceEquals(clicked, _purgeHistoryItem)
-            || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem)
-            || ReferenceEquals(clicked, _showPluginsTabItem)
-            || ReferenceEquals(clicked, _showBlockerTabItem))
+            || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem))
+            return true;
+
+        if (ReferenceEquals(clicked, _showTabsSubmenuRoot))
+            return true;
+
+        if (clicked is WinForms.ToolStripMenuItem leaf && leaf.OwnerItem == _showTabsSubmenuRoot)
             return true;
 
         if (ReferenceEquals(clicked, _historyTypeSubmenuRoot)
@@ -241,11 +253,10 @@ public sealed class TrayIconService : ITrayIconService
             || ReferenceEquals(clicked, _overflowModeSubmenuRoot)
             || ReferenceEquals(clicked, _formatCaptureCapSubmenuRoot)
             || ReferenceEquals(clicked, _formatOversizeModeSubmenuRoot)
-            || ReferenceEquals(clicked, _logLevelSubmenuRoot)
-            || ReferenceEquals(clicked, _showInNotificationSubmenuRoot))
+            || ReferenceEquals(clicked, _logLevelSubmenuRoot))
             return true;
 
-        if (clicked is WinForms.ToolStripMenuItem leaf && leaf.OwnerItem is WinForms.ToolStripMenuItem owner)
+        if (clicked is WinForms.ToolStripMenuItem nested && nested.OwnerItem is WinForms.ToolStripMenuItem owner)
         {
             return ReferenceEquals(owner, _historyTypeSubmenuRoot)
                 || ReferenceEquals(owner, _maxEntriesSubmenuRoot)
@@ -254,7 +265,7 @@ public sealed class TrayIconService : ITrayIconService
                 || ReferenceEquals(owner, _formatCaptureCapSubmenuRoot)
                 || ReferenceEquals(owner, _formatOversizeModeSubmenuRoot)
                 || ReferenceEquals(owner, _logLevelSubmenuRoot)
-                || ReferenceEquals(owner, _showInNotificationSubmenuRoot);
+                || ReferenceEquals(owner, _showTabsSubmenuRoot);
         }
 
         return false;
@@ -264,45 +275,20 @@ public sealed class TrayIconService : ITrayIconService
     {
         var parent = new WinForms.ToolStripMenuItem("Show tabs");
         parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
-        _showInNotificationSubmenuRoot = parent;
-
-        _showBlockerTabItem = new WinForms.ToolStripMenuItem("Blocker")
-        {
-            Checked = _settingsService.LoadShowBlockerTrayTab(),
-        };
-        _showBlockerTabItem.Click += OnShowBlockerTabToggle;
-        parent.DropDownItems.Add(_showBlockerTabItem);
-
-        _showPluginsTabItem = new WinForms.ToolStripMenuItem("Plugins")
-        {
-            Checked = _settingsService.LoadShowPluginsTrayTab(),
-        };
-        _showPluginsTabItem.Click += OnShowPluginsTabToggle;
-        parent.DropDownItems.Add(_showPluginsTabItem);
-
+        _showTabsSubmenuRoot = parent;
         return parent;
     }
 
-    private void OnShowPluginsTabToggle(object? sender, EventArgs e)
+    private void OnShowTabMenuItemClick(object? sender, EventArgs e)
     {
-        if (_showPluginsTabItem is null)
+        if (sender is not WinForms.ToolStripMenuItem item)
             return;
 
-        bool next = !_showPluginsTabItem.Checked;
-        _settingsService.SaveShowPluginsTrayTab(next);
-        _showPluginsTabItem.Checked = next;
-        _syncTrayTabVisibility?.Invoke(next, _settingsService.LoadShowBlockerTrayTab());
-    }
-
-    private void OnShowBlockerTabToggle(object? sender, EventArgs e)
-    {
-        if (_showBlockerTabItem is null)
-            return;
-
-        bool next = !_showBlockerTabItem.Checked;
-        _settingsService.SaveShowBlockerTrayTab(next);
-        _showBlockerTabItem.Checked = next;
-        _syncTrayTabVisibility?.Invoke(_settingsService.LoadShowPluginsTrayTab(), next);
+        bool next = !item.Checked;
+        item.Checked = next;
+        string tag = item.Tag as string ?? string.Empty;
+        string? pluginId = tag.Length == 0 ? null : tag;
+        _onShowTabToggled?.Invoke(pluginId, next);
     }
 
     private WinForms.ToolStripMenuItem BuildHistoryTypeSubmenu()

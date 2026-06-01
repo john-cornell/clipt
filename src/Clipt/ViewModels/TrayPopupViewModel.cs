@@ -29,9 +29,6 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     private bool _showPluginsTab;
 
     [ObservableProperty]
-    private bool _showBlockerTab;
-
-    [ObservableProperty]
     private string _clipboardSummary = "Clipboard is empty";
 
     [ObservableProperty]
@@ -87,7 +84,11 @@ public sealed partial class TrayPopupViewModel : ObservableObject
 
     public ObservableCollection<PluginTrayTabItem> PluginTrayTabs { get; } = [];
 
+    public ObservableCollection<TrayTabShowMenuItem> TrayTabShowMenuItems { get; } = [];
+
     public event EventHandler? PluginTrayTabsChanged;
+
+    public event EventHandler? OptionalTrayTabVisibilityChanged;
 
     private string? _trayUnicodeFullText;
     private int _trayUnicodeFullCharCount;
@@ -99,21 +100,66 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         if (_settingsService is null)
         {
             ShowPluginsTab = true;
-            ShowBlockerTab = true;
             return;
         }
 
         ShowPluginsTab = _settingsService.LoadShowPluginsTrayTab();
-        ShowBlockerTab = _settingsService.LoadShowBlockerTrayTab();
     }
 
-    public void SetTabVisibility(bool showPlugins, bool showBlocker)
+    public bool IsOptionalTrayTabVisible(string? pluginId)
+    {
+        if (pluginId is null)
+            return ShowPluginsTab;
+
+        return _settingsService?.IsPluginTrayTabVisible(pluginId) ?? true;
+    }
+
+    public IReadOnlyList<TrayTabShowMenuEntry> GetShowTabMenuEntries() =>
+        TrayTabShowMenuItems
+            .Select(item => new TrayTabShowMenuEntry
+            {
+                Header = item.Header,
+                PluginId = item.PluginId,
+                IsVisible = item.IsVisible,
+            })
+            .ToList();
+
+    public void RebuildTrayTabShowMenuItems()
+    {
+        TrayTabShowMenuItems.Clear();
+
+        foreach (PluginTrayTabItem tab in PluginTrayTabs)
+        {
+            TrayTabShowMenuItems.Add(new TrayTabShowMenuItem(
+                this,
+                tab.Header,
+                tab.PluginId,
+                IsOptionalTrayTabVisible(tab.PluginId)));
+        }
+
+        TrayTabShowMenuItems.Add(new TrayTabShowMenuItem(
+            this,
+            "Plugins",
+            pluginId: null,
+            ShowPluginsTab));
+
+        SyncTrayShowTabsMenu();
+    }
+
+    internal void OnTrayTabShowMenuItemChanged(string? pluginId, bool isVisible)
+    {
+        if (_syncingTabVisibilityFromTray)
+            return;
+
+        ApplyOptionalTrayTabVisible(pluginId, isVisible, persist: true);
+    }
+
+    public void SetOptionalTrayTabVisibleFromTray(string? pluginId, bool isVisible)
     {
         _syncingTabVisibilityFromTray = true;
         try
         {
-            ShowPluginsTab = showPlugins;
-            ShowBlockerTab = showBlocker;
+            ApplyOptionalTrayTabVisible(pluginId, isVisible, persist: true);
         }
         finally
         {
@@ -121,22 +167,44 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         }
     }
 
+    private void ApplyOptionalTrayTabVisible(string? pluginId, bool isVisible, bool persist)
+    {
+        if (pluginId is null)
+        {
+            ShowPluginsTab = isVisible;
+            if (persist)
+                _settingsService?.SaveShowPluginsTrayTab(isVisible);
+        }
+        else if (persist)
+        {
+            _settingsService?.SetPluginTrayTabVisible(pluginId, isVisible);
+        }
+
+        SyncShowMenuItemState(pluginId, isVisible);
+        SyncTrayShowTabsMenu();
+        OptionalTrayTabVisibilityChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void SyncShowMenuItemState(string? pluginId, bool isVisible)
+    {
+        TrayTabShowMenuItem? item = TrayTabShowMenuItems
+            .FirstOrDefault(entry => entry.PluginId == pluginId);
+
+        item?.SetIsVisibleSilently(isVisible);
+    }
+
+    private void SyncTrayShowTabsMenu() =>
+        _trayIconService?.RebuildShowTabsMenu(GetShowTabMenuEntries());
+
     partial void OnShowPluginsTabChanged(bool value)
     {
         if (_syncingTabVisibilityFromTray)
             return;
 
         _settingsService?.SaveShowPluginsTrayTab(value);
-        _trayIconService?.SetTrayTabVisibilityChecked(ShowPluginsTab, ShowBlockerTab);
-    }
-
-    partial void OnShowBlockerTabChanged(bool value)
-    {
-        if (_syncingTabVisibilityFromTray)
-            return;
-
-        _settingsService?.SaveShowBlockerTrayTab(value);
-        _trayIconService?.SetTrayTabVisibilityChecked(ShowPluginsTab, ShowBlockerTab);
+        SyncShowMenuItemState(pluginId: null, value);
+        SyncTrayShowTabsMenu();
+        OptionalTrayTabVisibilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void RefreshPluginTrayTabs(IPluginRegistry registry, ICliptPluginHost pluginHost)
@@ -164,6 +232,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         }
 
         PluginTrayTabsChanged?.Invoke(this, EventArgs.Empty);
+        RebuildTrayTabShowMenuItems();
     }
 
     [RelayCommand]

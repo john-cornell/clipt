@@ -37,6 +37,9 @@ public interface ISettingsService
     bool LoadShowBlockerTrayTab();
     void SaveShowBlockerTrayTab(bool show);
 
+    bool IsPluginTrayTabVisible(string pluginId);
+    void SetPluginTrayTabVisible(string pluginId, bool visible);
+
     IReadOnlySet<ContentType> LoadDisabledHistoryTypes();
     void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
 
