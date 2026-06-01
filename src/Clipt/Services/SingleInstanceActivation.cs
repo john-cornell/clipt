@@ -18,7 +18,7 @@ public static class SingleInstanceActivation
     }
 
     /// <summary>
-    /// Creates or opens the named mutex. On success, <paramref name="ownsMutex"/> is true only for the first process.
+    /// Tries to become the sole Clipt instance without blocking. Returns true when this process holds the mutex.
     /// </summary>
     public static bool TryAcquireMutex(out Mutex? mutex, out bool ownsMutex)
     {
@@ -26,16 +26,34 @@ public static class SingleInstanceActivation
         ownsMutex = false;
         try
         {
-            mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
-            ownsMutex = createdNew;
-            return true;
+            mutex = new Mutex(initiallyOwned: false, MutexName, out _);
+            try
+            {
+                ownsMutex = mutex.WaitOne(0);
+            }
+            catch (AbandonedMutexException)
+            {
+                ownsMutex = true;
+            }
+
+            if (!ownsMutex)
+            {
+                mutex.Dispose();
+                mutex = null;
+            }
+
+            return ownsMutex;
         }
         catch (UnauthorizedAccessException)
         {
+            mutex?.Dispose();
+            mutex = null;
             return false;
         }
         catch (WaitHandleCannotBeOpenedException)
         {
+            mutex?.Dispose();
+            mutex = null;
             return false;
         }
     }

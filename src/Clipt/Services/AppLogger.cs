@@ -48,6 +48,19 @@ public sealed class AppLogger : IAppLogger
         WriteLine("DEBUG", message);
     }
 
+    public void Info(string message) => WriteLine("INFO", message);
+
+    public void Error(string message, Exception? exception = null)
+    {
+        if (exception is null)
+        {
+            WriteLine("ERROR", message);
+            return;
+        }
+
+        WriteLine("ERROR", $"{message}{Environment.NewLine}{exception}");
+    }
+
     private void WriteLine(string severity, string message)
     {
         string line =

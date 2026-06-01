@@ -157,7 +157,7 @@ public class OwnerBlockerPluginTests
         logger.Setup(l => l.Level).Returns(AppLogLevel.Off);
         var registry = new PluginRegistry(logger.Object);
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, history.Object);
+        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
         registry.SetHost(host);
         registry.Initialize();
 

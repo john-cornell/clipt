@@ -10,9 +10,9 @@ public sealed class CliptPluginHost : ICliptPluginHost
     private static JsonSerializerOptions JsonOptions => CliptJsonOptions.Shared;
 
     private readonly IPluginRegistry _registry;
-    private readonly IClipboardHistoryService _historyService;
+    private readonly Lazy<IClipboardHistoryService> _historyService;
 
-    public CliptPluginHost(IPluginRegistry registry, IClipboardHistoryService historyService)
+    public CliptPluginHost(IPluginRegistry registry, Lazy<IClipboardHistoryService> historyService)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
@@ -157,7 +157,7 @@ public sealed class CliptPluginHost : ICliptPluginHost
             _parent.SaveSettings(PluginId, settings);
 
         public Task RemoveHistoryByOwnerProcessAsync(string processName) =>
-            _parent._historyService.RemoveByOwnerProcessAsync(processName);
+            _parent._historyService.Value.RemoveByOwnerProcessAsync(processName);
 
         public Task BlockOwnerAsync(string? processName, string? windowClass) =>
             _parent.BlockOwnerAsync(processName, windowClass);

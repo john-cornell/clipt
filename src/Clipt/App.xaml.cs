@@ -26,6 +26,7 @@ public partial class App : Application
     private ISettingsService? _settingsService;
     private ICliptPluginHost? _pluginHost;
     private IAppLogger? _appLogger;
+    private IAppLogger? _startupLogger;
     private int _clipboardTrayDispatchOrdinal;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
@@ -36,25 +37,94 @@ public partial class App : Application
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        _startupLogger = new AppLogger(new SettingsService());
+        LogInfo($"Clipt {Views.MainWindow.GetAppVersion()} starting (pid={Environment.ProcessId})");
+        RegisterStartupExceptionHandlers();
+
         if (!SingleInstanceActivation.TryAcquireMutex(out _singleInstanceMutex, out _ownsSingleInstanceMutex))
         {
-            SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode());
+            LogInfo("Could not open single-instance mutex; exiting.");
             Shutdown();
             return;
         }
 
         if (!_ownsSingleInstanceMutex)
         {
+            LogInfo("Another Clipt instance is already running; notifying it and exiting.");
             SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode());
-            _singleInstanceMutex!.Dispose();
+            _singleInstanceMutex?.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
             return;
         }
 
+        LogInfo("Single-instance mutex acquired.");
+
+        try
+        {
+            CompleteStartupCore();
+
+            try
+            {
+                await _historyService!.LoadAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (
+                ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                LogError("History load failed.", ex);
+            }
+
+            try
+            {
+                var groupService = _serviceProvider!.GetRequiredService<IClipboardGroupService>();
+                await groupService.LoadAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (
+                ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                LogError("Groups load failed.", ex);
+            }
+
+            if (_settingsService!.LoadPurgeHistoryOnStartup())
+            {
+                try
+                {
+                    await _historyService!.ClearAsync().ConfigureAwait(false);
+                }
+                catch (ObjectDisposedException) { }
+            }
+
+            var startupMode = _settingsService.LoadStartupMode();
+            LogInfo($"Showing UI for startup mode: {startupMode}.");
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _groupsTabViewModel?.Refresh();
+                PerformInitialTrayRefresh();
+
+                if (startupMode == StartupMode.FullWindow)
+                    ShowMainWindow();
+                else
+                    ShowTrayPopupWithClipboardSyncAsync();
+            });
+
+            LogInfo("Startup complete.");
+        }
+        catch (Exception ex)
+        {
+            LogError("Startup failed.", ex);
+            throw;
+        }
+    }
+
+    /// <summary>UI-thread startup: DI, tray, listener, plugins. Must not await.</summary>
+    private void CompleteStartupCore()
+    {
+        LogInfo("Building services.");
         var services = new ServiceCollection();
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
+        LogInfo("Service provider built.");
 
         var themeService = _serviceProvider.GetRequiredService<IThemeService>();
         themeService.ApplyTheme(themeService.LoadSavedTheme());
@@ -62,13 +132,15 @@ public partial class App : Application
         _clipboardService = _serviceProvider.GetRequiredService<IClipboardService>();
         _listenerService = _serviceProvider.GetRequiredService<ClipboardListenerService>();
         _trayPopupViewModel = _serviceProvider.GetRequiredService<TrayPopupViewModel>();
+        _pluginHost = _serviceProvider.GetRequiredService<ICliptPluginHost>();
         _historyService = _serviceProvider.GetRequiredService<IClipboardHistoryService>();
         _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
         _groupsTabViewModel = _serviceProvider.GetRequiredService<GroupsTabViewModel>();
         _pluginsTabViewModel = _serviceProvider.GetRequiredService<PluginsTabViewModel>();
-        _pluginHost = _serviceProvider.GetRequiredService<ICliptPluginHost>();
         _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
         _settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+
+        LogInfo("Services configured.");
 
         var pluginRegistry = _serviceProvider.GetRequiredService<PluginRegistry>();
         pluginRegistry.SetHost(_pluginHost);
@@ -76,65 +148,61 @@ public partial class App : Application
         if (_pluginHost is CliptPluginHost concreteHost)
             OwnerBlockerSettingsMigrator.MigrateLegacyRegistrySettings(concreteHost);
         pluginRegistry.Initialize();
+        LogInfo($"Plugins loaded: {pluginRegistry.Registrations.Count} registered, {pluginRegistry.LoadFailures.Count} failed.");
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
         _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
         _trayPopupViewModel.PluginsTab = _pluginsTabViewModel;
-        _trayPopupViewModel.RefreshPluginTrayTabs(pluginRegistry, _pluginHost);
+
+        _listenerService.SecondInstanceActivateRequested += OnSecondInstanceActivateRequested;
+        _listenerService.Start();
+        LogInfo("Clipboard listener started.");
+
+        LogInfo("Initializing tray icon.");
+        InitializeTray();
+        LogInfo("Initializing tray popup.");
+        InitializeTrayPopup();
+
+        try
+        {
+            _trayPopupViewModel.RefreshPluginTrayTabs(pluginRegistry, _pluginHost);
+            LogInfo($"Plugin tray tabs: {_trayPopupViewModel.PluginTrayTabs.Count}.");
+        }
+        catch (Exception ex)
+        {
+            LogError("Failed to load plugin tray tabs; continuing without plugin tabs.", ex);
+        }
 
         _pluginsTabViewModel.PluginOutputWritten += OnPluginOutputWritten;
         _pluginsTabViewModel.Refresh();
 
-        _listenerService.SecondInstanceActivateRequested += OnSecondInstanceActivateRequested;
-        _listenerService.Start();
-
-        InitializeTray();
-        InitializeTrayPopup();
-
         _listenerService.ClipboardChanged += OnClipboardChangedForTray;
-
-        try
-        {
-            await _historyService.LoadAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex) when (
-            ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-        }
-
-        try
-        {
-            var groupService = _serviceProvider.GetRequiredService<IClipboardGroupService>();
-            await groupService.LoadAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-        }
-
-        Dispatcher.Invoke(() => _groupsTabViewModel?.Refresh());
-
-        var settings = _settingsService!;
-        if (settings.LoadPurgeHistoryOnStartup())
-        {
-            try
-            {
-                await _historyService.ClearAsync().ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException) { }
-        }
-
-        Dispatcher.Invoke(() =>
-        {
-            PerformInitialTrayRefresh();
-
-            var startupMode = settings.LoadStartupMode();
-
-            if (startupMode == StartupMode.FullWindow)
-                ShowMainWindow();
-            else
-                ShowTrayPopupWithClipboardSyncAsync();
-        });
     }
+
+    private void RegisterStartupExceptionHandlers()
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            LogError("Unhandled UI exception.", args.Exception);
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                LogError("Unhandled domain exception.", ex);
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            LogError("Unobserved task exception.", args.Exception);
+            args.SetObserved();
+        };
+    }
+
+    private void LogInfo(string message) => (_appLogger ?? _startupLogger)?.Info(message);
+
+    private void LogError(string message, Exception? exception = null) =>
+        (_appLogger ?? _startupLogger)?.Error(message, exception);
 
     private void InitializeTray()
     {
@@ -325,9 +393,16 @@ public partial class App : Application
         if (_trayPopupViewModel is null || _pluginHost is null || _serviceProvider is null)
             return;
 
-        _trayPopupViewModel.RefreshPluginTrayTabs(
-            _serviceProvider.GetRequiredService<IPluginRegistry>(),
-            _pluginHost);
+        try
+        {
+            _trayPopupViewModel.RefreshPluginTrayTabs(
+                _serviceProvider.GetRequiredService<IPluginRegistry>(),
+                _pluginHost);
+        }
+        catch (Exception ex)
+        {
+            LogError("Failed to refresh plugin tray tabs.", ex);
+        }
     }
 
     private ClipboardSnapshot? RefreshTrayPopup()
@@ -414,7 +489,9 @@ public partial class App : Application
         services.AddSingleton<IHistorySizeOverflowPrompt, WpfHistorySizeOverflowPrompt>();
         services.AddSingleton<PluginRegistry>();
         services.AddSingleton<IPluginRegistry>(sp => sp.GetRequiredService<PluginRegistry>());
-        services.AddSingleton<CliptPluginHost>();
+        services.AddSingleton<CliptPluginHost>(sp => new CliptPluginHost(
+            sp.GetRequiredService<PluginRegistry>(),
+            new Lazy<IClipboardHistoryService>(() => sp.GetRequiredService<IClipboardHistoryService>())));
         services.AddSingleton<ICliptPluginHost>(sp => sp.GetRequiredService<CliptPluginHost>());
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
@@ -444,6 +521,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        LogInfo("Clipt exiting.");
         if (_listenerService is not null)
             _listenerService.SecondInstanceActivateRequested -= OnSecondInstanceActivateRequested;
 

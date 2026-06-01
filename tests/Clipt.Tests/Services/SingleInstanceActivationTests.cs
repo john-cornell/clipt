@@ -23,6 +23,60 @@ public sealed class SingleInstanceActivationTests
     }
 
     [Fact]
+    public void TryAcquireMutex_WhenUnheld_ReturnsTrueWithoutBlocking()
+    {
+        string name = @"Local\Clipt_TestAcquire_" + Guid.NewGuid();
+
+        Assert.True(SingleInstanceActivationTryAcquireMutexForTest(name, out Mutex? mutex, out bool owns));
+        Assert.NotNull(mutex);
+        Assert.True(owns);
+
+        mutex!.ReleaseMutex();
+        mutex.Dispose();
+    }
+
+    private static bool SingleInstanceActivationTryAcquireMutexForTest(
+        string mutexName,
+        out Mutex? mutex,
+        out bool ownsMutex)
+    {
+        mutex = null;
+        ownsMutex = false;
+        try
+        {
+            mutex = new Mutex(initiallyOwned: false, mutexName, out _);
+            try
+            {
+                ownsMutex = mutex.WaitOne(0);
+            }
+            catch (AbandonedMutexException)
+            {
+                ownsMutex = true;
+            }
+
+            if (!ownsMutex)
+            {
+                mutex.Dispose();
+                mutex = null;
+            }
+
+            return ownsMutex;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            mutex?.Dispose();
+            mutex = null;
+            return false;
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+            mutex?.Dispose();
+            mutex = null;
+            return false;
+        }
+    }
+
+    [Fact]
     public void Mutex_SecondHandleInSameProcess_IsNotCreator()
     {
         string name = @"Local\Clipt_Test_" + Guid.NewGuid();
