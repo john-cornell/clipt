@@ -15,10 +15,13 @@ namespace Clipt.ViewModels;
 public sealed partial class TrayPopupViewModel : ObservableObject
 {
     private readonly ISettingsService? _settingsService;
+    private readonly ITrayIconService? _trayIconService;
+    private bool _syncingTabVisibilityFromTray;
 
-    public TrayPopupViewModel(ISettingsService? settingsService = null)
+    public TrayPopupViewModel(ISettingsService? settingsService = null, ITrayIconService? trayIconService = null)
     {
         _settingsService = settingsService;
+        _trayIconService = trayIconService;
         ApplyTabVisibilityFromSettings();
     }
 
@@ -106,8 +109,34 @@ public sealed partial class TrayPopupViewModel : ObservableObject
 
     public void SetTabVisibility(bool showPlugins, bool showBlocker)
     {
-        ShowPluginsTab = showPlugins;
-        ShowBlockerTab = showBlocker;
+        _syncingTabVisibilityFromTray = true;
+        try
+        {
+            ShowPluginsTab = showPlugins;
+            ShowBlockerTab = showBlocker;
+        }
+        finally
+        {
+            _syncingTabVisibilityFromTray = false;
+        }
+    }
+
+    partial void OnShowPluginsTabChanged(bool value)
+    {
+        if (_syncingTabVisibilityFromTray)
+            return;
+
+        _settingsService?.SaveShowPluginsTrayTab(value);
+        _trayIconService?.SetTrayTabVisibilityChecked(ShowPluginsTab, ShowBlockerTab);
+    }
+
+    partial void OnShowBlockerTabChanged(bool value)
+    {
+        if (_syncingTabVisibilityFromTray)
+            return;
+
+        _settingsService?.SaveShowBlockerTrayTab(value);
+        _trayIconService?.SetTrayTabVisibilityChecked(ShowPluginsTab, ShowBlockerTab);
     }
 
     public void RefreshPluginTrayTabs(IPluginRegistry registry, ICliptPluginHost pluginHost)

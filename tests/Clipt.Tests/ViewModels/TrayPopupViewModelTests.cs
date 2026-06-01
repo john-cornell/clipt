@@ -23,6 +23,34 @@ public class TrayPopupViewModelTests
     }
 
     [Fact]
+    public void ShowPluginsTabChanged_SavesSettingAndSyncsTrayMenu()
+    {
+        var settings = new Mock<ISettingsService>();
+        var tray = new Mock<ITrayIconService>();
+        settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(true);
+        settings.Setup(s => s.LoadShowBlockerTrayTab()).Returns(true);
+
+        var vm = new TrayPopupViewModel(settings.Object, tray.Object);
+        vm.ShowPluginsTab = false;
+
+        settings.Verify(s => s.SaveShowPluginsTrayTab(false), Times.Once);
+        tray.Verify(t => t.SetTrayTabVisibilityChecked(false, true), Times.Once);
+    }
+
+    [Fact]
+    public void SetTabVisibility_FromTrayMenu_DoesNotPersistAgain()
+    {
+        var settings = new Mock<ISettingsService>();
+        var tray = new Mock<ITrayIconService>();
+        var vm = new TrayPopupViewModel(settings.Object, tray.Object);
+
+        vm.SetTabVisibility(false, true);
+
+        settings.Verify(s => s.SaveShowPluginsTrayTab(It.IsAny<bool>()), Times.Never);
+        settings.Verify(s => s.SaveShowBlockerTrayTab(It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
     public void SetTabVisibility_UpdatesProperties()
     {
         var vm = new TrayPopupViewModel();

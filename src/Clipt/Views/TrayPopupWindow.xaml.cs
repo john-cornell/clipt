@@ -11,6 +11,7 @@ namespace Clipt.Views;
 public partial class TrayPopupWindow : Window
 {
     private const string PluginTabTag = "PluginTab";
+    private const string PluginsTabHeader = "Plugins";
 
     private DateTime _lastHiddenUtc = DateTime.MinValue;
 
@@ -24,6 +25,7 @@ public partial class TrayPopupWindow : Window
 
         SubscribeToHistoryTab(viewModel.HistoryTab);
         TrackGroupsTab(viewModel.GroupsTab);
+        MovePluginsTabToEnd();
         viewModel.PluginTrayTabsChanged += (_, _) => SyncPluginTrayTabs();
         SyncPluginTrayTabs();
 
@@ -48,10 +50,42 @@ public partial class TrayPopupWindow : Window
                 TrayTabControl.Items.RemoveAt(i);
         }
 
+        int insertIndex = FindTabIndexByHeader(PluginsTabHeader);
+        if (insertIndex < 0)
+            insertIndex = TrayTabControl.Items.Count;
+
         foreach (PluginTrayTabItem tab in vm.PluginTrayTabs)
         {
-            TrayTabControl.Items.Add(CreatePluginTabItem(tab, vm));
+            TrayTabControl.Items.Insert(insertIndex, CreatePluginTabItem(tab, vm));
+            insertIndex++;
         }
+    }
+
+    private void MovePluginsTabToEnd()
+    {
+        int index = FindTabIndexByHeader(PluginsTabHeader);
+        if (index < 0 || index >= TrayTabControl.Items.Count - 1)
+            return;
+
+        if (TrayTabControl.Items[index] is TabItem pluginsTab)
+        {
+            TrayTabControl.Items.RemoveAt(index);
+            TrayTabControl.Items.Add(pluginsTab);
+        }
+    }
+
+    private int FindTabIndexByHeader(string header)
+    {
+        for (int i = 0; i < TrayTabControl.Items.Count; i++)
+        {
+            if (TrayTabControl.Items[i] is TabItem { Header: string tabHeader }
+                && string.Equals(tabHeader, header, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private void UpdatePluginTabVisibility()

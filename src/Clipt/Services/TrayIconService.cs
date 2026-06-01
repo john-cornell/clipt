@@ -116,6 +116,15 @@ public sealed class TrayIconService : ITrayIconService
         _syncTrayTabVisibility = sync;
     }
 
+    public void SetTrayTabVisibilityChecked(bool showPlugins, bool showBlocker)
+    {
+        if (_showPluginsTabItem is not null)
+            _showPluginsTabItem.Checked = showPlugins;
+
+        if (_showBlockerTabItem is not null)
+            _showBlockerTabItem.Checked = showBlocker;
+    }
+
     public void SetClearClipboardWhenClearingHistoryChecked(bool value)
     {
         if (_clearClipboardWhenClearingHistoryItem is not null)
@@ -253,16 +262,9 @@ public sealed class TrayIconService : ITrayIconService
 
     private WinForms.ToolStripMenuItem BuildShowInNotificationSubmenu()
     {
-        var parent = new WinForms.ToolStripMenuItem("Show");
+        var parent = new WinForms.ToolStripMenuItem("Show tabs");
         parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
         _showInNotificationSubmenuRoot = parent;
-
-        _showPluginsTabItem = new WinForms.ToolStripMenuItem("Plugins")
-        {
-            Checked = _settingsService.LoadShowPluginsTrayTab(),
-        };
-        _showPluginsTabItem.Click += OnShowPluginsTabToggle;
-        parent.DropDownItems.Add(_showPluginsTabItem);
 
         _showBlockerTabItem = new WinForms.ToolStripMenuItem("Blocker")
         {
@@ -270,6 +272,13 @@ public sealed class TrayIconService : ITrayIconService
         };
         _showBlockerTabItem.Click += OnShowBlockerTabToggle;
         parent.DropDownItems.Add(_showBlockerTabItem);
+
+        _showPluginsTabItem = new WinForms.ToolStripMenuItem("Plugins")
+        {
+            Checked = _settingsService.LoadShowPluginsTrayTab(),
+        };
+        _showPluginsTabItem.Click += OnShowPluginsTabToggle;
+        parent.DropDownItems.Add(_showPluginsTabItem);
 
         return parent;
     }

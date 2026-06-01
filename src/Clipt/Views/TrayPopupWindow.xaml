@@ -405,7 +405,17 @@
                                               FontSize="16"
                                               Padding="6,2"
                                               ToolTip="History actions">
-                                        <MenuItem Header="Save groupâ€¦"
+                                        <MenuItem Header="Show tabs"
+                                                  ToolTip="Show or hide optional tray popup tabs">
+                                            <MenuItem Header="Blocker"
+                                                      IsCheckable="True"
+                                                      IsChecked="{Binding ShowBlockerTab, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                                            <MenuItem Header="Plugins"
+                                                      IsCheckable="True"
+                                                      IsChecked="{Binding ShowPluginsTab, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Save group&#x2026;"
                                                   Command="{Binding EnterSaveSelectionModeCommand}"
                                                   ToolTip="Select entries to save as a named group" />
                                         <MenuItem Header="Reorder items"
@@ -418,7 +428,7 @@
                                                   ToolTip="Show More and Less under text entries when the summary may be long" />
                                         <Separator />
                                         <MenuItem Header="Clear">
-                                            <MenuItem Header="Clear selectedâ€¦"
+                                            <MenuItem Header="Clear selected&#x2026;"
                                                       Command="{Binding EnterDeleteSelectionModeCommand}"
                                                       ToolTip="Select entries in the list, then delete the checked items" />
                                             <MenuItem Header="Clear all"
@@ -784,7 +794,7 @@
                                        Foreground="{DynamicResource ForegroundDimBrush}"
                                        FontSize="11" VerticalAlignment="Center" />
                             <Button Grid.Column="1"
-                                    Content="Import groupâ€¦"
+                                    Content="Import group&#x2026;"
                                     Command="{Binding ImportGroupCommand}"
                                     FontSize="10"
                                     Padding="8,2"
@@ -873,7 +883,7 @@
                                                               CommandParameter="{x:Static models:GroupRestoreMode.AddToBottom}"
                                                               ToolTip="Append group after current history" />
                                                 </MenuItem>
-                                                <MenuItem Header="Exportâ€¦"
+                                                <MenuItem Header="Export&#x2026;"
                                                           Command="{Binding ExportCommand}"
                                                           FontSize="10"
                                                           Padding="6,2"

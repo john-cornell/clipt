@@ -497,7 +497,8 @@ public partial class App : Application
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayPopupViewModel>(sp => new TrayPopupViewModel(
-            sp.GetRequiredService<ISettingsService>()));
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<ITrayIconService>()));
         services.AddSingleton<GroupsTabViewModel>(sp => new GroupsTabViewModel(
             sp.GetRequiredService<IClipboardGroupService>(),
             sp.GetRequiredService<IClipboardHistoryService>(),
