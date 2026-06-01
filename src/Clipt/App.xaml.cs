@@ -18,6 +18,8 @@ public partial class App : Application
     private TrayPopupViewModel? _trayPopupViewModel;
     private HistoryTabViewModel? _historyTabViewModel;
     private GroupsTabViewModel? _groupsTabViewModel;
+    private PluginsTabViewModel? _pluginsTabViewModel;
+    private TrayDebugTabViewModel? _trayDebugTabViewModel;
     private MainWindow? _mainWindow;
     private ClipboardListenerService? _listenerService;
     private IClipboardService? _clipboardService;
@@ -63,10 +65,17 @@ public partial class App : Application
         _historyService = _serviceProvider.GetRequiredService<IClipboardHistoryService>();
         _historyTabViewModel = _serviceProvider.GetRequiredService<HistoryTabViewModel>();
         _groupsTabViewModel = _serviceProvider.GetRequiredService<GroupsTabViewModel>();
+        _pluginsTabViewModel = _serviceProvider.GetRequiredService<PluginsTabViewModel>();
+        _trayDebugTabViewModel = _serviceProvider.GetRequiredService<TrayDebugTabViewModel>();
         _appLogger = _serviceProvider.GetRequiredService<IAppLogger>();
 
         _trayPopupViewModel.HistoryTab = _historyTabViewModel;
         _trayPopupViewModel.GroupsTab = _groupsTabViewModel;
+        _trayPopupViewModel.PluginsTab = _pluginsTabViewModel;
+        _trayPopupViewModel.DebugTab = _trayDebugTabViewModel;
+
+        _pluginsTabViewModel.PluginOutputWritten += OnPluginOutputWritten;
+        _pluginsTabViewModel.Refresh();
 
         _listenerService.SecondInstanceActivateRequested += OnSecondInstanceActivateRequested;
         _listenerService.Start();
@@ -134,6 +143,14 @@ public partial class App : Application
             });
         });
 
+        _trayIconService.SetTrayTabVisibilitySync((showPlugins, showDebug) =>
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                _trayPopupViewModel?.SetTabVisibility(showPlugins, showDebug);
+            });
+        });
+
         _trayIconService.TrayIconClicked += OnTrayIconClicked;
         _trayIconService.OpenFullRequested += OnOpenFullRequested;
         _trayIconService.ExitRequested += OnExitRequested;
@@ -172,8 +189,10 @@ public partial class App : Application
                 _trayIconService?.UpdateIcon(hasData);
                 _trayPopupViewModel?.Update(snapshot);
 
-                if (hasData)
-                    await _historyService!.AddAsync(snapshot).ConfigureAwait(false);
+                HistoryAddResult addResult = hasData
+                    ? await _historyService!.AddAsync(snapshot).ConfigureAwait(false)
+                    : HistoryAddResult.SkippedEmptyFormats;
+                _trayDebugTabViewModel?.RecordEvent(snapshot, addResult);
             }
             catch (InvalidOperationException)
             {
@@ -201,6 +220,7 @@ public partial class App : Application
 
         _historyTabViewModel?.Refresh();
         _groupsTabViewModel?.Refresh();
+        _pluginsTabViewModel?.Refresh();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -239,6 +259,7 @@ public partial class App : Application
 
         _historyTabViewModel?.Refresh();
         _groupsTabViewModel?.Refresh();
+        _pluginsTabViewModel?.Refresh();
         _trayPopupWindow.ShowNearTray();
     }
 
@@ -333,6 +354,22 @@ public partial class App : Application
         }
     }
 
+    private async void OnPluginOutputWritten(object? sender, EventArgs e)
+    {
+        if (_clipboardService is null || _listenerService is null || _historyService is null)
+            return;
+
+        try
+        {
+            var snapshot = _clipboardService.CaptureSnapshot(_listenerService.Hwnd);
+            _trayPopupViewModel?.Update(snapshot);
+            if (snapshot.Formats.Length > 0)
+                await _historyService.AddAsync(snapshot).ConfigureAwait(false);
+            Dispatcher.Invoke(() => _historyTabViewModel?.Refresh());
+        }
+        catch (InvalidOperationException) { }
+    }
+
     private static void ConfigureServices(IServiceCollection services)
     {
         services.AddSingleton<IThemeService, ThemeService>();
@@ -345,8 +382,11 @@ public partial class App : Application
         services.AddSingleton<IHistorySizeOverflowPrompt, WpfHistorySizeOverflowPrompt>();
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
+        services.AddSingleton<IPluginRegistry, PluginRegistry>();
         services.AddSingleton<MainViewModel>();
-        services.AddSingleton<TrayPopupViewModel>();
+        services.AddSingleton<TrayDebugTabViewModel>();
+        services.AddSingleton<TrayPopupViewModel>(sp => new TrayPopupViewModel(
+            sp.GetRequiredService<ISettingsService>()));
         services.AddSingleton<GroupsTabViewModel>(sp => new GroupsTabViewModel(
             sp.GetRequiredService<IClipboardGroupService>(),
             sp.GetRequiredService<IClipboardHistoryService>(),
@@ -359,6 +399,10 @@ public partial class App : Application
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<ITrayIconService>(),
             sp.GetRequiredService<IClipboardGroupService>()));
+        services.AddSingleton<PluginsTabViewModel>(sp => new PluginsTabViewModel(
+            sp.GetRequiredService<IPluginRegistry>(),
+            sp.GetRequiredService<IClipboardService>(),
+            () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
         services.AddSingleton<MainWindow>();
         services.AddSingleton<TrayPopupWindow>();
     }
@@ -386,6 +430,9 @@ public partial class App : Application
 
         if (_trayPopupViewModel is not null)
             _trayPopupViewModel.ExpandToFullRequested -= OnExpandToFullRequested;
+
+        if (_pluginsTabViewModel is not null)
+            _pluginsTabViewModel.PluginOutputWritten -= OnPluginOutputWritten;
 
         if (_listenerService is not null)
             _listenerService.ClipboardChanged -= OnClipboardChangedForTray;

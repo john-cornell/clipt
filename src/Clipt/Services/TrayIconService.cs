@@ -23,7 +23,11 @@ public sealed class TrayIconService : ITrayIconService
     private WinForms.ToolStripMenuItem? _formatCaptureCapSubmenuRoot;
     private WinForms.ToolStripMenuItem? _formatOversizeModeSubmenuRoot;
     private WinForms.ToolStripMenuItem? _logLevelSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _showInNotificationSubmenuRoot;
+    private WinForms.ToolStripMenuItem? _showPluginsTabItem;
+    private WinForms.ToolStripMenuItem? _showDebugTabItem;
     private Action<bool>? _syncClearClipboardPreference;
+    private Action<bool, bool>? _syncTrayTabVisibility;
     private bool _disposed;
 
     private static readonly int[] MaxEntriesOptions = [5, 10, 25, 50];
@@ -107,6 +111,11 @@ public sealed class TrayIconService : ITrayIconService
         _syncClearClipboardPreference = sync;
     }
 
+    public void SetTrayTabVisibilitySync(Action<bool, bool>? sync)
+    {
+        _syncTrayTabVisibility = sync;
+    }
+
     public void SetClearClipboardWhenClearingHistoryChecked(bool value)
     {
         if (_clearClipboardWhenClearingHistoryItem is not null)
@@ -150,6 +159,8 @@ public sealed class TrayIconService : ITrayIconService
         };
         _clearClipboardWhenClearingHistoryItem.Click += OnClearClipboardWhenClearingHistoryToggle;
         menu.Items.Add(_clearClipboardWhenClearingHistoryItem);
+
+        menu.Items.Add(BuildShowInNotificationSubmenu());
 
         menu.Items.Add(BuildHistoryTypeSubmenu());
 
@@ -210,7 +221,9 @@ public sealed class TrayIconService : ITrayIconService
         if (ReferenceEquals(clicked, _startModeItem)
             || ReferenceEquals(clicked, _runOnStartupItem)
             || ReferenceEquals(clicked, _purgeHistoryItem)
-            || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem))
+            || ReferenceEquals(clicked, _clearClipboardWhenClearingHistoryItem)
+            || ReferenceEquals(clicked, _showPluginsTabItem)
+            || ReferenceEquals(clicked, _showDebugTabItem))
             return true;
 
         if (ReferenceEquals(clicked, _historyTypeSubmenuRoot)
@@ -219,7 +232,8 @@ public sealed class TrayIconService : ITrayIconService
             || ReferenceEquals(clicked, _overflowModeSubmenuRoot)
             || ReferenceEquals(clicked, _formatCaptureCapSubmenuRoot)
             || ReferenceEquals(clicked, _formatOversizeModeSubmenuRoot)
-            || ReferenceEquals(clicked, _logLevelSubmenuRoot))
+            || ReferenceEquals(clicked, _logLevelSubmenuRoot)
+            || ReferenceEquals(clicked, _showInNotificationSubmenuRoot))
             return true;
 
         if (clicked is WinForms.ToolStripMenuItem leaf && leaf.OwnerItem is WinForms.ToolStripMenuItem owner)
@@ -230,10 +244,56 @@ public sealed class TrayIconService : ITrayIconService
                 || ReferenceEquals(owner, _overflowModeSubmenuRoot)
                 || ReferenceEquals(owner, _formatCaptureCapSubmenuRoot)
                 || ReferenceEquals(owner, _formatOversizeModeSubmenuRoot)
-                || ReferenceEquals(owner, _logLevelSubmenuRoot);
+                || ReferenceEquals(owner, _logLevelSubmenuRoot)
+                || ReferenceEquals(owner, _showInNotificationSubmenuRoot);
         }
 
         return false;
+    }
+
+    private WinForms.ToolStripMenuItem BuildShowInNotificationSubmenu()
+    {
+        var parent = new WinForms.ToolStripMenuItem("Show");
+        parent.DropDownDirection = WinForms.ToolStripDropDownDirection.Left;
+        _showInNotificationSubmenuRoot = parent;
+
+        _showPluginsTabItem = new WinForms.ToolStripMenuItem("Plugins")
+        {
+            Checked = _settingsService.LoadShowPluginsTrayTab(),
+        };
+        _showPluginsTabItem.Click += OnShowPluginsTabToggle;
+        parent.DropDownItems.Add(_showPluginsTabItem);
+
+        _showDebugTabItem = new WinForms.ToolStripMenuItem("Debug")
+        {
+            Checked = _settingsService.LoadShowDebugTrayTab(),
+        };
+        _showDebugTabItem.Click += OnShowDebugTabToggle;
+        parent.DropDownItems.Add(_showDebugTabItem);
+
+        return parent;
+    }
+
+    private void OnShowPluginsTabToggle(object? sender, EventArgs e)
+    {
+        if (_showPluginsTabItem is null)
+            return;
+
+        bool next = !_showPluginsTabItem.Checked;
+        _settingsService.SaveShowPluginsTrayTab(next);
+        _showPluginsTabItem.Checked = next;
+        _syncTrayTabVisibility?.Invoke(next, _settingsService.LoadShowDebugTrayTab());
+    }
+
+    private void OnShowDebugTabToggle(object? sender, EventArgs e)
+    {
+        if (_showDebugTabItem is null)
+            return;
+
+        bool next = !_showDebugTabItem.Checked;
+        _settingsService.SaveShowDebugTrayTab(next);
+        _showDebugTabItem.Checked = next;
+        _syncTrayTabVisibility?.Invoke(_settingsService.LoadShowPluginsTrayTab(), next);
     }
 
     private WinForms.ToolStripMenuItem BuildHistoryTypeSubmenu()

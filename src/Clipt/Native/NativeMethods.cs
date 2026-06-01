@@ -54,6 +54,27 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     public static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int GetClassName(nint hWnd, [Out] char[] lpClassName, int nMaxCount);
+
+    internal static string GetWindowTextSafe(nint hwnd)
+    {
+        int len = GetWindowTextLength(hwnd);
+        if (len <= 0)
+            return string.Empty;
+
+        var buf = new char[len + 1];
+        int n = GetWindowText(hwnd, buf, buf.Length);
+        return n > 0 ? new string(buf, 0, n) : string.Empty;
+    }
+
+    internal static string GetClassNameSafe(nint hwnd)
+    {
+        var buf = new char[256];
+        int n = GetClassName(hwnd, buf, buf.Length);
+        return n > 0 ? new string(buf, 0, n) : string.Empty;
+    }
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsClipboardFormatAvailable(uint format);

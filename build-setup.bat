@@ -11,6 +11,20 @@ if errorlevel 1 (
     exit /b 1
 )
 
+set "PLUGINS_DIR=src\Clipt\bin\Release\net8.0-windows\Plugins"
+if not exist "%PLUGINS_DIR%\Clipt.Plugins.WhereIn.dll" (
+    echo.
+    echo PLUGIN BUILD FAILED - expected: %PLUGINS_DIR%\Clipt.Plugins.WhereIn.dll
+    echo Run: dotnet build src\Clipt\Clipt.csproj -c Release
+    exit /b 1
+)
+if not exist "%PLUGINS_DIR%\Clipt.Plugins.Abstractions.dll" (
+    echo.
+    echo PLUGIN BUILD FAILED - expected: %PLUGINS_DIR%\Clipt.Plugins.Abstractions.dll
+    exit /b 1
+)
+echo Plugins ready: %PLUGINS_DIR%
+
 if not exist "%SIGN_CERT%" (
     echo.
     echo ----------------------------------------------------------------------

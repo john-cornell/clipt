@@ -2,9 +2,10 @@
 ; Build (unsigned): iscc installer\Clipt.iss
 ; Build (signed): build-setup.bat (passes /DUSINGSIGNTOOL + /SCliptSign=... to ISCC)
 ; Requires: dotnet build src\Clipt\Clipt.csproj -c Release (run first)
+; Plugin DLLs are built into src\Clipt\bin\Release\net8.0-windows\Plugins\ and installed to {app}\Plugins
 
 #define MyAppName "Clipt"
-#define MyAppVersion "1.11.9"
+#define MyAppVersion "1.13.5"
 #define MyAppPublisher "Clipt"
 #define MyAppExeName "Clipt.exe"
 
@@ -38,7 +39,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\src\Clipt\bin\Release\net8.0-windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Main application (Plugins subfolder packaged separately below)
+Source: "..\src\Clipt\bin\Release\net8.0-windows\*"; Excludes: "Plugins\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Tray plugins — loaded at runtime from {app}\Plugins
+Source: "..\src\Clipt\bin\Release\net8.0-windows\Plugins\*.dll"; DestDir: "{app}\Plugins"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

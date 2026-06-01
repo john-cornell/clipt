@@ -104,8 +104,12 @@ public sealed partial class NativeTabViewModel : ObservableObject
         _currentSnapshot = snapshot;
 
         ClipboardOwner = snapshot.OwnerProcessId > 0
-            ? $"{snapshot.OwnerProcessName} (PID {snapshot.OwnerProcessId})"
+            ? $"{snapshot.OwnerProcessName} (PID {snapshot.OwnerProcessId}, HWND 0x{snapshot.OwnerWindowHandle:X})"
             : snapshot.OwnerProcessName;
+        if (!string.IsNullOrWhiteSpace(snapshot.OwnerWindowTitle))
+            ClipboardOwner += $"\nTitle: {snapshot.OwnerWindowTitle}";
+        if (!string.IsNullOrWhiteSpace(snapshot.OwnerWindowClass))
+            ClipboardOwner += $"\nClass: {snapshot.OwnerWindowClass}";
         SequenceNumber = snapshot.SequenceNumber;
 
         AvailableFormats.Clear();

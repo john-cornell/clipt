@@ -23,6 +23,10 @@ public class HistoryTabViewModelTests
         _clipboardMock = new Mock<IClipboardService>();
         _settingsMock = new Mock<ISettingsService>();
         _settingsMock.Setup(s => s.LoadClearClipboardWhenClearingHistory()).Returns(false);
+        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         _trayMock = new Mock<ITrayIconService>();
         _groupMock = new Mock<IClipboardGroupService>();
         _groupMock.Setup(g => g.Groups).Returns(Array.Empty<ClipboardGroup>());

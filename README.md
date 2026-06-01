@@ -45,7 +45,7 @@ Release assets match the filenames above (same links as the installer). If a lin
 ### System Tray and Window Management
 
 - **System Tray Icon** - Always-visible notification area icon: red when clipboard is empty, green when it has data. Right-click for quick access to Open Full Window, startup mode toggle, or Exit. The tray menu stays open while you flip settings (history limits, log level, etc.); it closes after **Open Full Window**, **Clear History**, or **Exit**
-- **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window
+- **Compact Popup** - Left-click the tray icon to open a small popup showing a quick clipboard preview (text, image, or file list) without opening the full window. Tabs: **Clipboard**, **History**, **Groups**, and **Plugins**
 - **Pin Popup** - Pin toggle in the **top-right** of the compact popup title bar keeps the window open when you click elsewhere
 - **Expand to Full** - Button **next to the title** (Clipt + version) opens the full Clipt inspector window
 - **Run on Startup** - Toggle Windows startup registration from the tray menu; writes a quoted path to the current-user Run registry key (handles spaces in usernames)
@@ -66,6 +66,23 @@ Release assets match the filenames above (same links as the installer). If a lin
 - **Light / Dark Theme** - Switchable at runtime, preference saved to registry
 - **Version Display** - App version shown in title bars of both the main window and compact popup
 
+### Plugins
+
+Tray popup **Plugins** tab: discover, register, and run clipboard transform plugins loaded from `{app}\Plugins` (next to `Clipt.exe`).
+
+- **Plugin registry** - At startup Clipt scans `%LOCALAPPDATA%\Clipt\Plugins\*.dll` for types implementing `ICliptPlugin`. Registered plugins show name, description, and source path. **Rescan** reloads the folder without restarting
+- **Tray action plugins** - Plugins that implement `ICliptTrayActionPlugin` receive the current clipboard text via `CliptPluginContext`, expose optional UI controls (checkboxes today), and can write transformed text back to the clipboard as if you pasted it (history updates automatically)
+- **Where In** (bundled) - Example plugin in `src/Clipt.Plugins.WhereIn`. Copy a multi-line list of GUIDs (optional header row for the column name), open **Plugins**, and click **Run** to produce a SQL `WHERE … IN ('…','…')` clause on the clipboard. **First line is column name** is on by default; turn it off to treat every line as a value (default column `Id`). Invalid lines are skipped; only GUID-shaped values are included
+
+#### Writing a plugin
+
+1. Create a class library targeting **net8.0** and reference `Clipt.Plugins.Abstractions`
+2. Implement `ICliptTrayActionPlugin` (or `ICliptPlugin` for display-only registration)
+3. Build and copy the output DLL (and `Clipt.Plugins.Abstractions.dll` if not merged) into `%LOCALAPPDATA%\Clipt\Plugins\`, or rely on the WhereIn project’s post-build copy during development
+4. Click **Rescan** in the Plugins tab (or restart Clipt)
+
+See `src/Clipt.Plugins.WhereIn` for a working reference implementation.
+
 ## Downloads
 
 Each **CliptSetup.exe** link points at a file attached to that version’s [GitHub Release](https://github.com/john-cornell/clipt/releases). If you get **404**, the release exists but no installer was uploaded yet — open the release page and check **Assets**, or upload with `gh release upload TAG installer/Output/CliptSetup.exe` after building the installer.
@@ -74,13 +91,15 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.11.2** | 2026-04-07 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
+| **1.12.1** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.12.1/CliptSetup.exe) | **Plugins** tab in tray popup; extensible plugin framework; bundled **Where In** plugin (multi-line GUID list → SQL `WHERE IN` clause); installer ships plugin DLLs to `{app}\Plugins` |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.11.9 | 2026-05-14 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.11.9/CliptSetup.exe) | History storage overflow modes; per-format clipboard capture limits |
+| 1.11.2 | 2026-04-07 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.11.2/CliptSetup.exe) | **Clear history** keeps the last clip restored from history when the OS clipboard no longer matches the stored content hash (fixes accidental full history wipe after restore + clear) |
 | 1.10.5 | 2026-03-25 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.10.5/CliptSetup.exe) | Single-instance activation + collapsed startup popup; media moved to `media/`; engineering update videos and PDF attached to this release — see [Videos](#videos) and [Documents](#documents) |
 | 1.9.8 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.8/CliptSetup.exe) | Saved groups: durable archive aligned with history JSON (shared serialization); group save/load/restore diagnostics in `clipt.log`; safer clear-and-restore when nothing can be resolved |
 | 1.9.4 | 2026-03-24 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.9.4/CliptSetup.exe) | Clipboard Groups: save, organize, and restore multi-entry clipboard sets from the new Groups tab and tray popup |
@@ -146,9 +165,20 @@ If you skip this step, you may end up with two copies installed.
 dotnet build src\Clipt\Clipt.csproj -c Release
 ```
 
+Release build also builds `Clipt.Plugins.WhereIn` and copies plugin DLLs to `src\Clipt\bin\Release\net8.0-windows\Plugins\` (same layout the installer uses).
+
+Solution layout:
+
+| Project | Role |
+|---------|------|
+| `src/Clipt` | Main WPF app |
+| `src/Clipt.Plugins.Abstractions` | Plugin contracts (`ICliptPlugin`, `ICliptTrayActionPlugin`, `CliptPluginContext`) |
+| `src/Clipt.Plugins.WhereIn` | Example tray plugin (SQL WHERE IN builder) |
+| `tests/Clipt.Tests` | Unit tests |
+
 ### Signed installer (`build-setup.bat`)
 
-From the repo root, `build-setup.bat` builds **Release**, signs `Clipt.exe` with `signtool`, and compiles the Inno Setup installer (passing `/SCliptSign=...` to `ISCC` so the compiler can sign setup/uninstaller artifacts). **Signing is always required** — the script does not skip it.
+From the repo root, `build-setup.bat` builds **Release**, verifies plugin DLLs in `Plugins\`, signs `Clipt.exe` with `signtool`, and compiles the Inno Setup installer (passing `/SCliptSign=...` to `ISCC` so the compiler can sign setup/uninstaller artifacts). **Signing is always required** — the script does not skip it.
 
 **PFX password** is **not** stored in the repo. Provide it in one of these ways:
 
@@ -192,6 +222,7 @@ dotnet test tests\Clipt.Tests\Clipt.Tests.csproj
 
 - **Target**: .NET 8, WPF, C# 12
 - **Pattern**: MVVM with `CommunityToolkit.Mvvm`
+- **Plugins**: `AssemblyLoadContext` discovery from `{app}\Plugins`; shared abstractions in `Clipt.Plugins.Abstractions`
 - **P/Invoke**: Direct Win32 clipboard APIs for full format enumeration and memory inspection
 - **Themes**: Runtime-switchable ResourceDictionary with registry persistence
 

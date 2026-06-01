@@ -25,7 +25,7 @@ public sealed class ClipboardService : IClipboardService
 
     public ClipboardSnapshot CaptureSnapshot(nint hwnd)
     {
-        (string ownerName, int ownerPid) = GetClipboardOwnerInfo();
+        var owner = GetClipboardOwnerInfo();
 
         if (!NativeMethods.OpenClipboard(hwnd))
         {
@@ -33,8 +33,11 @@ public sealed class ClipboardService : IClipboardService
             {
                 Timestamp = DateTime.UtcNow,
                 SequenceNumber = NativeMethods.GetClipboardSequenceNumber(),
-                OwnerProcessName = ownerName,
-                OwnerProcessId = ownerPid,
+                OwnerProcessName = owner.ProcessName,
+                OwnerProcessId = owner.ProcessId,
+                OwnerWindowHandle = owner.WindowHandle,
+                OwnerWindowTitle = owner.WindowTitle,
+                OwnerWindowClass = owner.WindowClass,
                 Formats = ImmutableArray<ClipboardFormatInfo>.Empty,
             };
         }
@@ -47,8 +50,11 @@ public sealed class ClipboardService : IClipboardService
             {
                 Timestamp = DateTime.UtcNow,
                 SequenceNumber = sequenceNumber,
-                OwnerProcessName = ownerName,
-                OwnerProcessId = ownerPid,
+                OwnerProcessName = owner.ProcessName,
+                OwnerProcessId = owner.ProcessId,
+                OwnerWindowHandle = owner.WindowHandle,
+                OwnerWindowTitle = owner.WindowTitle,
+                OwnerWindowClass = owner.WindowClass,
                 Formats = formats,
             };
         }
@@ -215,24 +221,33 @@ public sealed class ClipboardService : IClipboardService
         return (int)bytes;
     }
 
-    private static (string Name, int Pid) GetClipboardOwnerInfo()
+    private readonly record struct ClipboardOwnerDetails(
+        string ProcessName,
+        int ProcessId,
+        nint WindowHandle,
+        string WindowTitle,
+        string WindowClass);
+
+    private static ClipboardOwnerDetails GetClipboardOwnerInfo()
     {
         nint ownerHwnd = NativeMethods.GetClipboardOwner();
         if (ownerHwnd == 0)
-            return ("(no owner)", 0);
+            return new ClipboardOwnerDetails("(no owner)", 0, 0, string.Empty, string.Empty);
 
+        string windowTitle = NativeMethods.GetWindowTextSafe(ownerHwnd);
+        string windowClass = NativeMethods.GetClassNameSafe(ownerHwnd);
         NativeMethods.GetWindowThreadProcessId(ownerHwnd, out uint pid);
         if (pid == 0)
-            return ("(unknown)", 0);
+            return new ClipboardOwnerDetails("(unknown)", 0, ownerHwnd, windowTitle, windowClass);
 
         try
         {
             using var process = Process.GetProcessById((int)pid);
-            return (process.ProcessName, (int)pid);
+            return new ClipboardOwnerDetails(process.ProcessName, (int)pid, ownerHwnd, windowTitle, windowClass);
         }
         catch (ArgumentException)
         {
-            return ($"(PID {pid} exited)", (int)pid);
+            return new ClipboardOwnerDetails($"(PID {pid} exited)", (int)pid, ownerHwnd, windowTitle, windowClass);
         }
     }
 

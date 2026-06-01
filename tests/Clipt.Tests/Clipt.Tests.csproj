@@ -25,10 +25,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Clipt\Clipt.csproj" />
+    <ProjectReference Include="..\..\src\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Clipt.Plugins.WhereIn\Clipt.Plugins.WhereIn.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+
+  <Target Name="CopyPluginAssembliesForTests" AfterTargets="Build">
+    <PropertyGroup>
+      <WhereInOutput>$(MSBuildProjectDirectory)\..\..\src\Clipt.Plugins.WhereIn\bin\$(Configuration)\net8.0\</WhereInOutput>
+      <PluginsOutDir>$(OutputPath)Plugins\</PluginsOutDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginsOutDir)" />
+    <Copy SourceFiles="$(WhereInOutput)Clipt.Plugins.WhereIn.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(WhereInOutput)Clipt.Plugins.Abstractions.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

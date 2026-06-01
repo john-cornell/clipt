@@ -149,7 +149,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusSequence = $"Seq: {snapshot.SequenceNumber}";
         StatusFormats = $"Formats: {snapshot.Formats.Length}";
         StatusOwner = snapshot.OwnerProcessId > 0
-            ? $"Owner: {snapshot.OwnerProcessName} (PID {snapshot.OwnerProcessId})"
+            ? $"Owner: {snapshot.OwnerProcessName} (PID {snapshot.OwnerProcessId}, HWND 0x{snapshot.OwnerWindowHandle:X})"
             : $"Owner: {snapshot.OwnerProcessName}";
 
         TextTab.Update(snapshot);

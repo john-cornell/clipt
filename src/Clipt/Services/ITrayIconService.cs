@@ -16,6 +16,11 @@ public interface ITrayIconService : IDisposable
     void SetClearClipboardPreferenceSync(Action<bool>? sync);
 
     /// <summary>
+    /// Keeps tray popup tab visibility in sync when the tray menu toggles Show &gt; Plugins / Debug.
+    /// </summary>
+    void SetTrayTabVisibilitySync(Action<bool, bool>? sync);
+
+    /// <summary>
     /// Updates the tray menu check state when the popup checkbox changes.
     /// </summary>
     void SetClearClipboardWhenClearingHistoryChecked(bool value);

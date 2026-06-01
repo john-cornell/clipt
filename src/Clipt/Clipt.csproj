@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.11.9</Version>
+    <Version>1.13.5</Version>
     <ApplicationIcon>Icons\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -30,6 +30,11 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
+    <ProjectReference Include="..\Clipt.Plugins.WhereIn\Clipt.Plugins.WhereIn.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

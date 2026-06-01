@@ -25,6 +25,10 @@ public class ClipboardHistoryServiceTests : IDisposable
         _settingsMock.Setup(s => s.LoadMaxHistorySizeBytes()).Returns(100L * 1024 * 1024);
         _settingsMock.Setup(s => s.LoadHistorySizeOverflowMode()).Returns(HistorySizeOverflowMode.TrimOldest);
         _settingsMock.Setup(s => s.LoadDisabledHistoryTypes()).Returns(new HashSet<ContentType>());
+        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         _loggerMock = new Mock<IAppLogger>();
         _loggerMock.Setup(l => l.Level).Returns(AppLogLevel.Off);
         _promptMock = new Mock<IHistorySizeOverflowPrompt>();
@@ -1458,6 +1462,117 @@ public class ClipboardHistoryServiceTests : IDisposable
         svc.EntriesChanged += (_, _) => raised = true;
 
         await svc.AddAsync(CreateTextSnapshot("Blocked", seqNum: 1));
+
+        Assert.False(raised);
+    }
+
+    [Fact]
+    public async Task RemoveByOwnerProcessAsync_RemovesMatchingEntries()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var wisprFirst = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "Wispr Flow Helper",
+            OwnerProcessId = 99,
+            Formats = CreateTextSnapshot("Wispr text", seqNum: 1).Formats,
+        };
+        await svc.AddAsync(wisprFirst);
+        var wisprSecond = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 2,
+            OwnerProcessName = "Wispr Flow Helper",
+            OwnerProcessId = 99,
+            Formats = CreateTextSnapshot("More wispr", seqNum: 2).Formats,
+        };
+        await svc.AddAsync(wisprSecond);
+        await svc.AddAsync(CreateTextSnapshot("Mine", seqNum: 3));
+
+        Assert.Equal(3, svc.Entries.Count);
+
+        await svc.RemoveByOwnerProcessAsync("Wispr Flow Helper");
+
+        Assert.Single(svc.Entries);
+        Assert.Equal("Mine", svc.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task AddAsync_BlockedWindowClassPrefix_SkipsEntry()
+    {
+        _settingsMock.Setup(s => s.LoadBlockedHistoryWindowClassPrefixes())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "WisprClipboard_" });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var snapshot = CreateTextSnapshot("Polluted", seqNum: 1);
+        snapshot = new ClipboardSnapshot
+        {
+            Timestamp = snapshot.Timestamp,
+            SequenceNumber = snapshot.SequenceNumber,
+            OwnerProcessName = "(no owner)",
+            OwnerProcessId = 0,
+            OwnerWindowClass = "WisprClipboard_abc123",
+            Formats = snapshot.Formats,
+        };
+
+        HistoryAddResult result = await svc.AddAsync(snapshot);
+
+        Assert.Equal(HistoryAddResult.SkippedBlockedProcess, result);
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task AddAsync_BlockedProcessName_SkipsEntry()
+    {
+        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wispr" });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        var snapshot = CreateTextSnapshot("Polluted", seqNum: 1);
+        snapshot = new ClipboardSnapshot
+        {
+            Timestamp = snapshot.Timestamp,
+            SequenceNumber = snapshot.SequenceNumber,
+            OwnerProcessName = "Wispr",
+            OwnerProcessId = 1234,
+            Formats = snapshot.Formats,
+        };
+
+        HistoryAddResult result = await svc.AddAsync(snapshot);
+
+        Assert.Equal(HistoryAddResult.SkippedBlockedProcess, result);
+        Assert.Empty(svc.Entries);
+    }
+
+    [Fact]
+    public async Task AddAsync_BlockedProcessName_DoesNotRaiseEvent()
+    {
+        _settingsMock.Setup(s => s.LoadBlockedHistoryProcessNames())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wispr" });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        bool raised = false;
+        svc.EntriesChanged += (_, _) => raised = true;
+
+        var snapshot = CreateTextSnapshot("Polluted", seqNum: 1);
+        snapshot = new ClipboardSnapshot
+        {
+            Timestamp = snapshot.Timestamp,
+            SequenceNumber = snapshot.SequenceNumber,
+            OwnerProcessName = "Wispr",
+            OwnerProcessId = 1234,
+            Formats = snapshot.Formats,
+        };
+        await svc.AddAsync(snapshot);
 
         Assert.False(raised);
     }

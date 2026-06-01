@@ -9,8 +9,9 @@ public interface IClipboardHistoryService : IDisposable
     bool IsSuppressed { get; set; }
 
     Task LoadAsync();
-    Task AddAsync(ClipboardSnapshot snapshot);
+    Task<HistoryAddResult> AddAsync(ClipboardSnapshot snapshot);
     Task RemoveAsync(string entryId);
+    Task RemoveByOwnerProcessAsync(string ownerProcessName);
     Task RenameAsync(string entryId, string newName);
     Task PromoteAsync(string entryId);
     /// <summary>

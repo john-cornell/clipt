@@ -358,6 +358,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         {
             var entry = entries[i];
             string entryId = entry.Id;
+            string ownerProcess = entry.OwnerProcess;
             bool isFirst = i == 0;
             bool isLast = i == entries.Count - 1;
             var item = new HistoryEntryDisplayItem
@@ -368,6 +369,11 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 SummaryDisplay = entry.Summary,
                 ContentTypeLabel = FormatContentType(entry.ContentType),
                 ContentType = entry.ContentType,
+                OwnerDisplay = FormatOwnerDisplay(entry.OwnerProcess, entry.OwnerPid),
+                BlockableProcessName = BlockedProcessNames.IsBlockable(entry.OwnerProcess)
+                    ? entry.OwnerProcess
+                    : string.Empty,
+                IsOwnerBlocked = ClipboardBlockRules.IsProcessBlocked(_settingsService, entry.OwnerProcess),
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
@@ -381,6 +387,13 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                     ? () => LoadEntryUnicodeTextAsync(entryId)
                     : null,
             };
+
+            if (BlockedProcessNames.IsBlockable(ownerProcess))
+            {
+                item.BlockOwnerCommand = new AsyncRelayCommand(
+                    () => BlockOwnerAsync(ownerProcess),
+                    () => !ClipboardBlockRules.IsProcessBlocked(_settingsService, ownerProcess));
+            }
 
             if (entry.ContentType == ContentType.Image)
                 item.PreviewCommand = new AsyncRelayCommand(() => ShowPreviewAsync(entry.Id));
@@ -563,6 +576,15 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             await dispatcher.InvokeAsync(() => _clipboardService.ClearClipboard(_hwndProvider()));
     }
 
+    private async Task BlockOwnerAsync(string processName)
+    {
+        if (!BlockedProcessNames.IsBlockable(processName))
+            return;
+
+        ClipboardBlockRules.BlockSnapshotSource(_settingsService, processName, windowClass: null);
+        await _historyService.RemoveByOwnerProcessAsync(processName).ConfigureAwait(true);
+    }
+
     private void OnEntriesChanged(object? sender, EventArgs e)
     {
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(Refresh);
@@ -681,6 +703,9 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         if (elapsed.TotalDays < 7) return $"{(int)elapsed.TotalDays}d ago";
         return utcTimestamp.ToLocalTime().ToString("MMM d");
     }
+
+    internal static string FormatOwnerDisplay(string ownerProcess, int ownerPid) =>
+        ownerPid > 0 ? $"{ownerProcess} · PID {ownerPid}" : ownerProcess;
 }
 
 public sealed partial class HistoryEntryDisplayItem : ObservableObject
@@ -700,6 +725,12 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
 
     public required string ContentTypeLabel { get; init; }
     public required ContentType ContentType { get; init; }
+    public required string OwnerDisplay { get; init; }
+    public required string BlockableProcessName { get; init; }
+    public required bool IsOwnerBlocked { get; init; }
+    public bool CanBlockOwner =>
+        BlockedProcessNames.IsBlockable(BlockableProcessName) && !IsOwnerBlocked;
+    public IAsyncRelayCommand? BlockOwnerCommand { get; set; }
     public required string RelativeTime { get; init; }
     public required IAsyncRelayCommand RestoreCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }

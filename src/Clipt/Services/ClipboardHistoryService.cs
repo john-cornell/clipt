@@ -144,7 +144,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
     }
 
-    public async Task AddAsync(ClipboardSnapshot snapshot)
+    public async Task<HistoryAddResult> AddAsync(ClipboardSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -153,14 +153,14 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         {
             if (_logger.Level >= AppLogLevel.Debug)
                 _logger.Debug("AddAsync exit: IsSuppressed=true");
-            return;
+            return HistoryAddResult.SkippedSuppressed;
         }
 
         if (snapshot.Formats.Length == 0)
         {
             if (_logger.Level >= AppLogLevel.Debug)
                 _logger.Debug("AddAsync exit: empty formats");
-            return;
+            return HistoryAddResult.SkippedEmptyFormats;
         }
 
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -168,6 +168,18 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         {
             if (_logger.Level >= AppLogLevel.Debug)
                 _logger.Debug($"AddAsync enter: {DescribeSnapshotDebug(snapshot)}");
+
+            var blockedProcesses = _settingsService.LoadBlockedHistoryProcessNames();
+            if (ClipboardBlockRules.IsSnapshotBlocked(_settingsService, snapshot))
+            {
+                if (_logger.Level >= AppLogLevel.Debug)
+                {
+                    _logger.Debug(
+                        $"AddAsync exit: blocked owner={snapshot.OwnerProcessName} pid={snapshot.OwnerProcessId} class={snapshot.OwnerWindowClass}");
+                }
+
+                return HistoryAddResult.SkippedBlockedProcess;
+            }
 
             ContentHashDetails contentHashDetails = ComputeContentHashDetails(snapshot);
             string contentHash = contentHashDetails.Hash;
@@ -183,7 +195,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                         $"AddAsync exit: head id={_entries[0].Id} headSeq={_entries[0].SequenceNumber} headHash={_entries[0].ContentHash}");
                 }
 
-                return;
+                return HistoryAddResult.SkippedDuplicate;
             }
 
             int lookback = Math.Min(_entries.Count, ContentHashLookback);
@@ -201,12 +213,12 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                             $"AddAsync exit: matched entry id={_entries[i].Id} seq={_entries[i].SequenceNumber} name={_entries[i].Name}");
                     }
 
-                    return;
+                    return HistoryAddResult.SkippedDuplicate;
                 }
             }
 
             if (TrySuppressDuplicateByUnicodeText(snapshot, contentHashDetails))
-                return;
+                return HistoryAddResult.SkippedDuplicate;
 
             ContentType newContentType = DetermineContentType(snapshot);
 
@@ -215,7 +227,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             {
                 if (_logger.Level >= AppLogLevel.Debug)
                     _logger.Debug($"AddAsync exit: content type {newContentType} disabled in settings");
-                return;
+                return HistoryAddResult.SkippedDisabledContentType;
             }
 
             EnsureDirectoriesExist();
@@ -243,7 +255,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                                 case HistorySizeOverflowAnswer.SkipIncoming:
                                     if (_logger.Level >= AppLogLevel.Debug)
                                         _logger.Debug("AddAsync exit: user skipped add (history over size limit)");
-                                    return;
+                                    return HistoryAddResult.SkippedUserOverflowPrompt;
                                 case HistorySizeOverflowAnswer.AllowOverLimitOnce:
                                     _skipSizeEvictionOnce = true;
                                     break;
@@ -289,13 +301,14 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                 _logger.Debug(
                     $"AddAsync added: id={id} seq={snapshot.SequenceNumber} type={newContentType} contentHash={contentHash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)} blobBytes={blobData.LongLength}");
             }
+
+            EntriesChanged?.Invoke(this, EventArgs.Empty);
+            return HistoryAddResult.Added;
         }
         finally
         {
             _gate.Release();
         }
-
-        EntriesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task RemoveAsync(string entryId)
@@ -323,6 +336,40 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         }
 
         EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task RemoveByOwnerProcessAsync(string ownerProcessName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(ownerProcessName);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        bool removedAny = false;
+        try
+        {
+            for (int i = _entries.Count - 1; i >= 0; i--)
+            {
+                if (!string.Equals(_entries[i].OwnerProcess, ownerProcessName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (string.Equals(_clipboardSourceHistoryEntryId, _entries[i].Id, StringComparison.Ordinal))
+                    _clipboardSourceHistoryEntryId = null;
+
+                DeleteBlobQuietly(_entries[i].Id);
+                _entries.RemoveAt(i);
+                removedAny = true;
+            }
+
+            if (removedAny)
+                await WriteIndexAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (removedAny)
+            EntriesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task RenameAsync(string entryId, string newName)
@@ -740,7 +787,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     {
         var sb = new StringBuilder();
         sb.Append(
-            $"seq={snapshot.SequenceNumber} utc={snapshot.Timestamp:O} owner={snapshot.OwnerProcessName} pid={snapshot.OwnerProcessId}");
+            $"seq={snapshot.SequenceNumber} utc={snapshot.Timestamp:O} owner={snapshot.OwnerProcessName} pid={snapshot.OwnerProcessId} hwnd=0x{snapshot.OwnerWindowHandle:X}");
 
         ContentHashDetails contentHashDetails = ComputeContentHashDetails(snapshot);
         sb.Append($" contentHash={contentHashDetails.Hash} hashKind={contentHashDetails.Kind}{FormatHashSourceSuffix(contentHashDetails)}");

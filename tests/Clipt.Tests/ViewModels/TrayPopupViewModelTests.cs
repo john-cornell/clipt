@@ -3,11 +3,36 @@ using Clipt.Models;
 using Clipt.Native;
 using Clipt.Services;
 using Clipt.ViewModels;
+using Moq;
 
 namespace Clipt.Tests.ViewModels;
 
 public class TrayPopupViewModelTests
 {
+    [Fact]
+    public void ApplyTabVisibilityFromSettings_LoadsFromSettingsService()
+    {
+        var settings = new Mock<ISettingsService>();
+        settings.Setup(s => s.LoadShowPluginsTrayTab()).Returns(false);
+        settings.Setup(s => s.LoadShowDebugTrayTab()).Returns(true);
+
+        var vm = new TrayPopupViewModel(settings.Object);
+
+        Assert.False(vm.ShowPluginsTab);
+        Assert.True(vm.ShowDebugTab);
+    }
+
+    [Fact]
+    public void SetTabVisibility_UpdatesProperties()
+    {
+        var vm = new TrayPopupViewModel();
+
+        vm.SetTabVisibility(false, true);
+
+        Assert.False(vm.ShowPluginsTab);
+        Assert.True(vm.ShowDebugTab);
+    }
+
     [Fact]
     public void Update_EmptySnapshot_SetsIsEmpty()
     {

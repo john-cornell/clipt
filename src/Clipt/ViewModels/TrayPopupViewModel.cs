@@ -13,6 +13,20 @@ namespace Clipt.ViewModels;
 
 public sealed partial class TrayPopupViewModel : ObservableObject
 {
+    private readonly ISettingsService? _settingsService;
+
+    public TrayPopupViewModel(ISettingsService? settingsService = null)
+    {
+        _settingsService = settingsService;
+        ApplyTabVisibilityFromSettings();
+    }
+
+    [ObservableProperty]
+    private bool _showPluginsTab;
+
+    [ObservableProperty]
+    private bool _showDebugTab;
+
     [ObservableProperty]
     private string _clipboardSummary = "Clipboard is empty";
 
@@ -64,10 +78,35 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     [ObservableProperty]
     private GroupsTabViewModel? _groupsTab;
 
+    [ObservableProperty]
+    private PluginsTabViewModel? _pluginsTab;
+
+    [ObservableProperty]
+    private TrayDebugTabViewModel? _debugTab;
+
     private string? _trayUnicodeFullText;
     private int _trayUnicodeFullCharCount;
 
     public event EventHandler? ExpandToFullRequested;
+
+    public void ApplyTabVisibilityFromSettings()
+    {
+        if (_settingsService is null)
+        {
+            ShowPluginsTab = true;
+            ShowDebugTab = true;
+            return;
+        }
+
+        ShowPluginsTab = _settingsService.LoadShowPluginsTrayTab();
+        ShowDebugTab = _settingsService.LoadShowDebugTrayTab();
+    }
+
+    public void SetTabVisibility(bool showPlugins, bool showDebug)
+    {
+        ShowPluginsTab = showPlugins;
+        ShowDebugTab = showDebug;
+    }
 
     [RelayCommand]
     private void ExpandToFull()
@@ -149,6 +188,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
             TextPreviewCanAdvanceStep = false;
             TextPreviewCanRetreatStep = false;
             TextPreviewStepControlsVisible = false;
+            PluginsTab?.SetClipboardText(null);
             AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
             RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
             return;
@@ -157,6 +197,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         _trayUnicodeFullText = ClipboardHistoryService.DecodeUtf16Truncated(unicodeFormat.RawData, int.MaxValue);
         _trayUnicodeFullCharCount = _trayUnicodeFullText.Length;
         HasText = _trayUnicodeFullCharCount > 0;
+        PluginsTab?.SetClipboardText(_trayUnicodeFullText);
         TextPreviewStepIndex = 0;
         ApplyTrayTextPreviewSlice();
     }
@@ -297,6 +338,7 @@ public sealed partial class TrayPopupViewModel : ObservableObject
         HasImage = false;
         HasFiles = false;
         IsEmpty = true;
+        PluginsTab?.SetClipboardText(null);
         AdvanceTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
         RetreatTrayTextPreviewStepCommand.NotifyCanExecuteChanged();
     }

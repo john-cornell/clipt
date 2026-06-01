@@ -31,8 +31,20 @@ public interface ISettingsService
     bool LoadClearClipboardWhenClearingHistory();
     void SaveClearClipboardWhenClearingHistory(bool enabled);
 
+    bool LoadShowPluginsTrayTab();
+    void SaveShowPluginsTrayTab(bool show);
+
+    bool LoadShowDebugTrayTab();
+    void SaveShowDebugTrayTab(bool show);
+
     IReadOnlySet<ContentType> LoadDisabledHistoryTypes();
     void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
+
+    IReadOnlySet<string> LoadBlockedHistoryProcessNames();
+    void SaveBlockedHistoryProcessNames(IReadOnlySet<string> processNames);
+
+    IReadOnlySet<string> LoadBlockedHistoryWindowClassPrefixes();
+    void SaveBlockedHistoryWindowClassPrefixes(IReadOnlySet<string> classPrefixes);
 
     bool LoadRunOnStartup();
     /// <returns>False if startup registration could not be written (e.g. no usable .exe path).</returns>
