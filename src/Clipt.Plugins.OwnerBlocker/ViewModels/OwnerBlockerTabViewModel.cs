@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Windows;
+using System.Windows.Threading;
 using Clipt.Plugins;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -50,6 +52,13 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
     public void RecordEvent(CliptPluginClipboardEventArgs args)
     {
         ArgumentNullException.ThrowIfNull(args);
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => RecordEvent(args));
+            return;
+        }
 
         CliptPluginClipboardSnapshot snapshot = args.Snapshot;
         if (BlockedProcessNames.IsBlockable(snapshot.OwnerProcessName))

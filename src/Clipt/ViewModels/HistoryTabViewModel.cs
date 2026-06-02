@@ -609,11 +609,13 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     internal async Task LoadInlineThumbnailsAsync()
     {
-        foreach (var item in DisplayEntries)
-        {
-            if (item.ContentType == ContentType.Image)
-                await LoadThumbnailCoreAsync(item.Id, ThumbnailTarget.Inline).ConfigureAwait(false);
-        }
+        var imageEntryIds = DisplayEntries
+            .Where(item => item.ContentType == ContentType.Image)
+            .Select(item => item.Id)
+            .ToArray();
+
+        foreach (string entryId in imageEntryIds)
+            await LoadThumbnailCoreAsync(entryId, ThumbnailTarget.Inline).ConfigureAwait(false);
     }
 
     internal enum ThumbnailTarget { Tooltip, Inline }

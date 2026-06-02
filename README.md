@@ -12,13 +12,15 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.14.8** | 2026-06-01 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |
+| **1.14.13** | 2026-06-02 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.13/CliptSetup.exe) | Fix collapsed startup/tray crash (Owner Blocker on UI thread); history type label left + owner footer spans full width; tray left-click and taskbar button restore popup/full window |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.14.9 | 2026-06-02 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.9/CliptSetup.exe) | History list: content type label (**Text** / **Image** / **Files**) left-aligned before thumbnail or summary |
+| 1.14.8 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |
 | 1.14.6 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.6/CliptSetup.exe) | Dynamic **Show tabs** menu (Plugins + all plugin tray tabs); per-plugin tab visibility in settings |
 | 1.14.5 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.5/CliptSetup.exe) | Fix ellipsis mojibake; **Plugins** tab last; **Show tabs** in tray and popup menus |
 | 1.14.4 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.4/CliptSetup.exe) | Fix startup hang (DI cycle, tray-first init); always-on startup logs to `%LOCALAPPDATA%\Clipt\clipt.log` |

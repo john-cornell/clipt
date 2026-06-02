@@ -87,10 +87,10 @@ public sealed class TrayIconService : ITrayIconService
             Icon = _emptyIcon,
             Text = "Clipt — Clipboard Inspector",
             Visible = true,
-            ContextMenuStrip = menu,
         };
 
-        _notifyIcon.MouseClick += OnNotifyIconMouseClick;
+        // Do not assign ContextMenuStrip — it blocks left-click open on Windows 10/11.
+        _notifyIcon.MouseUp += OnNotifyIconMouseUp;
     }
 
     public void UpdateIcon(bool hasClipboardData)
@@ -743,10 +743,16 @@ public sealed class TrayIconService : ITrayIconService
         }
     }
 
-    private void OnNotifyIconMouseClick(object? sender, WinForms.MouseEventArgs e)
+    private void OnNotifyIconMouseUp(object? sender, WinForms.MouseEventArgs e)
     {
         if (e.Button == WinForms.MouseButtons.Left)
+        {
             TrayIconClicked?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        if (e.Button == WinForms.MouseButtons.Right && _trayContextMenu is not null)
+            _trayContextMenu.Show(WinForms.Cursor.Position);
     }
 
     private void OnStartModeToggle(object? sender, EventArgs e)
@@ -782,7 +788,7 @@ public sealed class TrayIconService : ITrayIconService
 
         if (_notifyIcon is not null)
         {
-            _notifyIcon.MouseClick -= OnNotifyIconMouseClick;
+            _notifyIcon.MouseUp -= OnNotifyIconMouseUp;
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _notifyIcon = null;

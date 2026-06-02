@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Services;
@@ -30,6 +31,10 @@ public partial class App : Application
     private int _clipboardTrayDispatchOrdinal;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
+    private HwndSource? _mainWindowSource;
+    private bool _mainWindowHooksWired;
+    private bool _taskbarShellRegistered;
+    private bool _restoringPrimaryUi;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -51,7 +56,8 @@ public partial class App : Application
         if (!_ownsSingleInstanceMutex)
         {
             LogInfo("Another Clipt instance is already running; notifying it and exiting.");
-            SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode());
+            if (!SingleInstanceActivation.TryNotifyRunningInstance(new SettingsService().LoadStartupMode()))
+                LogInfo("Could not deliver activation message to the running instance.");
             _singleInstanceMutex?.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
@@ -101,6 +107,7 @@ public partial class App : Application
             {
                 _groupsTabViewModel?.Refresh();
                 PerformInitialTrayRefresh();
+                PrepareTaskbarActivationShell();
 
                 if (startupMode == StartupMode.FullWindow)
                     ShowMainWindow();
@@ -264,9 +271,9 @@ public partial class App : Application
                 _trayPopupViewModel?.Update(snapshot);
 
                 HistoryAddResult addResult = hasData
-                    ? await _historyService!.AddAsync(snapshot).ConfigureAwait(false)
+                    ? await _historyService!.AddAsync(snapshot).ConfigureAwait(true)
                     : HistoryAddResult.SkippedEmptyFormats;
-                _pluginHost?.PublishClipboardEvent(snapshot, addResult);
+                PublishClipboardEventOnUiThread(snapshot, addResult);
             }
             catch (InvalidOperationException)
             {
@@ -297,6 +304,7 @@ public partial class App : Application
         _pluginsTabViewModel?.Refresh();
         RefreshTrayPluginTabs();
         _trayPopupWindow.ShowNearTray();
+        BringTrayPopupToForeground();
     }
 
     private void OnSecondInstanceActivateRequested(object? sender, SecondInstanceActivateEventArgs e)
@@ -321,6 +329,7 @@ public partial class App : Application
         }
 
         ShowTrayPopupWithClipboardSyncAsync();
+        BringTrayPopupToForeground();
     }
 
     private async void ShowTrayPopupWithClipboardSyncAsync()
@@ -337,6 +346,17 @@ public partial class App : Application
         _pluginsTabViewModel?.Refresh();
         RefreshTrayPluginTabs();
         _trayPopupWindow.ShowNearTray();
+        BringTrayPopupToForeground();
+    }
+
+    private void BringTrayPopupToForeground()
+    {
+        if (_trayPopupWindow is null || !_trayPopupWindow.IsVisible)
+            return;
+
+        _trayPopupWindow.Topmost = true;
+        _trayPopupWindow.Activate();
+        _trayPopupWindow.Topmost = true;
     }
 
     private void OnOpenFullRequested(object? sender, EventArgs e) => ShowMainWindow();
@@ -378,13 +398,127 @@ public partial class App : Application
 
     private void ShowMainWindow()
     {
-        _mainWindow ??= _serviceProvider!.GetRequiredService<MainWindow>();
+        EnsureMainWindowCreated();
+        _trayPopupWindow?.Hide();
 
-        _mainWindow.Show();
+        _mainWindow!.Show();
         _mainWindow.Activate();
 
         if (_mainWindow.WindowState == WindowState.Minimized)
             _mainWindow.WindowState = WindowState.Normal;
+    }
+
+    private void EnsureMainWindowCreated()
+    {
+        if (_mainWindow is not null)
+            return;
+
+        _mainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+        Current.MainWindow = _mainWindow;
+        EnsureMainWindowHooksWired();
+    }
+
+    private void EnsureMainWindowHooksWired()
+    {
+        if (_mainWindow is null || _mainWindowHooksWired)
+            return;
+
+        _mainWindowHooksWired = true;
+        _mainWindow.Activated += OnMainWindowActivated;
+        _mainWindow.StateChanged += OnMainWindowStateChanged;
+        _mainWindow.SourceInitialized += OnMainWindowSourceInitialized;
+    }
+
+    private void PrepareTaskbarActivationShell()
+    {
+        EnsureMainWindowCreated();
+        if (_mainWindow is null || _taskbarShellRegistered)
+            return;
+
+        _taskbarShellRegistered = true;
+        Current.MainWindow = _mainWindow;
+
+        if (_mainWindow.IsVisible)
+            return;
+
+        _mainWindow.ShowInTaskbar = true;
+        _mainWindow.ShowActivated = false;
+        _mainWindow.WindowState = WindowState.Minimized;
+        _mainWindow.Show();
+        _mainWindow.Hide();
+    }
+
+    private void OnMainWindowSourceInitialized(object? sender, EventArgs e)
+    {
+        if (_mainWindow is null)
+            return;
+
+        _mainWindowSource?.RemoveHook(MainWindowWndProc);
+        _mainWindowSource = HwndSource.FromHwnd(new WindowInteropHelper(_mainWindow).Handle);
+        _mainWindowSource?.AddHook(MainWindowWndProc);
+    }
+
+    private IntPtr MainWindowWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (_mainWindow is null || _mainWindow.IsVisible)
+            return IntPtr.Zero;
+
+        const int WM_ACTIVATE = 0x0006;
+        const int WM_SYSCOMMAND = 0x0112;
+        const int SC_RESTORE = 0xF120;
+
+        if (msg == WM_ACTIVATE)
+        {
+            int active = (int)(wParam.ToInt64() & 0xFFFF);
+            if (active != 0)
+                BeginRestorePrimaryUiFromTaskbar();
+        }
+        else if (msg == WM_SYSCOMMAND && ((int)wParam.ToInt64() & 0xFFF0) == SC_RESTORE)
+        {
+            BeginRestorePrimaryUiFromTaskbar();
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private void OnMainWindowActivated(object? sender, EventArgs e) =>
+        RequestRestorePrimaryUiFromTaskbar();
+
+    private void OnMainWindowStateChanged(object? sender, EventArgs e) =>
+        RequestRestorePrimaryUiFromTaskbar();
+
+    private void RequestRestorePrimaryUiFromTaskbar()
+    {
+        if (_mainWindow is null || _mainWindow.IsVisible)
+            return;
+
+        if (_mainWindow.WindowState == WindowState.Minimized)
+            return;
+
+        BeginRestorePrimaryUiFromTaskbar();
+    }
+
+    private void BeginRestorePrimaryUiFromTaskbar() =>
+        Dispatcher.BeginInvoke(RestorePrimaryUiFromTaskbar, DispatcherPriority.Input);
+
+    private void RestorePrimaryUiFromTaskbar()
+    {
+        if (_restoringPrimaryUi || _settingsService is null)
+            return;
+
+        try
+        {
+            _restoringPrimaryUi = true;
+
+            if (_settingsService.LoadStartupMode() == StartupMode.FullWindow)
+                ShowMainWindow();
+            else
+                ShowTrayPopupWithClipboardSyncAsync();
+        }
+        finally
+        {
+            _restoringPrimaryUi = false;
+        }
     }
 
     private void RefreshTrayPluginTabs()
@@ -402,6 +536,19 @@ public partial class App : Application
         {
             LogError("Failed to refresh plugin tray tabs.", ex);
         }
+    }
+
+    private void PublishClipboardEventOnUiThread(ClipboardSnapshot snapshot, HistoryAddResult addResult)
+    {
+        if (_pluginHost is null)
+            return;
+
+        void Publish() => _pluginHost.PublishClipboardEvent(snapshot, addResult);
+
+        if (Dispatcher.CheckAccess())
+            Publish();
+        else
+            Dispatcher.Invoke(Publish);
     }
 
     private ClipboardSnapshot? RefreshTrayPopup()
@@ -426,8 +573,8 @@ public partial class App : Application
 
         try
         {
-            HistoryAddResult addResult = await _historyService.AddAsync(snapshot).ConfigureAwait(false);
-            _pluginHost?.PublishClipboardEvent(snapshot, addResult);
+            HistoryAddResult addResult = await _historyService.AddAsync(snapshot).ConfigureAwait(true);
+            PublishClipboardEventOnUiThread(snapshot, addResult);
         }
         catch (Exception ex) when (
             ex is ObjectDisposedException or IOException or UnauthorizedAccessException)
@@ -531,6 +678,19 @@ public partial class App : Application
                 _singleInstanceMutex.ReleaseMutex();
             _singleInstanceMutex.Dispose();
             _singleInstanceMutex = null;
+        }
+
+        if (_mainWindow is not null)
+        {
+            _mainWindow.Activated -= OnMainWindowActivated;
+            _mainWindow.StateChanged -= OnMainWindowStateChanged;
+            _mainWindow.SourceInitialized -= OnMainWindowSourceInitialized;
+        }
+
+        if (_mainWindowSource is not null)
+        {
+            _mainWindowSource.RemoveHook(MainWindowWndProc);
+            _mainWindowSource = null;
         }
 
         if (_trayIconService is not null)
