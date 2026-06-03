@@ -42,7 +42,9 @@ public static class SingleInstanceActivation
                 mutex = null;
             }
 
-            return ownsMutex;
+            // Return true whether or not we own the mutex — the caller uses ownsMutex
+            // to tell the difference. false is reserved for hard OS errors (exceptions below).
+            return true;
         }
         catch (UnauthorizedAccessException)
         {

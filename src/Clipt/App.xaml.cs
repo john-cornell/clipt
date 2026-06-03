@@ -48,6 +48,9 @@ public partial class App : Application
 
         if (!SingleInstanceActivation.TryAcquireMutex(out _singleInstanceMutex, out _ownsSingleInstanceMutex))
         {
+            // TryAcquireMutex returns false only on hard OS errors (UnauthorizedAccess,
+            // WaitHandleCannotBeOpened). "Another instance holds it" returns true with
+            // ownsMutex=false, handled in the block below.
             LogInfo("Could not open single-instance mutex; exiting.");
             Shutdown();
             return;
@@ -292,6 +295,9 @@ public partial class App : Application
             return;
         }
 
+        // WasRecentlyHidden debounce: clicking the tray icon while the popup is visible
+        // deactivates it (OnDeactivated fires, hiding it) BEFORE this click handler runs.
+        // Without the debounce, we'd immediately re-open the popup the user tried to close.
         if (_trayPopupWindow.WasRecentlyHidden)
             return;
 
@@ -328,8 +334,11 @@ public partial class App : Application
             return;
         }
 
+        // BringTrayPopupToForeground() is intentionally NOT called here —
+        // ShowTrayPopupWithClipboardSyncAsync is async and returns before the popup
+        // is visible, so BringTrayPopupToForeground would no-op (IsVisible=false).
+        // The method calls it internally after ShowNearTray.
         ShowTrayPopupWithClipboardSyncAsync();
-        BringTrayPopupToForeground();
     }
 
     private async void ShowTrayPopupWithClipboardSyncAsync()
