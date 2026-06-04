@@ -12,3 +12,5 @@ installer/code-signing-password.txt
 repomix*
 *.lnk
 UpgradeLog.htm
+.claude/
+.codeidx/
