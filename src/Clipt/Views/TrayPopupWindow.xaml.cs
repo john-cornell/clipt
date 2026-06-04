@@ -223,6 +223,16 @@ public partial class TrayPopupWindow : Window
         Hide();
     }
 
+    private void PluginActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.ContextMenu is not null)
+        {
+            fe.ContextMenu.PlacementTarget = fe;
+            fe.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            fe.ContextMenu.IsOpen = true;
+        }
+    }
+
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount == 1)

@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Plugins;
 using Clipt.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -77,6 +78,8 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     public ObservableCollection<HistoryEntryDisplayItem> DisplayEntries { get; } = [];
 
+    public ObservableCollection<PluginHistoryActionDisplayItem> PluginHistoryActions { get; } = [];
+
     public event EventHandler? ClipboardRestored;
     public event Action<BitmapSource>? ImagePreviewRequested;
 
@@ -101,6 +104,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
         _historyService.EntriesChanged += OnEntriesChanged;
         _pluginHost.HistoryOwnerBlockUiChanged += (_, _) => Refresh();
+        _groupService.GroupsChanged += OnGroupsChangedForPluginActions;
 
         AlsoClearClipboardOnClearHistory = _settingsService.LoadClearClipboardWhenClearingHistory();
     }
@@ -325,6 +329,68 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         _trayIconService.SetClearClipboardWhenClearingHistoryChecked(value);
     }
 
+    private void OnGroupsChangedForPluginActions(object? sender, EventArgs e) =>
+        Application.Current?.Dispatcher.BeginInvoke(RefreshPluginHistoryActions);
+
+    private void RefreshPluginHistoryActions()
+    {
+        PluginHistoryActions.Clear();
+
+        foreach (ICliptHistoryActionPlugin plugin in _pluginHost.HistoryActionPlugins)
+        {
+            ICliptHost hostScope = _pluginHost.CreateHostScope(plugin.Id);
+            IReadOnlyList<CliptPluginHistorySubAction> subActions = plugin.GetSubActions(hostScope);
+            if (subActions.Count == 0)
+                continue;
+
+            var subActionItems = new ObservableCollection<PluginHistorySubActionDisplayItem>();
+            foreach (CliptPluginHistorySubAction sub in subActions)
+            {
+                string capturedId = sub.Id;
+                subActionItems.Add(new PluginHistorySubActionDisplayItem
+                {
+                    Label = sub.Label,
+                    Command = new AsyncRelayCommand(
+                        () => ExecutePluginHistoryActionAsync(plugin, hostScope, capturedId)),
+                });
+            }
+
+            PluginHistoryActions.Add(new PluginHistoryActionDisplayItem
+            {
+                Label = plugin.SelectionButtonLabel,
+                SubActions = subActionItems,
+            });
+        }
+    }
+
+    private async Task ExecutePluginHistoryActionAsync(
+        ICliptHistoryActionPlugin plugin,
+        ICliptHost hostScope,
+        string subActionId)
+    {
+        List<string> ids = DisplayEntries.Where(e => e.IsSelected).Select(e => e.Id).ToList();
+        if (ids.Count == 0)
+            return;
+
+        await plugin.ExecuteAsync(subActionId, hostScope, ids, CancellationToken.None).ConfigureAwait(false);
+
+        void Reset()
+        {
+            SelectionFlow = HistorySelectionFlow.None;
+            IsNamingGroup = false;
+            NewGroupName = string.Empty;
+            foreach (HistoryEntryDisplayItem e in DisplayEntries)
+                e.IsSelected = false;
+            SyncSelectAllHeaderFromItems();
+        }
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Reset();
+        else
+            dispatcher.Invoke(Reset);
+    }
+
     public void Refresh()
     {
         foreach (HistoryEntryDisplayItem old in DisplayEntries)
@@ -419,6 +485,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSelectionMode));
         OnPropertyChanged(nameof(ShowSaveSelectedInChrome));
         OnPropertyChanged(nameof(ShowDeleteSelectedInChrome));
+        RefreshPluginHistoryActions();
         _ = LoadInlineThumbnailsSafeAsync();
     }
 
@@ -861,4 +928,16 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
         ExpandHistorySummaryCommand.NotifyCanExecuteChanged();
         RetreatHistorySummaryCommand.NotifyCanExecuteChanged();
     }
+}
+
+public sealed class PluginHistoryActionDisplayItem
+{
+    public required string Label { get; init; }
+    public required ObservableCollection<PluginHistorySubActionDisplayItem> SubActions { get; init; }
+}
+
+public sealed class PluginHistorySubActionDisplayItem
+{
+    public required string Label { get; init; }
+    public required IAsyncRelayCommand Command { get; init; }
 }

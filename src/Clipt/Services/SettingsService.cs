@@ -20,6 +20,7 @@ public sealed class SettingsService : ISettingsService
     private const string ShowBlockerTrayTabValueName = "ShowBlockerTrayTab";
     private const string HiddenPluginTrayTabIdsValueName = "HiddenPluginTrayTabIds";
     private const string LegacyShowDebugTrayTabValueName = "ShowDebugTrayTab";
+    private const string DisabledPluginsValueName = "DisabledPlugins";
     private const string DisabledHistoryTypesValueName = "DisabledHistoryTypes";
     private const string RunRegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupApprovedRunKeyPath =
@@ -346,6 +347,56 @@ public sealed class SettingsService : ISettingsService
 
         if (string.Equals(pluginId, PluginKnownIds.OwnerBlocker, StringComparison.OrdinalIgnoreCase))
             SaveBoolSetting(ShowBlockerTrayTabValueName, visible);
+    }
+
+    public bool LoadPluginEnabled(string pluginId)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return true;
+        return !LoadDisabledPluginIdsSet().Contains(pluginId);
+    }
+
+    public void SavePluginEnabled(string pluginId, bool enabled)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return;
+        var disabled = new HashSet<string>(LoadDisabledPluginIdsSet(), StringComparer.OrdinalIgnoreCase);
+        if (enabled)
+            disabled.Remove(pluginId);
+        else
+            disabled.Add(pluginId);
+        SaveDisabledPluginIdsSet(disabled);
+    }
+
+    private HashSet<string> LoadDisabledPluginIdsSet()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(DisabledPluginsValueName) is string raw && !string.IsNullOrWhiteSpace(raw))
+                return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SaveDisabledPluginIdsSet(IReadOnlySet<string> disabled)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            if (disabled.Count == 0)
+                key.DeleteValue(DisabledPluginsValueName, throwOnMissingValue: false);
+            else
+                key.SetValue(
+                    DisabledPluginsValueName,
+                    string.Join(",", disabled.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)),
+                    RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private HashSet<string> LoadHiddenPluginTrayTabIds()

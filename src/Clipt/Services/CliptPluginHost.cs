@@ -11,11 +11,16 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
     private readonly IPluginRegistry _registry;
     private readonly Lazy<IClipboardHistoryService> _historyService;
+    private readonly Lazy<IClipboardGroupService> _groupService;
 
-    public CliptPluginHost(IPluginRegistry registry, Lazy<IClipboardHistoryService> historyService)
+    public CliptPluginHost(
+        IPluginRegistry registry,
+        Lazy<IClipboardHistoryService> historyService,
+        Lazy<IClipboardGroupService> groupService)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
+        _groupService = groupService ?? throw new ArgumentNullException(nameof(groupService));
     }
 
     public event EventHandler<CliptPluginClipboardEventArgs>? ClipboardProcessed;
@@ -26,6 +31,9 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
     public bool ShowHistoryOwnerBlockButton =>
         _registry.OwnerBlockCoordinator?.ShowHistoryBlockButton ?? false;
+
+    public IReadOnlyList<ICliptHistoryActionPlugin> HistoryActionPlugins =>
+        _registry.HistoryActionPlugins;
 
     public CliptPluginFilterResult EvaluateFilters(ClipboardSnapshot snapshot)
     {
@@ -166,6 +174,14 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
         public Task RemoveHistoryByOwnerProcessAsync(string processName) =>
             _parent._historyService.Value.RemoveByOwnerProcessAsync(processName);
+
+        public IReadOnlyList<CliptPluginSavedGroup> GetSavedGroups() =>
+            _parent._groupService.Value.Groups
+                .Select(static g => new CliptPluginSavedGroup { Id = g.Id, Name = g.Name })
+                .ToArray();
+
+        public Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds) =>
+            _parent._groupService.Value.AddEntriesToGroupAsync(groupId, historyEntryIds);
 
         public Task BlockOwnerAsync(string? processName, string? windowClass) =>
             _parent.BlockOwnerAsync(processName, windowClass);

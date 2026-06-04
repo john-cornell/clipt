@@ -9,30 +9,61 @@ namespace Clipt.Services;
 public sealed class PluginRegistry : IPluginRegistry
 {
     private readonly IAppLogger _logger;
+    private readonly ISettingsService? _settingsService;
     private readonly List<PluginRegistrationInfo> _registrations = [];
     private readonly List<PluginLoadFailureInfo> _loadFailures = [];
     private readonly HashSet<string> _registeredIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _disabledPluginIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ICliptPluginLifetime> _lifetimePlugins = [];
     private readonly List<ICliptClipboardFilterPlugin> _filterPlugins = [];
     private readonly List<ICliptTrayTabPlugin> _trayTabPlugins = [];
+    private readonly List<ICliptHistoryActionPlugin> _historyActionPlugins = [];
     private ICliptPluginHost? _pluginHost;
     private ICliptOwnerBlockCoordinator? _ownerBlockCoordinator;
+    private string? _ownerBlockCoordinatorId;
     private bool _initialized;
 
-    public PluginRegistry(IAppLogger logger)
+    public PluginRegistry(IAppLogger logger, ISettingsService? settingsService = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _settingsService = settingsService;
     }
 
     public IReadOnlyList<PluginRegistrationInfo> Registrations => _registrations;
 
     public IReadOnlyList<PluginLoadFailureInfo> LoadFailures => _loadFailures;
 
-    public IReadOnlyList<ICliptClipboardFilterPlugin> FilterPlugins => _filterPlugins;
+    public IReadOnlyList<ICliptClipboardFilterPlugin> FilterPlugins =>
+        _disabledPluginIds.Count == 0 ? _filterPlugins
+        : _filterPlugins.Where(p => !_disabledPluginIds.Contains(p.Id)).ToList();
 
-    public IReadOnlyList<ICliptTrayTabPlugin> TrayTabPlugins => _trayTabPlugins;
+    public IReadOnlyList<ICliptTrayTabPlugin> TrayTabPlugins =>
+        _disabledPluginIds.Count == 0 ? _trayTabPlugins
+        : _trayTabPlugins.Where(p => !_disabledPluginIds.Contains(p.Id)).ToList();
 
-    public ICliptOwnerBlockCoordinator? OwnerBlockCoordinator => _ownerBlockCoordinator;
+    public IReadOnlyList<ICliptHistoryActionPlugin> HistoryActionPlugins =>
+        _disabledPluginIds.Count == 0 ? _historyActionPlugins
+        : _historyActionPlugins.Where(p => !_disabledPluginIds.Contains(p.Id)).ToList();
+
+    public ICliptOwnerBlockCoordinator? OwnerBlockCoordinator =>
+        _ownerBlockCoordinator is not null
+        && (_ownerBlockCoordinatorId is null || !_disabledPluginIds.Contains(_ownerBlockCoordinatorId))
+            ? _ownerBlockCoordinator
+            : null;
+
+    public bool IsPluginEnabled(string pluginId) => !_disabledPluginIds.Contains(pluginId);
+
+    public void SetPluginEnabled(string pluginId, bool enabled)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return;
+        _settingsService?.SavePluginEnabled(pluginId, enabled);
+        if (enabled)
+            _disabledPluginIds.Remove(pluginId);
+        else
+            _disabledPluginIds.Add(pluginId);
+        RescanCompleted?.Invoke(this, EventArgs.Empty);
+    }
 
     public event EventHandler? RescanCompleted;
 
@@ -67,6 +98,17 @@ public sealed class PluginRegistry : IPluginRegistry
         }
 
         _trayTabPlugins.Sort(static (a, b) => a.TabOrder.CompareTo(b.TabOrder));
+
+        _disabledPluginIds.Clear();
+        if (_settingsService is not null)
+        {
+            foreach (PluginRegistrationInfo r in _registrations)
+            {
+                if (!_settingsService.LoadPluginEnabled(r.Plugin.Id))
+                    _disabledPluginIds.Add(r.Plugin.Id);
+            }
+        }
+
         RescanCompleted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -74,7 +116,9 @@ public sealed class PluginRegistry : IPluginRegistry
     {
         _filterPlugins.Clear();
         _trayTabPlugins.Clear();
+        _historyActionPlugins.Clear();
         _ownerBlockCoordinator = null;
+        _ownerBlockCoordinatorId = null;
     }
 
     private void ShutdownLifetimePlugins()
@@ -207,8 +251,14 @@ public sealed class PluginRegistry : IPluginRegistry
         if (plugin is ICliptTrayTabPlugin trayTab)
             _trayTabPlugins.Remove(trayTab);
 
+        if (plugin is ICliptHistoryActionPlugin historyAction)
+            _historyActionPlugins.Remove(historyAction);
+
         if (plugin is ICliptOwnerBlockCoordinator coordinator && ReferenceEquals(_ownerBlockCoordinator, coordinator))
+        {
             _ownerBlockCoordinator = null;
+            _ownerBlockCoordinatorId = null;
+        }
     }
 
     private void IndexCapabilities(ICliptPlugin plugin)
@@ -218,6 +268,9 @@ public sealed class PluginRegistry : IPluginRegistry
 
         if (plugin is ICliptTrayTabPlugin trayTab)
             _trayTabPlugins.Add(trayTab);
+
+        if (plugin is ICliptHistoryActionPlugin historyAction)
+            _historyActionPlugins.Add(historyAction);
 
         if (plugin is ICliptOwnerBlockCoordinator coordinator)
         {
@@ -229,6 +282,7 @@ public sealed class PluginRegistry : IPluginRegistry
             else
             {
                 _ownerBlockCoordinator = coordinator;
+                _ownerBlockCoordinatorId = plugin.Id;
             }
         }
     }

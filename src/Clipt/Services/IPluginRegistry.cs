@@ -13,7 +13,12 @@ public interface IPluginRegistry
 
     IReadOnlyList<ICliptTrayTabPlugin> TrayTabPlugins { get; }
 
+    IReadOnlyList<ICliptHistoryActionPlugin> HistoryActionPlugins { get; }
+
     ICliptOwnerBlockCoordinator? OwnerBlockCoordinator { get; }
+
+    bool IsPluginEnabled(string pluginId);
+    void SetPluginEnabled(string pluginId, bool enabled);
 
     event EventHandler? RescanCompleted;
 

@@ -279,24 +279,31 @@
                                                         <Run Text="{Binding Registration.Source, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </StackPanel>
-                                                <Button Grid.Column="1"
-                                                        Content="Run"
-                                                        Command="{Binding RunCommand}"
-                                                        FontSize="10"
-                                                        Padding="10,3"
-                                                        VerticalAlignment="Top"
-                                                        Margin="8,0,0,0">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsActionPlugin}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                </Button>
+                                                <StackPanel Grid.Column="1" Orientation="Vertical"
+                                                            VerticalAlignment="Top" Margin="8,0,0,0">
+                                                    <CheckBox Content="Enabled"
+                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                              FontSize="10"
+                                                              HorizontalAlignment="Right"
+                                                              Foreground="{DynamicResource ForegroundBrush}"
+                                                              Margin="0,0,0,4" />
+                                                    <Button Content="Run"
+                                                            Command="{Binding RunCommand}"
+                                                            FontSize="10"
+                                                            Padding="10,3"
+                                                            HorizontalAlignment="Right">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActionPlugin}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </StackPanel>
                                             </Grid>
 
                                             <ItemsControl ItemsSource="{Binding Options}" Margin="0,6,0,0">
@@ -375,10 +382,10 @@
                                                 Command="{Binding SetTrayTextPreviewStepCommand}" CommandParameter="2" />
                                         <Button Content="Full" Margin="0,0,4,0" Padding="6,2" FontSize="10"
                                                 Command="{Binding SetTrayTextPreviewStepCommand}" CommandParameter="3" />
-                                        <Button Content="â—€" Margin="6,0,4,0" Padding="6,2" FontSize="10"
+                                        <Button Content="◀" Margin="6,0,4,0" Padding="6,2" FontSize="10"
                                                 ToolTip="Less text"
                                                 Command="{Binding RetreatTrayTextPreviewStepCommand}" />
-                                        <Button Content="â–¶" Margin="0,0,0,0" Padding="6,2" FontSize="10"
+                                        <Button Content="▶" Margin="0,0,0,0" Padding="6,2" FontSize="10"
                                                 ToolTip="More text"
                                                 Command="{Binding AdvanceTrayTextPreviewStepCommand}" />
                                     </WrapPanel>
@@ -456,6 +463,31 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
+                                    <ItemsControl ItemsSource="{Binding PluginHistoryActions}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding Label}"
+                                                        FontSize="11" Padding="8,2" Margin="0,0,6,0"
+                                                        Click="PluginActionButton_Click">
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu ItemsSource="{Binding PlacementTarget.DataContext.SubActions, RelativeSource={RelativeSource Self}}">
+                                                            <ContextMenu.ItemContainerStyle>
+                                                                <Style TargetType="MenuItem">
+                                                                    <Setter Property="Header" Value="{Binding Label}" />
+                                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                                </Style>
+                                                            </ContextMenu.ItemContainerStyle>
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <Button Content="Delete selected"
                                             Command="{Binding DeleteSelectedCommand}"
                                             FontSize="11" Padding="8,2" Margin="0,0,6,0">

@@ -40,6 +40,9 @@ public interface ISettingsService
     bool IsPluginTrayTabVisible(string pluginId);
     void SetPluginTrayTabVisible(string pluginId, bool visible);
 
+    bool LoadPluginEnabled(string pluginId);
+    void SavePluginEnabled(string pluginId, bool enabled);
+
     IReadOnlySet<ContentType> LoadDisabledHistoryTypes();
     void SaveDisabledHistoryTypes(IReadOnlySet<ContentType> disabled);
 

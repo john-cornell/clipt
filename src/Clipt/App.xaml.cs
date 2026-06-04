@@ -646,7 +646,8 @@ public partial class App : Application
         services.AddSingleton<IPluginRegistry>(sp => sp.GetRequiredService<PluginRegistry>());
         services.AddSingleton<CliptPluginHost>(sp => new CliptPluginHost(
             sp.GetRequiredService<PluginRegistry>(),
-            new Lazy<IClipboardHistoryService>(() => sp.GetRequiredService<IClipboardHistoryService>())));
+            new Lazy<IClipboardHistoryService>(() => sp.GetRequiredService<IClipboardHistoryService>()),
+            new Lazy<IClipboardGroupService>(() => sp.GetRequiredService<IClipboardGroupService>())));
         services.AddSingleton<ICliptPluginHost>(sp => sp.GetRequiredService<CliptPluginHost>());
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();

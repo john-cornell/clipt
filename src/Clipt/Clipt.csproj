@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.14.14</Version>
+    <Version>1.14.15</Version>
     <ApplicationIcon>Icons\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -36,6 +36,7 @@
     <ProjectReference Include="..\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
     <ProjectReference Include="..\Clipt.Plugins.WhereIn\Clipt.Plugins.WhereIn.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Clipt.Plugins.OwnerBlocker\Clipt.Plugins.OwnerBlocker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Clipt.Plugins.SaveToGroup\Clipt.Plugins.SaveToGroup.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

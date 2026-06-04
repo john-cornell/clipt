@@ -9,6 +9,8 @@ public interface ICliptPluginHost
 
     bool ShowHistoryOwnerBlockButton { get; }
 
+    IReadOnlyList<ICliptHistoryActionPlugin> HistoryActionPlugins { get; }
+
     event EventHandler? HistoryOwnerBlockUiChanged;
 
     CliptPluginFilterResult EvaluateFilters(ClipboardSnapshot snapshot);

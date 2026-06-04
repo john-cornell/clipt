@@ -71,10 +71,13 @@ public sealed partial class PluginsTabViewModel : ObservableObject
 
         foreach (PluginRegistrationInfo registration in _registry.Registrations)
         {
+            bool isEnabled = _registry.IsPluginEnabled(registration.Plugin.Id);
+            Action<bool> toggleEnabled = enabled => _registry.SetPluginEnabled(registration.Plugin.Id, enabled);
+
             if (registration.Plugin is ICliptTrayActionPlugin actionPlugin)
-                DisplayPlugins.Add(CreateActionItem(actionPlugin, registration));
+                DisplayPlugins.Add(CreateActionItem(actionPlugin, registration, isEnabled, toggleEnabled));
             else
-                DisplayPlugins.Add(PluginDisplayItem.ForInfo(registration));
+                DisplayPlugins.Add(PluginDisplayItem.ForInfo(registration, isEnabled, toggleEnabled));
         }
 
         IsEmpty = DisplayPlugins.Count == 0 && LoadFailures.Count == 0;
@@ -91,7 +94,7 @@ public sealed partial class PluginsTabViewModel : ObservableObject
         };
     }
 
-    private PluginDisplayItem CreateActionItem(ICliptTrayActionPlugin plugin, PluginRegistrationInfo registration)
+    private PluginDisplayItem CreateActionItem(ICliptTrayActionPlugin plugin, PluginRegistrationInfo registration, bool isEnabled, Action<bool> toggleEnabled)
     {
         var optionValues = plugin.Options.ToDictionary(o => o.Key, o => o.DefaultValue, StringComparer.Ordinal);
         var item = new PluginDisplayItem(
@@ -99,7 +102,9 @@ public sealed partial class PluginsTabViewModel : ObservableObject
             registration,
             optionValues,
             BuildContext(optionValues),
-            RunPluginAsync);
+            RunPluginAsync,
+            isEnabled,
+            toggleEnabled);
 
         var context = BuildContext(optionValues);
         item.SetLastContext(context);
@@ -162,33 +167,40 @@ public sealed partial class PluginsTabViewModel : ObservableObject
 public sealed partial class PluginDisplayItem : ObservableObject
 {
     private readonly Func<PluginDisplayItem, Task> _runAsync;
+    private readonly Action<bool>? _toggleEnabled;
 
     public PluginDisplayItem(
         ICliptPlugin plugin,
         PluginRegistrationInfo registration,
         Dictionary<string, bool> optionValues,
         CliptPluginContext initialContext,
-        Func<PluginDisplayItem, Task> runAsync)
+        Func<PluginDisplayItem, Task> runAsync,
+        bool isEnabled,
+        Action<bool>? toggleEnabled)
     {
         Plugin = plugin;
         Registration = registration;
         OptionValues = optionValues;
         _runAsync = runAsync;
+        _isEnabled = isEnabled;
+        _toggleEnabled = toggleEnabled;
         IsActionPlugin = plugin is ICliptTrayActionPlugin;
         Options = plugin is ICliptTrayActionPlugin action
             ? action.Options.Select(o => new PluginOptionDisplayItem(o, optionValues, OnOptionChanged)).ToList()
             : [];
 
         if (plugin is ICliptTrayActionPlugin trayPlugin)
-            CanRun = trayPlugin.CanExecute(initialContext);
+            CanRun = isEnabled && trayPlugin.CanExecute(initialContext);
     }
 
-    private PluginDisplayItem(PluginRegistrationInfo registration)
+    private PluginDisplayItem(PluginRegistrationInfo registration, bool isEnabled, Action<bool>? toggleEnabled)
     {
         Plugin = registration.Plugin;
         Registration = registration;
         OptionValues = new Dictionary<string, bool>(StringComparer.Ordinal);
         _runAsync = _ => Task.CompletedTask;
+        _isEnabled = isEnabled;
+        _toggleEnabled = toggleEnabled;
         IsActionPlugin = false;
         Options = [];
         CanRun = false;
@@ -205,6 +217,9 @@ public sealed partial class PluginDisplayItem : ObservableObject
     public Dictionary<string, bool> OptionValues { get; }
 
     [ObservableProperty]
+    private bool _isEnabled;
+
+    [ObservableProperty]
     private bool _canRun;
 
     [ObservableProperty]
@@ -213,13 +228,20 @@ public sealed partial class PluginDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _lastMessageIsError;
 
-    public static PluginDisplayItem ForInfo(PluginRegistrationInfo registration) =>
-        new(registration);
+    public static PluginDisplayItem ForInfo(PluginRegistrationInfo registration, bool isEnabled, Action<bool>? toggleEnabled) =>
+        new(registration, isEnabled, toggleEnabled);
 
     public void NotifyClipboardChanged(CliptPluginContext context)
     {
         SetLastContext(context);
         UpdateCanRun(context);
+    }
+
+    partial void OnIsEnabledChanged(bool value)
+    {
+        _toggleEnabled?.Invoke(value);
+        if (_lastContext is not null)
+            UpdateCanRun(_lastContext);
     }
 
     partial void OnCanRunChanged(bool value) => RunCommand.NotifyCanExecuteChanged();
@@ -251,7 +273,7 @@ public sealed partial class PluginDisplayItem : ObservableObject
     internal void UpdateCanRun(CliptPluginContext context)
     {
         if (Plugin is ICliptTrayActionPlugin actionPlugin)
-            CanRun = actionPlugin.CanExecute(context);
+            CanRun = IsEnabled && actionPlugin.CanExecute(context);
         RunCommand.NotifyCanExecuteChanged();
     }
 }

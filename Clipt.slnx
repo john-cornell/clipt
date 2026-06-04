@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Clipt/Clipt.csproj" />
+    <Project Path="src/Clipt.Plugins.Abstractions/Clipt.Plugins.Abstractions.csproj" />
+    <Project Path="src/Clipt.Plugins.SaveToGroup/Clipt.Plugins.SaveToGroup.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Clipt.Tests/Clipt.Tests.csproj" />

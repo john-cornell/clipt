@@ -222,6 +222,72 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         GroupsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public async Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> entryIds)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentNullException.ThrowIfNull(entryIds);
+
+        var ordered = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string id in entryIds)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !seen.Add(id))
+                continue;
+            ordered.Add(id);
+        }
+
+        if (ordered.Count == 0)
+        {
+            LogWarn("AddEntriesToGroupAsync: no valid entry IDs provided");
+            return;
+        }
+
+        var newArchived = await BuildArchivedEntriesAsync(ordered).ConfigureAwait(false);
+        if (newArchived.Count == 0)
+        {
+            LogWarn($"AddEntriesToGroupAsync: could not resolve entries for group '{groupId}'");
+            return;
+        }
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int idx = _groups.FindIndex(g => g.Id == groupId);
+            if (idx < 0)
+            {
+                LogWarn($"AddEntriesToGroupAsync: group '{groupId}' not found");
+                return;
+            }
+
+            ClipboardGroup group = _groups[idx];
+            await WriteArchivedBlobsAsync(groupId, newArchived).ConfigureAwait(false);
+
+            _groups[idx] = new ClipboardGroup
+            {
+                Id = group.Id,
+                Name = group.Name,
+                CreatedUtc = group.CreatedUtc,
+                EntryIds = [..group.EntryIds, ..newArchived.Select(static x => x.Id)],
+            };
+
+            GroupsFileDto? snapshot = await ReadGroupsFileSnapshotAsync(CancellationToken.None).ConfigureAwait(false);
+            List<ArchivedGroupEntryDto> existing = snapshot?.Groups?.FirstOrDefault(g => g.Id == groupId)?.ArchivedEntries ?? [];
+            List<ArchivedGroupEntryDto> combined = [..existing, ..newArchived];
+
+            await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>
+            {
+                [groupId] = combined,
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        LogDebug($"AddEntriesToGroupAsync: added {newArchived.Count} entry(ies) to group '{groupId}'");
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task<GroupPackageOperationResult> ExportGroupToPackageAsync(
         string groupId,
         string packageFilePath,

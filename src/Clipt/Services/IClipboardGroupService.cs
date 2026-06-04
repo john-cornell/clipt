@@ -25,5 +25,7 @@ public interface IClipboardGroupService
         string packageFilePath,
         CancellationToken cancellationToken = default);
 
+    Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> entryIds);
+
     event EventHandler? GroupsChanged;
 }

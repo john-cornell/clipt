@@ -226,6 +226,11 @@ public class OwnerBlockerPluginTests
             HistoryOwnerBlockUiChanged?.Invoke(this, EventArgs.Empty);
 
         public event EventHandler? HistoryOwnerBlockUiChanged;
+
+        public IReadOnlyList<CliptPluginSavedGroup> GetSavedGroups() => [];
+
+        public Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds) =>
+            Task.CompletedTask;
     }
 }
 

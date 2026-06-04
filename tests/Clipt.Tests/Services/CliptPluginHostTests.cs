@@ -192,7 +192,13 @@ public class CliptPluginHostTests
 
         public IReadOnlyList<ICliptTrayTabPlugin> TrayTabPlugins => [];
 
+        public IReadOnlyList<ICliptHistoryActionPlugin> HistoryActionPlugins => [];
+
         public ICliptOwnerBlockCoordinator? OwnerBlockCoordinator => Coordinator;
+
+        public bool IsPluginEnabled(string pluginId) => true;
+
+        public void SetPluginEnabled(string pluginId, bool enabled) { }
 
         public event EventHandler? RescanCompleted;
 

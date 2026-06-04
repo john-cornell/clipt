@@ -19,4 +19,8 @@ public interface ICliptHost
     IReadOnlySet<string> GetBlockedWindowClassPrefixes();
 
     void NotifyHistoryOwnerBlockUiChanged();
+
+    IReadOnlyList<CliptPluginSavedGroup> GetSavedGroups();
+
+    Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds);
 }
