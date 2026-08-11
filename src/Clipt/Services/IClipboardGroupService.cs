@@ -6,6 +6,9 @@ public interface IClipboardGroupService
 {
     IReadOnlyList<ClipboardGroup> Groups { get; }
 
+    /// <summary>Folders, in display order. Order is changed only via <see cref="MoveFolderAsync"/>.</summary>
+    IReadOnlyList<ClipboardGroupFolder> Folders { get; }
+
     Task LoadAsync();
 
     Task SaveGroupAsync(string name, IReadOnlyList<string> entryIds);
@@ -26,6 +29,23 @@ public interface IClipboardGroupService
         CancellationToken cancellationToken = default);
 
     Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> entryIds);
+
+    Task CreateFolderAsync(string name);
+    Task RenameFolderAsync(string folderId, string newName);
+
+    /// <summary>Moves every group in the folder to Ungrouped (FolderId = null), then removes the folder. Never deletes group data.</summary>
+    Task DeleteFolderAsync(string folderId);
+
+    Task SetFolderCollapsedAsync(string folderId, bool collapsed);
+
+    /// <summary>Reorders a folder among all folders. direction: -1 toward index 0, +1 toward the end. No-op at a boundary or unknown id.</summary>
+    Task MoveFolderAsync(string folderId, int direction);
+
+    /// <summary>Files a group under a folder, or moves it to Ungrouped when <paramref name="folderId"/> is null.</summary>
+    Task MoveGroupToFolderAsync(string groupId, string? folderId);
+
+    /// <summary>Reorders a group among its current folder/Ungrouped siblings only. direction: -1/+1. No-op at a boundary or unknown id.</summary>
+    Task MoveGroupAsync(string groupId, int direction);
 
     event EventHandler? GroupsChanged;
 }

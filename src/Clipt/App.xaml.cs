@@ -155,8 +155,6 @@ public partial class App : Application
         var pluginRegistry = _serviceProvider.GetRequiredService<PluginRegistry>();
         pluginRegistry.SetHost(_pluginHost);
         pluginRegistry.RescanCompleted += OnPluginRegistryRescanned;
-        if (_pluginHost is CliptPluginHost concreteHost)
-            OwnerBlockerSettingsMigrator.MigrateLegacyRegistrySettings(concreteHost);
         pluginRegistry.Initialize();
         LogInfo($"Plugins loaded: {pluginRegistry.Registrations.Count} registered, {pluginRegistry.LoadFailures.Count} failed.");
 
@@ -263,7 +261,7 @@ public partial class App : Application
                         $"Tray clipboard handler dispatch#{dispatch} thread={Environment.CurrentManagedThreadId}");
                 }
 
-                var snapshot = _clipboardService!.CaptureSnapshot(_listenerService!.Hwnd);
+                ClipboardSnapshot snapshot = await CaptureSnapshotWithRetryAsync().ConfigureAwait(true);
                 if (_appLogger?.Level >= AppLogLevel.Debug)
                 {
                     _appLogger.Debug($"Tray capture: {ClipboardHistoryService.DescribeSnapshotDebug(snapshot)}");
@@ -560,6 +558,29 @@ public partial class App : Application
             Dispatcher.Invoke(Publish);
     }
 
+    /// <summary>
+    /// Retries capture when <see cref="NativeMethods.OpenClipboard"/> fails on the first
+    /// WM_CLIPBOARDUPDATE — common with short-lived bridge processes (e.g. WSL clip.exe).
+    /// </summary>
+    private async Task<ClipboardSnapshot> CaptureSnapshotWithRetryAsync()
+    {
+        nint hwnd = _listenerService!.Hwnd;
+        ClipboardSnapshot snapshot = _clipboardService!.CaptureSnapshot(hwnd);
+        if (snapshot.Formats.Length > 0)
+            return snapshot;
+
+        int[] retryDelaysMs = [50, 100, 200];
+        foreach (int delayMs in retryDelaysMs)
+        {
+            await Task.Delay(delayMs).ConfigureAwait(true);
+            snapshot = _clipboardService.CaptureSnapshot(hwnd);
+            if (snapshot.Formats.Length > 0)
+                return snapshot;
+        }
+
+        return snapshot;
+    }
+
     private ClipboardSnapshot? RefreshTrayPopup()
     {
         try
@@ -659,6 +680,7 @@ public partial class App : Application
             sp.GetRequiredService<IClipboardGroupService>(),
             sp.GetRequiredService<IClipboardHistoryService>(),
             sp.GetRequiredService<IClipboardService>(),
+            sp.GetRequiredService<ISettingsService>(),
             () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
         services.AddSingleton<HistoryTabViewModel>(sp => new HistoryTabViewModel(
             sp.GetRequiredService<IClipboardHistoryService>(),

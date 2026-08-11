@@ -28,7 +28,11 @@ public class PluginRegistryTests
         var logger = new Mock<IAppLogger>();
         logger.Setup(l => l.Level).Returns(AppLogLevel.Off);
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(new PluginRegistry(logger.Object), new Lazy<IClipboardHistoryService>(() => history.Object));
+        var groups = new Mock<IClipboardGroupService>();
+        var host = new CliptPluginHost(
+            new PluginRegistry(logger.Object),
+            new Lazy<IClipboardHistoryService>(() => history.Object),
+            new Lazy<IClipboardGroupService>(() => groups.Object));
         var registry = new PluginRegistry(logger.Object);
         registry.SetHost(host);
 

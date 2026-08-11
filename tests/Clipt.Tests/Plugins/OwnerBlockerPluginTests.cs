@@ -60,8 +60,59 @@ public class OwnerBlockerRulesTests
 
         store.BlockSnapshotSource("Wispr Flow Helper", "WisprClipboard_d6745597");
 
-        Assert.Contains("Wispr Flow Helper", store.BlockedProcesses);
-        Assert.Contains("WisprClipboard_", store.BlockedClassPrefixes);
+        Assert.Contains(store.BlockedProcesses, e => e.Name == "Wispr Flow Helper");
+        Assert.Contains(store.BlockedClassPrefixes, e => e.Name == "WisprClipboard_");
+    }
+
+    [Fact]
+    public void SetProcessEnabled_False_UnblocksWithoutRemovingEntry()
+    {
+        var store = new InMemoryOwnerBlockerSettingsStore();
+        store.BlockSnapshotSource("Wispr Flow Helper", null);
+
+        store.SetProcessEnabled("Wispr Flow Helper", false);
+
+        Assert.False(OwnerBlockRules.IsBlocked(store, CreateSnapshot(processName: "Wispr Flow Helper")));
+        Assert.Contains(store.BlockedProcesses, e => e.Name == "Wispr Flow Helper" && !e.IsEnabled);
+    }
+
+    [Fact]
+    public void SetProcessEnabled_ReEnable_BlocksAgain()
+    {
+        var store = new InMemoryOwnerBlockerSettingsStore();
+        store.BlockSnapshotSource("Wispr Flow Helper", null);
+        store.SetProcessEnabled("Wispr Flow Helper", false);
+
+        store.SetProcessEnabled("Wispr Flow Helper", true);
+
+        Assert.True(OwnerBlockRules.IsBlocked(store, CreateSnapshot(processName: "Wispr Flow Helper")));
+    }
+
+    [Fact]
+    public void SetWindowClassEnabled_False_UnblocksWithoutRemovingEntry()
+    {
+        var store = new InMemoryOwnerBlockerSettingsStore();
+        store.BlockSnapshotSource(null, "WisprClipboard_abc");
+
+        store.SetWindowClassEnabled("WisprClipboard_", false);
+
+        Assert.False(OwnerBlockRules.IsBlocked(
+            store,
+            CreateSnapshot(processName: "(no owner)", windowClass: "WisprClipboard_abc")));
+        Assert.Contains(store.BlockedClassPrefixes, e => e.Name == "WisprClipboard_" && !e.IsEnabled);
+    }
+
+    [Fact]
+    public void BlockSnapshotSource_ReBlockingDisabledEntry_ReEnablesInsteadOfDuplicating()
+    {
+        var store = new InMemoryOwnerBlockerSettingsStore();
+        store.BlockSnapshotSource("Wispr Flow Helper", null);
+        store.SetProcessEnabled("Wispr Flow Helper", false);
+
+        store.BlockSnapshotSource("Wispr Flow Helper", null);
+
+        Assert.Single(store.BlockedProcesses);
+        Assert.True(store.BlockedProcesses[0].IsEnabled);
     }
 
     private static CliptPluginClipboardSnapshot CreateSnapshot(
@@ -82,26 +133,50 @@ public class OwnerBlockerRulesTests
 
     internal sealed class InMemoryOwnerBlockerSettingsStore : IOwnerBlockerSettingsStore
     {
-        private readonly HashSet<string> _processes = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _classes = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<BlockedOwnerEntry> _processes = [];
+        private readonly List<BlockedOwnerEntry> _classes = [];
 
-        public IReadOnlySet<string> BlockedProcesses => _processes;
+        public IReadOnlyList<BlockedOwnerEntry> BlockedProcesses => _processes;
 
-        public IReadOnlySet<string> BlockedClassPrefixes => _classes;
+        public IReadOnlyList<BlockedOwnerEntry> BlockedClassPrefixes => _classes;
 
         public void BlockSnapshotSource(string? processName, string? windowClass)
         {
             if (Clipt.Plugins.OwnerBlocker.BlockedProcessNames.IsBlockable(processName))
-                _processes.Add(processName!.Trim());
+                AddOrReEnable(_processes, processName!.Trim());
 
             string? classPrefix = Clipt.Plugins.OwnerBlocker.BlockedWindowClasses.NormalizeForBlock(windowClass);
             if (classPrefix is not null)
-                _classes.Add(classPrefix);
+                AddOrReEnable(_classes, classPrefix);
         }
 
-        public void UnblockProcess(string processName) => _processes.Remove(processName);
+        private static void AddOrReEnable(List<BlockedOwnerEntry> entries, string name)
+        {
+            BlockedOwnerEntry? existing = entries.FirstOrDefault(
+                e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+                existing.IsEnabled = true;
+            else
+                entries.Add(new BlockedOwnerEntry { Name = name, IsEnabled = true });
+        }
 
-        public void UnblockWindowClass(string classPrefix) => _classes.Remove(classPrefix);
+        public void UnblockProcess(string processName) =>
+            _processes.RemoveAll(e => string.Equals(e.Name, processName, StringComparison.OrdinalIgnoreCase));
+
+        public void UnblockWindowClass(string classPrefix) =>
+            _classes.RemoveAll(e => string.Equals(e.Name, classPrefix, StringComparison.OrdinalIgnoreCase));
+
+        public void SetProcessEnabled(string processName, bool enabled) => SetEnabled(_processes, processName, enabled);
+
+        public void SetWindowClassEnabled(string classPrefix, bool enabled) => SetEnabled(_classes, classPrefix, enabled);
+
+        private static void SetEnabled(List<BlockedOwnerEntry> entries, string name, bool enabled)
+        {
+            BlockedOwnerEntry? entry = entries.FirstOrDefault(
+                e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (entry is not null)
+                entry.IsEnabled = enabled;
+        }
 
         public void ClearAll()
         {
@@ -153,13 +228,34 @@ public class OwnerBlockerPluginTests
     }
 
     [Fact]
+    public async Task BlockAsync_RefreshesBlockedListWhenBlockerTabAlreadyOpen()
+    {
+        var host = new TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+        host.AttachCoordinator(plugin);
+        var vm = (OwnerBlockerTabViewModel)plugin.CreateViewModel(host);
+
+        await plugin.BlockAsync("mstsc", "CLIPBRDWNDCLASS");
+
+        Assert.Single(vm.BlockedProcessItems);
+        Assert.Equal("mstsc", vm.BlockedProcessItems[0].DisplayName);
+        Assert.Single(vm.BlockedWindowClassItems);
+        Assert.Equal("CLIPBRDWNDCLASS", vm.BlockedWindowClassItems[0].DisplayName);
+    }
+
+    [Fact]
     public void Registry_LoadsOwnerBlockerFromPluginsFolder()
     {
         var logger = new Mock<IAppLogger>();
         logger.Setup(l => l.Level).Returns(AppLogLevel.Off);
         var registry = new PluginRegistry(logger.Object);
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var groups = new Mock<IClipboardGroupService>();
+        var host = new CliptPluginHost(
+            registry,
+            new Lazy<IClipboardHistoryService>(() => history.Object),
+            new Lazy<IClipboardGroupService>(() => groups.Object));
         registry.SetHost(host);
         registry.Initialize();
 
@@ -230,6 +326,11 @@ public class OwnerBlockerPluginTests
         public IReadOnlyList<CliptPluginSavedGroup> GetSavedGroups() => [];
 
         public Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds) =>
+            Task.CompletedTask;
+
+        public string? GetTopHistoryEntryId() => null;
+
+        public Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds) =>
             Task.CompletedTask;
     }
 }
@@ -364,5 +465,54 @@ public class OwnerBlockerTabViewModelTests
         vm.ClearRecentEventsCommand.Execute(null);
 
         Assert.Empty(vm.RecentEvents);
+    }
+
+    [Fact]
+    public async Task BlockedProcessItem_UncheckingIsEnabled_UnblocksWithoutRemovingEntry()
+    {
+        var host = new OwnerBlockerPluginTests.TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+        host.AttachCoordinator(plugin);
+        var vm = (OwnerBlockerTabViewModel)plugin.CreateViewModel(host);
+        await plugin.BlockAsync("mstsc", null);
+
+        Assert.Single(vm.BlockedProcessItems);
+        vm.BlockedProcessItems[0].IsEnabled = false;
+
+        Assert.Single(vm.BlockedProcessItems);
+        Assert.False(plugin.GetBlockedProcessNames().Contains("mstsc"));
+    }
+
+    [Fact]
+    public async Task BlockedProcessItem_ReCheckingIsEnabled_BlocksAgain()
+    {
+        var host = new OwnerBlockerPluginTests.TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+        host.AttachCoordinator(plugin);
+        var vm = (OwnerBlockerTabViewModel)plugin.CreateViewModel(host);
+        await plugin.BlockAsync("mstsc", null);
+        vm.BlockedProcessItems[0].IsEnabled = false;
+
+        vm.BlockedProcessItems[0].IsEnabled = true;
+
+        Assert.True(plugin.GetBlockedProcessNames().Contains("mstsc"));
+    }
+
+    [Fact]
+    public async Task BlockedWindowClassItem_UncheckingIsEnabled_UnblocksWithoutRemovingEntry()
+    {
+        var host = new OwnerBlockerPluginTests.TestCliptHost();
+        var plugin = new OwnerBlockerPlugin();
+        plugin.Initialize(host);
+        host.AttachCoordinator(plugin);
+        var vm = (OwnerBlockerTabViewModel)plugin.CreateViewModel(host);
+        await plugin.BlockAsync(null, "CLIPBRDWNDCLASS");
+
+        vm.BlockedWindowClassItems[0].IsEnabled = false;
+
+        Assert.Single(vm.BlockedWindowClassItems);
+        Assert.False(plugin.GetBlockedWindowClassPrefixes().Contains("CLIPBRDWNDCLASS"));
     }
 }

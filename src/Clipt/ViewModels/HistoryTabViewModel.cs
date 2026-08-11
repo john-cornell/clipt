@@ -80,6 +80,8 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     public ObservableCollection<PluginHistoryActionDisplayItem> PluginHistoryActions { get; } = [];
 
+    public ObservableCollection<PluginHistoryActionDisplayItem> PluginTopHistoryActions { get; } = [];
+
     public event EventHandler? ClipboardRestored;
     public event Action<BitmapSource>? ImagePreviewRequested;
 
@@ -335,6 +337,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
     private void RefreshPluginHistoryActions()
     {
         PluginHistoryActions.Clear();
+        PluginTopHistoryActions.Clear();
 
         foreach (ICliptHistoryActionPlugin plugin in _pluginHost.HistoryActionPlugins)
         {
@@ -355,11 +358,16 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 });
             }
 
-            PluginHistoryActions.Add(new PluginHistoryActionDisplayItem
+            var displayItem = new PluginHistoryActionDisplayItem
             {
                 Label = plugin.SelectionButtonLabel,
                 SubActions = subActionItems,
-            });
+            };
+
+            if (plugin.UsesTopHistoryEntryOnly)
+                PluginTopHistoryActions.Add(displayItem);
+            else
+                PluginHistoryActions.Add(displayItem);
         }
     }
 
@@ -369,19 +377,22 @@ public sealed partial class HistoryTabViewModel : ObservableObject
         string subActionId)
     {
         List<string> ids = DisplayEntries.Where(e => e.IsSelected).Select(e => e.Id).ToList();
-        if (ids.Count == 0)
+        if (ids.Count == 0 && !plugin.UsesTopHistoryEntryOnly)
             return;
 
         await plugin.ExecuteAsync(subActionId, hostScope, ids, CancellationToken.None).ConfigureAwait(false);
 
         void Reset()
         {
-            SelectionFlow = HistorySelectionFlow.None;
-            IsNamingGroup = false;
-            NewGroupName = string.Empty;
-            foreach (HistoryEntryDisplayItem e in DisplayEntries)
-                e.IsSelected = false;
-            SyncSelectAllHeaderFromItems();
+            if (!plugin.UsesTopHistoryEntryOnly)
+            {
+                SelectionFlow = HistorySelectionFlow.None;
+                IsNamingGroup = false;
+                NewGroupName = string.Empty;
+                foreach (HistoryEntryDisplayItem e in DisplayEntries)
+                    e.IsSelected = false;
+                SyncSelectAllHeaderFromItems();
+            }
         }
 
         Dispatcher? dispatcher = Application.Current?.Dispatcher;
@@ -435,7 +446,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
             bool isLast = i == entries.Count - 1;
             bool showBlockUi = HasOwnerBlockCoordinator && _pluginHost.ShowHistoryOwnerBlockButton;
             bool canBlockOwner = showBlockUi
-                && OwnerBlockUiRules.IsBlockableProcessName(ownerProcess);
+                && _pluginHost.IsBlockableOwnerProcess(ownerProcess);
             bool isOwnerBlocked = showBlockUi
                 && _pluginHost.IsOwnerBlocked(entry.OwnerProcess, null);
             var item = new HistoryEntryDisplayItem
@@ -447,18 +458,21 @@ public sealed partial class HistoryTabViewModel : ObservableObject
                 ContentTypeLabel = FormatContentType(entry.ContentType),
                 ContentType = entry.ContentType,
                 OwnerDisplay = FormatOwnerDisplay(entry.OwnerProcess, entry.OwnerPid),
-                BlockableProcessName = OwnerBlockUiRules.IsBlockableProcessName(entry.OwnerProcess)
+                BlockableProcessName = _pluginHost.IsBlockableOwnerProcess(entry.OwnerProcess)
                     ? entry.OwnerProcess
                     : string.Empty,
                 IsOwnerBlocked = isOwnerBlocked,
                 CanShowBlockOwner = canBlockOwner,
                 RelativeTime = FormatRelativeTime(entry.TimestampUtc),
                 RestoreCommand = new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)),
+                ForceCommand = isFirst ? new AsyncRelayCommand(() => RestoreEntryAsync(entry.Id)) : null,
                 DeleteCommand = new AsyncRelayCommand(() => DeleteEntryAsync(entry.Id)),
                 RenameCommand = new AsyncRelayCommand<string>(newName => RenameEntryAsync(entry.Id, newName!)),
                 MoveUpCommand = isFirst ? null : new AsyncRelayCommand(() => MoveEntryAsync(entry.Id, -1)),
                 MoveDownCommand = isLast ? null : new AsyncRelayCommand(() => MoveEntryAsync(entry.Id, +1)),
-                IsCurrent = isFirst,
+                // isFirst = newest entry positionally; also require the service to still trust that
+                // it matches the live OS clipboard (see IClipboardHistoryService.IsClipboardStateStale).
+                IsCurrent = isFirst && !_historyService.IsClipboardStateStale,
                 IsFirst = isFirst,
                 IsLast = isLast,
                 LoadUnicodeTextForSummaryExpandAsync = entry.ContentType == ContentType.Text
@@ -657,7 +671,7 @@ public sealed partial class HistoryTabViewModel : ObservableObject
 
     private async Task BlockOwnerAsync(string processName)
     {
-        if (!OwnerBlockUiRules.IsBlockableProcessName(processName))
+        if (!_pluginHost.IsBlockableOwnerProcess(processName))
             return;
 
         await _pluginHost.BlockOwnerAsync(processName, null).ConfigureAwait(true);
@@ -814,6 +828,8 @@ public sealed partial class HistoryEntryDisplayItem : ObservableObject
     public IAsyncRelayCommand? BlockOwnerCommand { get; set; }
     public required string RelativeTime { get; init; }
     public required IAsyncRelayCommand RestoreCommand { get; init; }
+    /// <summary>Only set for the current entry; unconditionally re-pushes it to the clipboard.</summary>
+    public IAsyncRelayCommand? ForceCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }
     public IAsyncRelayCommand? PreviewCommand { get; set; }
     public IAsyncRelayCommand? RenameCommand { get; set; }

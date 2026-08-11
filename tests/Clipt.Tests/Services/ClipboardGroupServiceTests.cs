@@ -407,4 +407,256 @@ public class ClipboardGroupServiceTests : IDisposable
         Assert.False(r.Success);
         Assert.Empty(svc.Groups);
     }
+
+    [Fact]
+    public async Task CreateFolderAsync_AddsFolderAndPersists()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.CreateFolderAsync("Work");
+
+        Assert.Single(svc.Folders);
+        Assert.Equal("Work", svc.Folders[0].Name);
+        Assert.False(svc.Folders[0].IsCollapsed);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Single(svc2.Folders);
+        Assert.Equal("Work", svc2.Folders[0].Name);
+    }
+
+    [Fact]
+    public async Task CreateFolderAsync_BlankName_UsesDefault()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.CreateFolderAsync("   ");
+
+        Assert.Equal("Untitled folder", svc.Folders[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameFolderAsync_UpdatesName()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.CreateFolderAsync("Old");
+        string id = svc.Folders[0].Id;
+
+        await svc.RenameFolderAsync(id, "New");
+
+        Assert.Equal("New", svc.Folders[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameFolderAsync_UnknownId_DoesNotThrow()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.RenameFolderAsync("nope", "New");
+
+        Assert.Empty(svc.Folders);
+    }
+
+    [Fact]
+    public async Task MoveGroupToFolderAsync_FilesGroupUnderFolder()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("x");
+        await svc.SaveGroupAsync("G", new[] { "x" });
+        await svc.CreateFolderAsync("Work");
+        string groupId = svc.Groups[0].Id;
+        string folderId = svc.Folders[0].Id;
+
+        await svc.MoveGroupToFolderAsync(groupId, folderId);
+
+        Assert.Equal(folderId, svc.Groups[0].FolderId);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Equal(folderId, svc2.Groups[0].FolderId);
+    }
+
+    [Fact]
+    public async Task MoveGroupToFolderAsync_NullFolderId_MovesToUngrouped()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("x");
+        await svc.SaveGroupAsync("G", new[] { "x" });
+        await svc.CreateFolderAsync("Work");
+        string groupId = svc.Groups[0].Id;
+        await svc.MoveGroupToFolderAsync(groupId, svc.Folders[0].Id);
+
+        await svc.MoveGroupToFolderAsync(groupId, null);
+
+        Assert.Null(svc.Groups[0].FolderId);
+    }
+
+    [Fact]
+    public async Task MoveGroupToFolderAsync_UnknownFolderId_DoesNotChangeGroup()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("x");
+        await svc.SaveGroupAsync("G", new[] { "x" });
+        string groupId = svc.Groups[0].Id;
+
+        await svc.MoveGroupToFolderAsync(groupId, "does-not-exist");
+
+        Assert.Null(svc.Groups[0].FolderId);
+    }
+
+    [Fact]
+    public async Task DeleteFolderAsync_MovesGroupsToUngroupedAndKeepsData()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("x");
+        await svc.SaveGroupAsync("G", new[] { "x" });
+        await svc.CreateFolderAsync("Work");
+        string groupId = svc.Groups[0].Id;
+        string folderId = svc.Folders[0].Id;
+        await svc.MoveGroupToFolderAsync(groupId, folderId);
+
+        await svc.DeleteFolderAsync(folderId);
+
+        Assert.Empty(svc.Folders);
+        Assert.Single(svc.Groups);
+        Assert.Null(svc.Groups[0].FolderId);
+        Assert.Equal("G", svc.Groups[0].Name);
+    }
+
+    [Fact]
+    public async Task SetFolderCollapsedAsync_PersistsCollapseState()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.CreateFolderAsync("Work");
+        string folderId = svc.Folders[0].Id;
+
+        await svc.SetFolderCollapsedAsync(folderId, true);
+
+        Assert.True(svc.Folders[0].IsCollapsed);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.True(svc2.Folders[0].IsCollapsed);
+    }
+
+    [Fact]
+    public async Task MoveFolderAsync_ReordersFolders()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.CreateFolderAsync("First");
+        await svc.CreateFolderAsync("Second");
+        string firstId = svc.Folders[0].Id;
+
+        await svc.MoveFolderAsync(firstId, +1);
+
+        Assert.Equal("Second", svc.Folders[0].Name);
+        Assert.Equal("First", svc.Folders[1].Name);
+    }
+
+    [Fact]
+    public async Task MoveFolderAsync_AtBoundary_NoOp()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.CreateFolderAsync("Only");
+        string id = svc.Folders[0].Id;
+
+        await svc.MoveFolderAsync(id, -1);
+
+        Assert.Equal("Only", svc.Folders[0].Name);
+    }
+
+    [Fact]
+    public async Task MoveGroupAsync_ReordersWithinSameFolderOnly()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("a");
+        await SeedHistoryEntryAsync("b");
+        await SeedHistoryEntryAsync("c");
+        await svc.CreateFolderAsync("Work");
+        string folderId = svc.Folders[0].Id;
+
+        // Saved newest-first: C, B, A. File B and C into Work; leave A ungrouped.
+        await svc.SaveGroupAsync("A", new[] { "a" });
+        await svc.SaveGroupAsync("B", new[] { "b" });
+        await svc.SaveGroupAsync("C", new[] { "c" });
+        string bId = svc.Groups.First(g => g.Name == "B").Id;
+        string cId = svc.Groups.First(g => g.Name == "C").Id;
+        await svc.MoveGroupToFolderAsync(bId, folderId);
+        await svc.MoveGroupToFolderAsync(cId, folderId);
+
+        // In-memory order is now [C, B, A] (all Work/Work/Ungrouped respectively after filing).
+        // Moving C (index 0, a Work-folder member) with direction -1 must skip over "A" if it were
+        // between them and only swap with another Work-folder member; here B is the only such sibling.
+        await svc.MoveGroupAsync(cId, +1);
+
+        Assert.Equal("B", svc.Groups[0].Name);
+        Assert.Equal("C", svc.Groups[1].Name);
+        Assert.Equal("A", svc.Groups[2].Name);
+    }
+
+    [Fact]
+    public async Task MoveGroupAsync_UnknownId_DoesNotThrow()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.MoveGroupAsync("nope", +1);
+    }
+
+    [Fact]
+    public async Task LoadAsync_OldFormatFileWithoutFolders_LoadsGroupsAsUngrouped()
+    {
+        string groupsPath = Path.Combine(_tempDir, "groups.json");
+        var oldFormat = new
+        {
+            groups = new[]
+            {
+                new
+                {
+                    id = "g1",
+                    name = "Legacy",
+                    createdUtc = DateTime.UtcNow,
+                    entryIds = new[] { "x" },
+                    archivedEntries = new[]
+                    {
+                        new
+                        {
+                            id = "x",
+                            sourceEntryId = "src",
+                            name = "Clip",
+                            timestampUtc = DateTime.UtcNow,
+                            sequenceNumber = 1u,
+                            ownerProcess = "test",
+                            ownerPid = 1,
+                            summary = "s",
+                            contentType = ContentType.Text,
+                            dataSizeBytes = 4L,
+                            contentHash = "abc",
+                        },
+                    },
+                },
+            },
+        };
+        await File.WriteAllTextAsync(groupsPath, JsonSerializer.Serialize(oldFormat, CliptJsonOptions.Shared));
+
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        Assert.Empty(svc.Folders);
+        Assert.Single(svc.Groups);
+        Assert.Null(svc.Groups[0].FolderId);
+        Assert.Equal("Legacy", svc.Groups[0].Name);
+    }
 }

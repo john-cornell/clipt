@@ -8,6 +8,13 @@ public interface IClipboardHistoryService : IDisposable
 
     bool IsSuppressed { get; set; }
 
+    /// <summary>
+    /// True when a clipboard change was observed that did not produce a new history entry or a
+    /// recorded Clipt write (e.g. the clipboard was emptied, or the content was filtered out).
+    /// While true, the top history entry can no longer be trusted to match the live OS clipboard.
+    /// </summary>
+    bool IsClipboardStateStale { get; }
+
     Task LoadAsync();
     Task<HistoryAddResult> AddAsync(ClipboardSnapshot snapshot);
     Task RemoveAsync(string entryId);

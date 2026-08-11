@@ -21,5 +21,7 @@ public interface ICliptPluginHost
 
     bool IsOwnerBlocked(string? processName, string? windowClass);
 
+    bool IsBlockableOwnerProcess(string? processName);
+
     ICliptHost CreateHostScope(string pluginId);
 }

@@ -33,9 +33,11 @@ public sealed class SettingsService : ISettingsService
     private static readonly byte[] StartupApprovedEnabledBytes =
         [0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     private const string LogLevelValueName = "LogLevel";
+    private const string GroupSortModeValueName = "GroupSortMode";
+    private const string GroupsUngroupedCollapsedValueName = "GroupsUngroupedCollapsed";
     private const int DefaultMaxHistoryEntries = 10;
     private const long DefaultMaxHistorySizeBytes = 100L * 1024 * 1024;
-    private const long DefaultMaxClipboardFormatCaptureBytes = 64 * 1024;
+    private const long DefaultMaxClipboardFormatCaptureBytes = int.MaxValue;
 
     public StartupMode LoadStartupMode()
     {
@@ -624,6 +626,42 @@ public sealed class SettingsService : ISettingsService
         catch (System.Security.SecurityException) { }
         catch (UnauthorizedAccessException) { }
     }
+
+    public GroupSortMode LoadGroupSortMode()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(GroupSortModeValueName) is string value
+                && Enum.TryParse<GroupSortMode>(value, ignoreCase: true, out var mode)
+                && Enum.IsDefined(mode))
+            {
+                return mode;
+            }
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return GroupSortMode.DateCreated;
+    }
+
+    public void SaveGroupSortMode(GroupSortMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+            mode = GroupSortMode.DateCreated;
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(GroupSortModeValueName, mode.ToString(), RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    public bool LoadGroupsUngroupedCollapsed() => LoadBoolSetting(GroupsUngroupedCollapsedValueName, defaultValue: false);
+
+    public void SaveGroupsUngroupedCollapsed(bool collapsed) => SaveBoolSetting(GroupsUngroupedCollapsedValueName, collapsed);
 
     private static bool LoadBoolSetting(string valueName, bool defaultValue)
     {

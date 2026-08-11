@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\Clipt.Plugins.Abstractions\Clipt.Plugins.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Clipt.Plugins.WhereIn\Clipt.Plugins.WhereIn.csproj" />
     <ProjectReference Include="..\..\src\Clipt.Plugins.OwnerBlocker\Clipt.Plugins.OwnerBlocker.csproj" />
+    <ProjectReference Include="..\..\src\Clipt.Plugins.PasswordGroup\Clipt.Plugins.PasswordGroup.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,12 +39,14 @@
     <PropertyGroup>
       <WhereInOutput>$(MSBuildProjectDirectory)\..\..\src\Clipt.Plugins.WhereIn\bin\$(Configuration)\net8.0\</WhereInOutput>
       <OwnerBlockerOutput>$(MSBuildProjectDirectory)\..\..\src\Clipt.Plugins.OwnerBlocker\bin\$(Configuration)\net8.0-windows\</OwnerBlockerOutput>
+      <PasswordGroupOutput>$(MSBuildProjectDirectory)\..\..\src\Clipt.Plugins.PasswordGroup\bin\$(Configuration)\net8.0\</PasswordGroupOutput>
       <PluginsOutDir>$(OutputPath)Plugins\</PluginsOutDir>
     </PropertyGroup>
     <MakeDir Directories="$(PluginsOutDir)" />
     <Copy SourceFiles="$(WhereInOutput)Clipt.Plugins.WhereIn.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(WhereInOutput)Clipt.Plugins.Abstractions.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OwnerBlockerOutput)Clipt.Plugins.OwnerBlocker.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(PasswordGroupOutput)Clipt.Plugins.PasswordGroup.dll" DestinationFolder="$(PluginsOutDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

@@ -12,4 +12,7 @@ public interface ICliptOwnerBlockCoordinator
 
     /// <summary>When false, history rows hide Block / blocked owner chrome.</summary>
     bool ShowHistoryBlockButton { get; }
+
+    /// <summary>Whether the owner process name can be added to the block list (excludes placeholders).</summary>
+    bool IsBlockableOwnerProcess(string? processName);
 }

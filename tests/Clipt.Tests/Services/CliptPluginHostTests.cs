@@ -16,7 +16,7 @@ public class CliptPluginHostTests
     {
         var registry = CreateRegistry();
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
         var snapshot = CreateSnapshot("hello");
 
         CliptPluginFilterResult result = host.EvaluateFilters(snapshot);
@@ -32,7 +32,7 @@ public class CliptPluginHostTests
         var blocking = new TestFilterPlugin("clipt.plugins.block", allow: false, reason: "blocked");
         registry.FilterPluginsList.Add(blocking);
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
 
         CliptPluginFilterResult result = host.EvaluateFilters(CreateSnapshot("hello"));
 
@@ -46,7 +46,7 @@ public class CliptPluginHostTests
     {
         var registry = CreateRegistry();
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
         var snapshot = CreateSnapshot("hello");
         CliptPluginClipboardEventArgs? received = null;
         host.ClipboardProcessed += (_, args) => received = args;
@@ -63,7 +63,7 @@ public class CliptPluginHostTests
     {
         var registry = CreateRegistry();
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
 
         await host.BlockOwnerAsync("wispr", "WisprClipboard_1");
 
@@ -77,7 +77,7 @@ public class CliptPluginHostTests
         var coordinator = new TestCoordinator();
         registry.Coordinator = coordinator;
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
 
         await host.BlockOwnerAsync("wispr", null);
 
@@ -89,7 +89,7 @@ public class CliptPluginHostTests
     {
         var registry = CreateRegistry();
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
         ICliptHost scope = host.CreateHostScope("clipt.plugins.test");
         string settingsDir = host.GetPluginSettingsDirectory("clipt.plugins.test");
 
@@ -110,13 +110,22 @@ public class CliptPluginHostTests
         }
     }
 
+    private static CliptPluginHost CreateHost(IPluginRegistry registry, Mock<IClipboardHistoryService> history)
+    {
+        var groups = new Mock<IClipboardGroupService>();
+        return new CliptPluginHost(
+            registry,
+            new Lazy<IClipboardHistoryService>(() => history.Object),
+            new Lazy<IClipboardGroupService>(() => groups.Object));
+    }
+
     private static PluginRegistry CreateRegistry()
     {
         var logger = new Mock<IAppLogger>();
         logger.Setup(l => l.Level).Returns(AppLogLevel.Off);
         var registry = new PluginRegistry(logger.Object);
         var history = new Mock<IClipboardHistoryService>();
-        var host = new CliptPluginHost(registry, new Lazy<IClipboardHistoryService>(() => history.Object));
+        var host = CreateHost(registry, history);
         registry.SetHost(host);
         return registry;
     }
@@ -176,6 +185,9 @@ public class CliptPluginHostTests
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public bool ShowHistoryBlockButton => true;
+
+        public bool IsBlockableOwnerProcess(string? processName) =>
+            !string.IsNullOrWhiteSpace(processName) && processName != "(no owner)";
     }
 
     private sealed class TestPluginRegistry : IPluginRegistry

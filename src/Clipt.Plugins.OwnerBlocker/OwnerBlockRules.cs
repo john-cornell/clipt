@@ -23,7 +23,9 @@ internal static class OwnerBlockRules
         if (!BlockedProcessNames.IsBlockable(processName))
             return false;
 
-        return settings.BlockedProcesses.Contains(processName!.Trim());
+        string trimmed = processName!.Trim();
+        return settings.BlockedProcesses.Any(e =>
+            e.IsEnabled && string.Equals(e.Name, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool IsWindowClassBlocked(IOwnerBlockerSettingsStore settings, string? windowClass)
@@ -32,10 +34,13 @@ internal static class OwnerBlockRules
         if (prefix is null)
             return false;
 
-        foreach (string blocked in settings.BlockedClassPrefixes)
+        foreach (BlockedOwnerEntry entry in settings.BlockedClassPrefixes)
         {
-            if (prefix.StartsWith(blocked, StringComparison.OrdinalIgnoreCase)
-                || blocked.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (!entry.IsEnabled)
+                continue;
+
+            if (prefix.StartsWith(entry.Name, StringComparison.OrdinalIgnoreCase)
+                || entry.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

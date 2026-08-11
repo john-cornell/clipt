@@ -52,4 +52,11 @@ public interface ISettingsService
 
     AppLogLevel LoadLogLevel();
     void SaveLogLevel(AppLogLevel level);
+
+    GroupSortMode LoadGroupSortMode();
+    void SaveGroupSortMode(GroupSortMode mode);
+
+    /// <summary>Collapse state of the Groups tab's Ungrouped section (not tied to any one folder).</summary>
+    bool LoadGroupsUngroupedCollapsed();
+    void SaveGroupsUngroupedCollapsed(bool collapsed);
 }

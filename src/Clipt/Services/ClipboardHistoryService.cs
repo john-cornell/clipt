@@ -42,6 +42,28 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         set => Interlocked.Exchange(ref _suppressed, value ? 1 : 0);
     }
 
+    private int _clipboardStateStale;
+
+    public bool IsClipboardStateStale
+    {
+        get => Interlocked.CompareExchange(ref _clipboardStateStale, 0, 0) != 0;
+        private set => Interlocked.Exchange(ref _clipboardStateStale, value ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Marks the clipboard state stale (an external change we didn't capture into history) and
+    /// raises <see cref="EntriesChanged"/> so the UI re-evaluates "current" for the top entry.
+    /// No-op if already stale, so repeated externally-empty/filtered notifications don't spam refreshes.
+    /// </summary>
+    private void MarkClipboardStateStale()
+    {
+        if (IsClipboardStateStale)
+            return;
+
+        IsClipboardStateStale = true;
+        EntriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public ClipboardHistoryService(
         ISettingsService settingsService,
         IAppLogger logger,
@@ -146,6 +168,15 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         {
             _gate.Release();
         }
+
+        // A non-null id means Clipt itself just wrote this entry to the clipboard, re-establishing
+        // ground truth (e.g. a Restore/Force). A null id here means "give up", not "clipboard changed",
+        // so it doesn't affect staleness either way.
+        if (!string.IsNullOrEmpty(entryId) && IsClipboardStateStale)
+        {
+            IsClipboardStateStale = false;
+            EntriesChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     public async Task<HistoryAddResult> AddAsync(ClipboardSnapshot snapshot)
@@ -164,6 +195,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         {
             if (_logger.Level >= AppLogLevel.Debug)
                 _logger.Debug("AddAsync exit: empty formats");
+            MarkClipboardStateStale();
             return HistoryAddResult.SkippedEmptyFormats;
         }
 
@@ -182,6 +214,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                         $"AddAsync exit: blocked by plugin filter pluginId={filterResult.PluginId} reason={filterResult.Reason}");
                 }
 
+                // Deliberately does not mark clipboard state stale: blocked-owner writes (e.g. a
+                // dictation helper) are intentionally invisible to Clipt and can be high-frequency —
+                // see AddAsync_BlockedProcessName_DoesNotRaiseEvent.
                 return HistoryAddResult.SkippedByPluginFilter;
             }
 
@@ -231,6 +266,9 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             {
                 if (_logger.Level >= AppLogLevel.Debug)
                     _logger.Debug($"AddAsync exit: content type {newContentType} disabled in settings");
+                // Deliberately does not mark clipboard state stale: a disabled content type is a
+                // standing user preference, not a transient external event — see
+                // AddAsync_DisabledContentType_DoesNotRaiseEvent.
                 return HistoryAddResult.SkippedDisabledContentType;
             }
 
@@ -259,6 +297,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
                                 case HistorySizeOverflowAnswer.SkipIncoming:
                                     if (_logger.Level >= AppLogLevel.Debug)
                                         _logger.Debug("AddAsync exit: user skipped add (history over size limit)");
+                                    MarkClipboardStateStale();
                                     return HistoryAddResult.SkippedUserOverflowPrompt;
                                 case HistorySizeOverflowAnswer.AllowOverLimitOnce:
                                     _skipSizeEvictionOnce = true;
@@ -297,6 +336,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
 
             _entries.Insert(0, entry);
             _clipboardSourceHistoryEntryId = null;
+            IsClipboardStateStale = false;
             EnforceCaps();
             await WriteIndexAsync().ConfigureAwait(false);
 
@@ -511,6 +551,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
     private async Task ClearAllEntriesUnderLockAsync()
     {
         _clipboardSourceHistoryEntryId = null;
+        IsClipboardStateStale = false;
 
         foreach (var entry in _entries)
             DeleteBlobQuietly(entry.Id);

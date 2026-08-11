@@ -254,6 +254,111 @@ public class ClipboardHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task IsClipboardStateStale_DefaultsFalse()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        Assert.False(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task AddAsync_EmptyFormats_MarksClipboardStateStale()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(CreateTextSnapshot("Something", seqNum: 1));
+
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+
+        Assert.True(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task AddAsync_EmptyFormats_RaisesEntriesChangedOnceUntilResolved()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        int raisedCount = 0;
+        svc.EntriesChanged += (_, _) => raisedCount++;
+
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+
+        Assert.Equal(1, raisedCount);
+    }
+
+    [Fact]
+    public async Task AddAsync_NewEntryAfterEmptyFormats_ClearsClipboardStateStale()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+        Assert.True(svc.IsClipboardStateStale);
+
+        await svc.AddAsync(CreateTextSnapshot("Fresh copy", seqNum: 2));
+
+        Assert.False(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task AddAsync_PluginFilterBlocked_DoesNotMarkClipboardStateStale()
+    {
+        _pluginHostMock
+            .Setup(h => h.EvaluateFilters(It.IsAny<ClipboardSnapshot>()))
+            .Returns(new CliptPluginFilterResult(false, "clipt.plugins.test", "blocked"));
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("blocked clip"));
+
+        Assert.False(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task AddAsync_DisabledContentType_DoesNotMarkClipboardStateStale()
+    {
+        _settingsMock.Setup(s => s.LoadDisabledHistoryTypes())
+            .Returns(new HashSet<ContentType> { ContentType.Text });
+
+        using var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.AddAsync(CreateTextSnapshot("Blocked", seqNum: 1));
+
+        Assert.False(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task SetClipboardSourceHistoryEntryId_NonNullId_ClearsClipboardStateStale()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+        Assert.True(svc.IsClipboardStateStale);
+
+        svc.SetClipboardSourceHistoryEntryId("some-entry-id");
+
+        Assert.False(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
+    public async Task SetClipboardSourceHistoryEntryId_NullId_DoesNotClearClipboardStateStale()
+    {
+        using var svc = CreateService();
+        await svc.LoadAsync();
+        await svc.AddAsync(ClipboardSnapshot.Empty);
+        Assert.True(svc.IsClipboardStateStale);
+
+        svc.SetClipboardSourceHistoryEntryId(null);
+
+        Assert.True(svc.IsClipboardStateStale);
+    }
+
+    [Fact]
     public async Task AddAsync_EmptySnapshot_IsIgnored()
     {
         using var svc = CreateService();

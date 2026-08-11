@@ -91,6 +91,9 @@ public sealed class CliptPluginHost : ICliptPluginHost
         });
     }
 
+    public bool IsBlockableOwnerProcess(string? processName) =>
+        _registry.OwnerBlockCoordinator?.IsBlockableOwnerProcess(processName) ?? false;
+
     public ICliptHost CreateHostScope(string pluginId)
     {
         if (string.IsNullOrWhiteSpace(pluginId))
@@ -182,6 +185,15 @@ public sealed class CliptPluginHost : ICliptPluginHost
 
         public Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds) =>
             _parent._groupService.Value.AddEntriesToGroupAsync(groupId, historyEntryIds);
+
+        public string? GetTopHistoryEntryId()
+        {
+            IReadOnlyList<ClipboardHistoryEntry> entries = _parent._historyService.Value.Entries;
+            return entries.Count > 0 ? entries[0].Id : null;
+        }
+
+        public Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds) =>
+            _parent._groupService.Value.SaveGroupAsync(name, historyEntryIds);
 
         public Task BlockOwnerAsync(string? processName, string? windowClass) =>
             _parent.BlockOwnerAsync(processName, windowClass);

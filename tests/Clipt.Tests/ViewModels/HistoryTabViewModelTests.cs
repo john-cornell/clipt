@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using Clipt.Models;
 using Clipt.Native;
+using Clipt.Plugins;
 using Clipt.Services;
 using Clipt.ViewModels;
 using Moq;
@@ -34,6 +35,15 @@ public class HistoryTabViewModelTests
             .Returns(false);
         _pluginHostMock.Setup(h => h.BlockOwnerAsync(It.IsAny<string?>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
+        _pluginHostMock.Setup(h => h.HistoryActionPlugins).Returns([]);
+        _pluginHostMock.Setup(h => h.CreateHostScope(It.IsAny<string>())).Returns(Mock.Of<ICliptHost>());
+        _pluginHostMock.Setup(h => h.IsBlockableOwnerProcess(It.IsAny<string?>()))
+            .Returns<string?>(name =>
+                !string.IsNullOrWhiteSpace(name)
+                && name is not "(no owner)"
+                && name is not "(none)"
+                && name is not "(unknown)"
+                && !name.StartsWith("(PID ", StringComparison.Ordinal));
     }
 
     private HistoryTabViewModel CreateVm()
@@ -99,6 +109,42 @@ public class HistoryTabViewModelTests
         Assert.Equal("Text", vm.DisplayEntries[0].ContentTypeLabel);
         Assert.Equal("Image", vm.DisplayEntries[1].Summary);
         Assert.Equal("Image", vm.DisplayEntries[1].ContentTypeLabel);
+    }
+
+    [Fact]
+    public void Refresh_ClipboardStateNotStale_TopEntryIsCurrentWithForceCommand()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+            CreateEntry("b", "Older", ContentType.Text, minutesAgo: 30),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+        _historyMock.Setup(h => h.IsClipboardStateStale).Returns(false);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.True(vm.DisplayEntries[0].IsCurrent);
+        Assert.NotNull(vm.DisplayEntries[0].ForceCommand);
+        Assert.False(vm.DisplayEntries[1].IsCurrent);
+        Assert.Null(vm.DisplayEntries[1].ForceCommand);
+    }
+
+    [Fact]
+    public void Refresh_ClipboardStateStale_TopEntryIsNotCurrent()
+    {
+        var entries = new List<ClipboardHistoryEntry>
+        {
+            CreateEntry("a", "Hello", ContentType.Text),
+        };
+        _historyMock.Setup(h => h.Entries).Returns(entries.AsReadOnly());
+        _historyMock.Setup(h => h.IsClipboardStateStale).Returns(true);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.False(vm.DisplayEntries[0].IsCurrent);
     }
 
     [Fact]

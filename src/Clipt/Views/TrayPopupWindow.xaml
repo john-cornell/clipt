@@ -442,10 +442,39 @@
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0" Margin="10,6,10,4">
-                            <TextBlock Text="{Binding StatusText}"
-                                       Foreground="{DynamicResource ForegroundDimBrush}"
-                                       FontSize="11" VerticalAlignment="Center"
-                                       Visibility="{Binding ShowNormalHistoryChrome, Converter={StaticResource BoolToVis}}" />
+                            <DockPanel
+                                Visibility="{Binding ShowNormalHistoryChrome, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl DockPanel.Dock="Right"
+                                              ItemsSource="{Binding PluginTopHistoryActions}"
+                                              Margin="8,0,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding Label}"
+                                                    FontSize="11" Padding="8,2" Margin="0,0,6,0"
+                                                    Click="PluginActionButton_Click">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu ItemsSource="{Binding PlacementTarget.DataContext.SubActions, RelativeSource={RelativeSource Self}}">
+                                                        <ContextMenu.ItemContainerStyle>
+                                                            <Style TargetType="MenuItem">
+                                                                <Setter Property="Header" Value="{Binding Label}" />
+                                                                <Setter Property="Command" Value="{Binding Command}" />
+                                                            </Style>
+                                                        </ContextMenu.ItemContainerStyle>
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding StatusText}"
+                                           Foreground="{DynamicResource ForegroundDimBrush}"
+                                           FontSize="11" VerticalAlignment="Center" />
+                            </DockPanel>
                             <DockPanel
                                 Visibility="{Binding ShowSelectionHistoryChrome, Converter={StaticResource BoolToVis}}">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
@@ -777,6 +806,11 @@
                                                             Padding="8,1"
                                                             Command="{Binding RestoreCommand}" Margin="0,0,4,0"
                                                             Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                                                    <Button Content="Force" FontSize="10"
+                                                            Padding="8,1"
+                                                            Command="{Binding ForceCommand}" Margin="0,0,4,0"
+                                                            ToolTip="Re-push this item onto the clipboard even though Clipt thinks it's already there (use if paste isn't picking it up)"
+                                                            Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}" />
                                                     <Button Content="X" FontSize="10"
                                                             Padding="6,1" ToolTip="Delete"
                                                             Command="{Binding DeleteCommand}" />
@@ -794,12 +828,14 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="10,6,10,4">
+                        <Grid Grid.Row="0" Margin="10,6,10,2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
@@ -807,6 +843,14 @@
                                        Foreground="{DynamicResource ForegroundDimBrush}"
                                        FontSize="11" VerticalAlignment="Center" />
                             <Button Grid.Column="1"
+                                    Content="New folder&#x2026;"
+                                    Command="{Binding CreateFolderCommand}"
+                                    FontSize="10"
+                                    Padding="8,2"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Create a folder to file saved groups under" />
+                            <Button Grid.Column="2"
                                     Content="Import group&#x2026;"
                                     Command="{Binding ImportGroupCommand}"
                                     FontSize="10"
@@ -816,14 +860,43 @@
                                     ToolTip="Add a group from a .cliptgroup file from another PC" />
                         </Grid>
 
-                        <TextBlock Grid.Row="1" Text="No saved groups."
+                        <Grid Grid.Row="1" Margin="10,0,10,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Sort:" FontSize="10"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,4,0" />
+                            <ComboBox Grid.Column="1" FontSize="10" Padding="4,1" VerticalAlignment="Center"
+                                      SelectedValuePath="Tag"
+                                      SelectedValue="{Binding SortMode, Mode=TwoWay}">
+                                <ComboBoxItem Content="Date created" Tag="{x:Static models:GroupSortMode.DateCreated}" />
+                                <ComboBoxItem Content="Alphabetical" Tag="{x:Static models:GroupSortMode.Alphabetical}" />
+                                <ComboBoxItem Content="Size" Tag="{x:Static models:GroupSortMode.ItemCount}" />
+                                <ComboBoxItem Content="Custom" Tag="{x:Static models:GroupSortMode.Custom}" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="2" Text="Drag a group onto a folder, or use &quot;Move to folder&#x2026;&quot;"
+                                       FontSize="9" FontStyle="Italic"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"
+                                       Visibility="{Binding ShowMoveControls, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                            <TextBlock Grid.Column="2" Text="Use &#x25B2;&#x25BC; to reorder within a folder"
+                                       FontSize="9" FontStyle="Italic"
+                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"
+                                       Visibility="{Binding ShowMoveControls, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+
+                        <TextBlock Grid.Row="2" Text="No saved groups."
                                    Foreground="{DynamicResource ForegroundDimBrush}"
                                    FontSize="12" FontStyle="Italic"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
 
-                        <ItemsControl Grid.Row="1" ItemsSource="{Binding DisplayGroups}"
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding Sections}"
                                       Margin="0,2,0,0">
                             <ItemsControl.Template>
                                 <ControlTemplate TargetType="ItemsControl">
@@ -834,81 +907,230 @@
                             </ItemsControl.Template>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border BorderBrush="{DynamicResource BorderBrush}"
-                                            BorderThickness="0,0,0,1" Padding="10,6">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="{Binding Name}"
-                                                       FontSize="11" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource ForegroundBrush}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Margin="0,0,0,2" Cursor="Hand"
-                                                       MouseLeftButtonDown="GroupEntryName_MouseLeftButtonDown"
-                                                       Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
-                                                <TextBlock.ToolTip>
-                                                    <ToolTip Content="Click to rename" />
-                                                </TextBlock.ToolTip>
-                                            </TextBlock>
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                                     FontSize="11" FontWeight="SemiBold"
-                                                     Margin="0,0,0,2" Padding="0"
-                                                     IsVisibleChanged="GroupEntryNameEdit_IsVisibleChanged"
-                                                     LostFocus="GroupEntryNameEdit_LostFocus"
-                                                     KeyDown="GroupEntryNameEdit_KeyDown"
-                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+                                    <StackPanel>
+                                        <Border Background="{DynamicResource SurfaceLightBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="0,0,0,1" Padding="8,4"
+                                                AllowDrop="True"
+                                                DragOver="GroupSection_DragOver"
+                                                Drop="GroupSection_Drop">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding ItemCountText}"
-                                                       FontSize="10"
-                                                       Foreground="{DynamicResource ForegroundDimBrush}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="8,0,8,0" />
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding RelativeTime}"
-                                                       FontSize="10"
-                                                       Foreground="{DynamicResource ForegroundDimBrush}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0" />
+                                                <Button Grid.Column="0" FontSize="8" Padding="4,0" Margin="0,0,4,0"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Command="{Binding ToggleCollapsedCommand}"
+                                                        ToolTip="Expand/collapse">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Content" Value="&#x25BC;" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
+                                                                    <Setter Property="Content" Value="&#x25B6;" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
 
-                                            <Menu Grid.Column="3"
-                                                  Background="Transparent"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,4,0">
-                                                <MenuItem Header="Restore" FontSize="10" Padding="6,2">
-                                                    <MenuItem Header="Clear &amp; restore"
-                                                              Command="{Binding RestoreCommand}"
-                                                              CommandParameter="{x:Static models:GroupRestoreMode.ClearAndRestore}"
-                                                              ToolTip="Replace history with this group" />
-                                                    <MenuItem Header="Add to top"
-                                                              Command="{Binding RestoreCommand}"
-                                                              CommandParameter="{x:Static models:GroupRestoreMode.AddToTop}"
-                                                              ToolTip="Insert group at top of history (newest first)" />
-                                                    <MenuItem Header="Add to bottom"
-                                                              Command="{Binding RestoreCommand}"
-                                                              CommandParameter="{x:Static models:GroupRestoreMode.AddToBottom}"
-                                                              ToolTip="Append group after current history" />
-                                                </MenuItem>
-                                                <MenuItem Header="Export&#x2026;"
-                                                          Command="{Binding ExportCommand}"
-                                                          FontSize="10"
-                                                          Padding="6,2"
-                                                          ToolTip="Save this group to a .cliptgroup file for another PC" />
-                                            </Menu>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding Name}"
+                                                           FontSize="11" FontWeight="Bold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"
+                                                           Cursor="Hand"
+                                                           MouseLeftButtonDown="GroupSectionName_MouseLeftButtonDown"
+                                                           Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="11" FontWeight="Bold" Padding="0"
+                                                         IsVisibleChanged="GroupSectionNameEdit_IsVisibleChanged"
+                                                         LostFocus="GroupSectionNameEdit_LostFocus"
+                                                         KeyDown="GroupSectionNameEdit_KeyDown"
+                                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
 
-                                            <Button Grid.Column="4" Content="X" FontSize="10"
-                                                    Padding="6,1" ToolTip="Delete group"
-                                                    Command="{Binding DeleteCommand}"
-                                                    VerticalAlignment="Center" />
-                                        </Grid>
-                                    </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding ItemCountText}"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource ForegroundDimBrush}"
+                                                           VerticalAlignment="Center" Margin="8,0" />
+
+                                                <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                                            VerticalAlignment="Center" Margin="0,0,4,0">
+                                                    <Button Content="&#x25B2;" FontSize="9" Padding="2,0"
+                                                            Command="{Binding MoveUpCommand}"
+                                                            ToolTip="Move folder up">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding MoveUpCommand}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Content="&#x25BC;" FontSize="9" Padding="2,0"
+                                                            Command="{Binding MoveDownCommand}"
+                                                            ToolTip="Move folder down">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding MoveDownCommand}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </StackPanel>
+
+                                                <Button Grid.Column="4" Content="X" FontSize="10"
+                                                        Padding="6,1" ToolTip="Delete folder (groups move to Ungrouped)"
+                                                        Command="{Binding DeleteCommand}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DeleteCommand}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+
+                                        <ItemsControl ItemsSource="{Binding Groups}"
+                                                      Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource BorderBrush}"
+                                                            BorderThickness="0,0,0,1" Padding="10,6"
+                                                            Background="Transparent"
+                                                            PreviewMouseLeftButtonDown="GroupRow_PreviewMouseLeftButtonDown"
+                                                            PreviewMouseMove="GroupRow_PreviewMouseMove">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                        VerticalAlignment="Center" Margin="0,0,6,0">
+                                                                <Button Content="&#x25B2;" FontSize="9" Padding="2,0"
+                                                                        Command="{Binding MoveUpCommand}"
+                                                                        ToolTip="Move up">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding MoveUpCommand}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                                <Button Content="&#x25BC;" FontSize="9" Padding="2,0"
+                                                                        Command="{Binding MoveDownCommand}"
+                                                                        ToolTip="Move down">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding MoveDownCommand}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                            </StackPanel>
+
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Name}"
+                                                                       FontSize="11" FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource ForegroundBrush}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Margin="0,0,0,2" Cursor="Hand"
+                                                                       MouseLeftButtonDown="GroupEntryName_MouseLeftButtonDown"
+                                                                       Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                                                                <TextBlock.ToolTip>
+                                                                    <ToolTip Content="Click to rename" />
+                                                                </TextBlock.ToolTip>
+                                                            </TextBlock>
+                                                            <TextBox Grid.Column="1"
+                                                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                                     FontSize="11" FontWeight="SemiBold"
+                                                                     Margin="0,0,0,2" Padding="0"
+                                                                     IsVisibleChanged="GroupEntryNameEdit_IsVisibleChanged"
+                                                                     LostFocus="GroupEntryNameEdit_LostFocus"
+                                                                     KeyDown="GroupEntryNameEdit_KeyDown"
+                                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{Binding ItemCountText}"
+                                                                       FontSize="10"
+                                                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="8,0,8,0" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="{Binding RelativeTime}"
+                                                                       FontSize="10"
+                                                                       Foreground="{DynamicResource ForegroundDimBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,8,0" />
+
+                                                            <Menu Grid.Column="4"
+                                                                  Background="Transparent"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="0,0,4,0">
+                                                                <MenuItem Header="Restore" FontSize="10" Padding="6,2">
+                                                                    <MenuItem Header="Clear &amp; restore"
+                                                                              Command="{Binding RestoreCommand}"
+                                                                              CommandParameter="{x:Static models:GroupRestoreMode.ClearAndRestore}"
+                                                                              ToolTip="Replace history with this group" />
+                                                                    <MenuItem Header="Add to top"
+                                                                              Command="{Binding RestoreCommand}"
+                                                                              CommandParameter="{x:Static models:GroupRestoreMode.AddToTop}"
+                                                                              ToolTip="Insert group at top of history (newest first)" />
+                                                                    <MenuItem Header="Add to bottom"
+                                                                              Command="{Binding RestoreCommand}"
+                                                                              CommandParameter="{x:Static models:GroupRestoreMode.AddToBottom}"
+                                                                              ToolTip="Append group after current history" />
+                                                                </MenuItem>
+                                                                <MenuItem Header="Export&#x2026;"
+                                                                          Command="{Binding ExportCommand}"
+                                                                          FontSize="10"
+                                                                          Padding="6,2"
+                                                                          ToolTip="Save this group to a .cliptgroup file for another PC" />
+                                                            </Menu>
+
+                                                            <Button Grid.Column="5" Content="&#x2026;" FontSize="10"
+                                                                    Padding="6,1" Margin="0,0,4,0"
+                                                                    ToolTip="Move to folder&#x2026;"
+                                                                    Click="MoveToFolderButton_Click"
+                                                                    VerticalAlignment="Center" />
+
+                                                            <Button Grid.Column="6" Content="X" FontSize="10"
+                                                                    Padding="6,1" ToolTip="Delete group"
+                                                                    Command="{Binding DeleteCommand}"
+                                                                    VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

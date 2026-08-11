@@ -14,11 +14,9 @@ internal sealed class OwnerBlockerSettingsStore : IOwnerBlockerSettingsStore
         NormalizeSettings();
     }
 
-    public IReadOnlySet<string> BlockedProcesses { get; private set; } =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<BlockedOwnerEntry> BlockedProcesses { get; private set; } = [];
 
-    public IReadOnlySet<string> BlockedClassPrefixes { get; private set; } =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<BlockedOwnerEntry> BlockedClassPrefixes { get; private set; } = [];
 
     public bool ShowHistoryBlockButton
     {
@@ -36,26 +34,54 @@ internal sealed class OwnerBlockerSettingsStore : IOwnerBlockerSettingsStore
     public void BlockSnapshotSource(string? processName, string? windowClass)
     {
         if (BlockedProcessNames.IsBlockable(processName))
-            _settings.BlockedProcesses.Add(processName!.Trim());
+            AddOrReEnable(_settings.BlockedProcesses, processName!.Trim());
 
         string? classPrefix = BlockedWindowClasses.NormalizeForBlock(windowClass);
         if (classPrefix is not null)
-            _settings.BlockedClassPrefixes.Add(classPrefix);
+            AddOrReEnable(_settings.BlockedClassPrefixes, classPrefix);
 
         Persist();
+    }
+
+    /// <summary>Re-blocking a name that's on the list but temporarily disabled re-enables it, rather than duplicating it.</summary>
+    private static void AddOrReEnable(List<BlockedOwnerEntry> entries, string name)
+    {
+        BlockedOwnerEntry? existing = entries.FirstOrDefault(
+            e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+            existing.IsEnabled = true;
+        else
+            entries.Add(new BlockedOwnerEntry { Name = name, IsEnabled = true });
     }
 
     public void UnblockProcess(string processName)
     {
         _settings.BlockedProcesses.RemoveAll(
-            name => string.Equals(name, processName, StringComparison.OrdinalIgnoreCase));
+            e => string.Equals(e.Name, processName, StringComparison.OrdinalIgnoreCase));
         Persist();
     }
 
     public void UnblockWindowClass(string classPrefix)
     {
         _settings.BlockedClassPrefixes.RemoveAll(
-            prefix => string.Equals(prefix, classPrefix, StringComparison.OrdinalIgnoreCase));
+            e => string.Equals(e.Name, classPrefix, StringComparison.OrdinalIgnoreCase));
+        Persist();
+    }
+
+    public void SetProcessEnabled(string processName, bool enabled) =>
+        SetEnabled(_settings.BlockedProcesses, processName, enabled);
+
+    public void SetWindowClassEnabled(string classPrefix, bool enabled) =>
+        SetEnabled(_settings.BlockedClassPrefixes, classPrefix, enabled);
+
+    private void SetEnabled(List<BlockedOwnerEntry> entries, string name, bool enabled)
+    {
+        BlockedOwnerEntry? entry = entries.FirstOrDefault(
+            e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (entry is null || entry.IsEnabled == enabled)
+            return;
+
+        entry.IsEnabled = enabled;
         Persist();
     }
 
@@ -74,19 +100,17 @@ internal sealed class OwnerBlockerSettingsStore : IOwnerBlockerSettingsStore
 
     private void NormalizeSettings()
     {
-        _settings.BlockedProcesses = _settings.BlockedProcesses
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        _settings.BlockedProcesses = NormalizeEntries(_settings.BlockedProcesses);
+        _settings.BlockedClassPrefixes = NormalizeEntries(_settings.BlockedClassPrefixes);
 
-        _settings.BlockedClassPrefixes = _settings.BlockedClassPrefixes
-            .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Select(prefix => prefix.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        BlockedProcesses = new HashSet<string>(_settings.BlockedProcesses, StringComparer.OrdinalIgnoreCase);
-        BlockedClassPrefixes = new HashSet<string>(_settings.BlockedClassPrefixes, StringComparer.OrdinalIgnoreCase);
+        BlockedProcesses = _settings.BlockedProcesses.AsReadOnly();
+        BlockedClassPrefixes = _settings.BlockedClassPrefixes.AsReadOnly();
     }
+
+    private static List<BlockedOwnerEntry> NormalizeEntries(List<BlockedOwnerEntry> entries) =>
+        entries
+            .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+            .GroupBy(e => e.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new BlockedOwnerEntry { Name = g.Key, IsEnabled = g.Any(e => e.IsEnabled) })
+            .ToList();
 }

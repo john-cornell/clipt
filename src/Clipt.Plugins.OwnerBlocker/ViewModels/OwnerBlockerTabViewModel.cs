@@ -121,6 +121,25 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
         BlockLastOwnerCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Does NOT call RefreshBlockedList() — that would tear down and rebuild the very BlockedOwnerItem
+    /// whose checkbox just raised this callback, mid-toggle. Its own IsEnabled property already reflects
+    /// the new state; only the Recent Events badges and "Block last owner" need re-evaluating.
+    /// </summary>
+    private void SetProcessEnabled(string processName, bool enabled)
+    {
+        _settings.SetProcessEnabled(processName, enabled);
+        UpdateEventBlockedStates();
+        BlockLastOwnerCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SetWindowClassEnabled(string classPrefix, bool enabled)
+    {
+        _settings.SetWindowClassEnabled(classPrefix, enabled);
+        UpdateEventBlockedStates();
+        BlockLastOwnerCommand.NotifyCanExecuteChanged();
+    }
+
     [RelayCommand]
     private void ClearBlockedProcesses()
     {
@@ -157,27 +176,37 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
         BlockLastOwnerCommand.NotifyCanExecuteChanged();
     }
 
+    internal void RefreshBlockedOwners()
+    {
+        RefreshBlockedList();
+        UpdateEventBlockedStates();
+    }
+
     private void RefreshBlockedList()
     {
         BlockedProcessItems.Clear();
-        foreach (string name in _settings.BlockedProcesses.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        foreach (BlockedOwnerEntry entry in _settings.BlockedProcesses.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
         {
-            string captured = name;
+            string captured = entry.Name;
             BlockedProcessItems.Add(new BlockedOwnerItem
             {
                 DisplayName = captured,
+                IsEnabled = entry.IsEnabled,
                 UnblockCommand = new RelayCommand(() => UnblockProcess(captured)),
+                OnEnabledToggled = enabled => SetProcessEnabled(captured, enabled),
             });
         }
 
         BlockedWindowClassItems.Clear();
-        foreach (string classPrefix in _settings.BlockedClassPrefixes.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+        foreach (BlockedOwnerEntry entry in _settings.BlockedClassPrefixes.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
         {
-            string captured = classPrefix;
+            string captured = entry.Name;
             BlockedWindowClassItems.Add(new BlockedOwnerItem
             {
                 DisplayName = captured,
+                IsEnabled = entry.IsEnabled,
                 UnblockCommand = new RelayCommand(() => UnblockWindowClass(captured)),
+                OnEnabledToggled = enabled => SetWindowClassEnabled(captured, enabled),
             });
         }
 
@@ -196,11 +225,21 @@ public sealed partial class OwnerBlockerTabViewModel : ObservableObject
     }
 }
 
-public sealed class BlockedOwnerItem
+public sealed partial class BlockedOwnerItem : ObservableObject
 {
     public required string DisplayName { get; init; }
 
     public required IRelayCommand UnblockCommand { get; init; }
+
+    /// <summary>Bound TwoWay to a checkbox. Unchecking temporarily disables the block without removing the entry.</summary>
+    [ObservableProperty]
+    private bool _isEnabled = true;
+
+    /// <summary>Wired by the owning ViewModel to persist a checkbox toggle. Set via the object initializer
+    /// after IsEnabled, so constructing an item from existing state never fires a spurious persist.</summary>
+    public Action<bool>? OnEnabledToggled { get; init; }
+
+    partial void OnIsEnabledChanged(bool value) => OnEnabledToggled?.Invoke(value);
 }
 
 public sealed partial class ClipboardDebugEventItem : ObservableObject

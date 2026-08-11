@@ -409,4 +409,148 @@ public partial class TrayPopupWindow : Window
             e.Handled = true;
         }
     }
+
+    private void GroupSectionName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupSectionDisplayItem { IsFolder: true } section })
+        {
+            section.IsEditing = true;
+            e.Handled = true;
+        }
+    }
+
+    private void GroupSectionNameEdit_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.Visibility == Visibility.Visible)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                tb.Focus();
+                tb.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    private void CommitGroupSectionNameEdit(GroupSectionDisplayItem section)
+    {
+        section.IsEditing = false;
+        section.RenameCommand?.Execute(section.Name);
+    }
+
+    private void GroupSectionNameEdit_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupSectionDisplayItem section })
+            CommitGroupSectionNameEdit(section);
+    }
+
+    private void GroupSectionNameEdit_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: GroupSectionDisplayItem section })
+            return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitGroupSectionNameEdit(section);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            section.IsEditing = false;
+            e.Handled = true;
+        }
+    }
+
+    private void MoveToFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: GroupDisplayItem item } element)
+            return;
+        if (DataContext is not TrayPopupViewModel vm || vm.GroupsTab is not { } groupsTab)
+            return;
+
+        var menu = new ContextMenu();
+
+        var ungroupedItem = new MenuItem { Header = "Ungrouped", IsEnabled = item.FolderId is not null };
+        ungroupedItem.Click += (_, _) => item.MoveToFolderCommand.Execute(null);
+        menu.Items.Add(ungroupedItem);
+
+        foreach (GroupSectionDisplayItem folder in groupsTab.FolderSections)
+        {
+            string folderId = folder.FolderId!;
+            var folderMenuItem = new MenuItem { Header = folder.Name, IsEnabled = item.FolderId != folderId };
+            folderMenuItem.Click += (_, _) => item.MoveToFolderCommand.Execute(folderId);
+            menu.Items.Add(folderMenuItem);
+        }
+
+        menu.Items.Add(new Separator());
+        var newFolderMenuItem = new MenuItem { Header = "New folder…" };
+        newFolderMenuItem.Click += (_, _) => item.MoveToNewFolderCommand.Execute(null);
+        menu.Items.Add(newFolderMenuItem);
+
+        menu.PlacementTarget = element;
+        menu.IsOpen = true;
+    }
+
+    private const string GroupDragDataFormat = "Clipt.GroupDisplayItem";
+    private Point? _groupDragStartPoint;
+
+    /// <summary>
+    /// The row that had the mouse pressed on it, captured at button-down. PreviewMouseMove is used
+    /// (not MouseMove) so this still fires as the pointer crosses sibling rows before the drag threshold
+    /// is reached — resolving the dragged item from this field (not the move event's own sender/DataContext)
+    /// is what keeps the drag tied to the row the gesture actually started on.
+    /// </summary>
+    private FrameworkElement? _groupDragElement;
+
+    private void GroupRow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: GroupDisplayItem } element)
+            return;
+
+        _groupDragStartPoint = e.GetPosition(null);
+        _groupDragElement = element;
+    }
+
+    private void GroupRow_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed
+            || _groupDragStartPoint is not { } start
+            || _groupDragElement is not { DataContext: GroupDisplayItem } element)
+        {
+            return;
+        }
+
+        Point current = e.GetPosition(null);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _groupDragStartPoint = null;
+        _groupDragElement = null;
+        var data = new DataObject(GroupDragDataFormat, element.DataContext);
+        DragDrop.DoDragDrop(element, data, DragDropEffects.Move);
+    }
+
+    private void GroupSection_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(GroupDragDataFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void GroupSection_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(GroupDragDataFormat))
+            return;
+        if (e.Data.GetData(GroupDragDataFormat) is not GroupDisplayItem droppedItem)
+            return;
+        if (sender is not FrameworkElement { DataContext: GroupSectionDisplayItem targetSection })
+            return;
+
+        if (droppedItem.FolderId == targetSection.FolderId)
+            return;
+
+        droppedItem.MoveToFolderCommand.Execute(targetSection.FolderId);
+        e.Handled = true;
+    }
 }

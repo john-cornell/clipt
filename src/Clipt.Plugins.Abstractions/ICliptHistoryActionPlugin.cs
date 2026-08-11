@@ -10,6 +10,12 @@ public interface ICliptHistoryActionPlugin : ICliptPlugin
     string SelectionButtonLabel { get; }
 
     /// <summary>
+    /// When true, the plugin acts on the top history entry only (ignores selection)
+    /// and is shown in normal history chrome instead of selection mode.
+    /// </summary>
+    bool UsesTopHistoryEntryOnly => false;
+
+    /// <summary>
     /// Returns sub-actions available right now. Empty list hides the button.
     /// Called each time the user enters selection mode or saved groups change.
     /// </summary>

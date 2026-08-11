@@ -105,11 +105,26 @@
                                             Foreground="{DynamicResource AccentLightBrush}"
                                             BorderThickness="0"
                                             ToolTip="Stop blocking this process" />
+                                    <CheckBox DockPanel.Dock="Left"
+                                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,6,0"
+                                              ToolTip="Uncheck to temporarily allow this process without removing it from the list" />
                                     <TextBlock Text="{Binding DisplayName}"
                                                FontSize="10"
                                                Foreground="{DynamicResource ForegroundBrush}"
                                                VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" />
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                        <Setter Property="Opacity" Value="0.5" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -153,12 +168,27 @@
                                             Foreground="{DynamicResource AccentLightBrush}"
                                             BorderThickness="0"
                                             ToolTip="Stop blocking this window class prefix" />
+                                    <CheckBox DockPanel.Dock="Left"
+                                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,6,0"
+                                              ToolTip="Uncheck to temporarily allow this window class without removing it from the list" />
                                     <TextBlock Text="{Binding DisplayName}"
                                                FontSize="10"
                                                FontFamily="Consolas"
                                                Foreground="{DynamicResource ForegroundBrush}"
                                                VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" />
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                        <Setter Property="Opacity" Value="0.5" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

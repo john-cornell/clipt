@@ -23,4 +23,9 @@ public interface ICliptHost
     IReadOnlyList<CliptPluginSavedGroup> GetSavedGroups();
 
     Task AddEntriesToGroupAsync(string groupId, IReadOnlyList<string> historyEntryIds);
+
+    /// <summary>Id of the most recent history entry, or null when history is empty.</summary>
+    string? GetTopHistoryEntryId();
+
+    Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds);
 }

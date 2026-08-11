@@ -3,6 +3,7 @@
     <Project Path="src/Clipt/Clipt.csproj" />
     <Project Path="src/Clipt.Plugins.Abstractions/Clipt.Plugins.Abstractions.csproj" />
     <Project Path="src/Clipt.Plugins.SaveToGroup/Clipt.Plugins.SaveToGroup.csproj" />
+    <Project Path="src/Clipt.Plugins.PasswordGroup/Clipt.Plugins.PasswordGroup.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Clipt.Tests/Clipt.Tests.csproj" />

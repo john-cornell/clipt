@@ -14,6 +14,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
     private readonly string _groupArchiveRootDirectory;
     private readonly IAppLogger? _logger;
     private readonly List<ClipboardGroup> _groups = [];
+    private readonly List<ClipboardGroupFolder> _folders = [];
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private static JsonSerializerOptions JsonOptions => CliptJsonOptions.Shared;
@@ -34,6 +35,8 @@ public sealed class ClipboardGroupService : IClipboardGroupService
 
     public IReadOnlyList<ClipboardGroup> Groups => _groups.AsReadOnly();
 
+    public IReadOnlyList<ClipboardGroupFolder> Folders => _folders.AsReadOnly();
+
     public event EventHandler? GroupsChanged;
 
     public async Task LoadAsync()
@@ -42,6 +45,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         try
         {
             _groups.Clear();
+            _folders.Clear();
 
             if (!File.Exists(_groupsPath))
             {
@@ -69,6 +73,23 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                     return;
                 }
 
+                foreach (var folderDto in file.Folders ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(folderDto.Id))
+                        continue;
+
+                    string folderName = string.IsNullOrWhiteSpace(folderDto.Name) ? "Untitled folder" : folderDto.Name.Trim();
+                    _folders.Add(new ClipboardGroupFolder
+                    {
+                        Id = folderDto.Id,
+                        Name = folderName,
+                        CreatedUtc = folderDto.CreatedUtc == default ? DateTime.UtcNow : folderDto.CreatedUtc,
+                        IsCollapsed = folderDto.IsCollapsed,
+                    });
+                }
+
+                var validFolderIds = new HashSet<string>(_folders.Select(static f => f.Id), StringComparer.Ordinal);
+
                 foreach (var dto in file.Groups)
                 {
                     if (string.IsNullOrWhiteSpace(dto.Id))
@@ -90,10 +111,11 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                         Name = name,
                         CreatedUtc = dto.CreatedUtc == default ? DateTime.UtcNow : dto.CreatedUtc,
                         EntryIds = ids,
+                        FolderId = dto.FolderId is { Length: > 0 } fid && validFolderIds.Contains(fid) ? fid : null,
                     });
                 }
 
-                LogDebug($"LoadAsync: loaded {_groups.Count} group(s) from groups.json");
+                LogDebug($"LoadAsync: loaded {_groups.Count} group(s) and {_folders.Count} folder(s) from groups.json");
             }
             catch (JsonException ex)
             {
@@ -285,6 +307,226 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         }
 
         LogDebug($"AddEntriesToGroupAsync: added {newArchived.Count} entry(ies) to group '{groupId}'");
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task CreateFolderAsync(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        string trimmed = name.Trim();
+        if (trimmed.Length == 0)
+            trimmed = "Untitled folder";
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            _folders.Add(new ClipboardGroupFolder
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = trimmed,
+                CreatedUtc = DateTime.UtcNow,
+                IsCollapsed = false,
+            });
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        LogDebug($"CreateFolderAsync: created folder '{trimmed}'");
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task RenameFolderAsync(string folderId, string newName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folderId);
+        ArgumentNullException.ThrowIfNull(newName);
+
+        string trimmed = newName.Trim();
+        if (trimmed.Length == 0)
+            return;
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ClipboardGroupFolder? folder = _folders.FirstOrDefault(f => f.Id == folderId);
+            if (folder is null)
+            {
+                LogWarn($"RenameFolderAsync: folder '{folderId}' not found");
+                return;
+            }
+
+            folder.Name = trimmed;
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task DeleteFolderAsync(string folderId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folderId);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int removed = _folders.RemoveAll(f => f.Id == folderId);
+            if (removed == 0)
+            {
+                LogWarn($"DeleteFolderAsync: folder '{folderId}' not found, nothing to delete");
+                return;
+            }
+
+            foreach (ClipboardGroup group in _groups)
+            {
+                if (group.FolderId == folderId)
+                    group.FolderId = null;
+            }
+
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+            LogDebug($"DeleteFolderAsync: deleted folder '{folderId}', its groups moved to Ungrouped");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetFolderCollapsedAsync(string folderId, bool collapsed)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folderId);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ClipboardGroupFolder? folder = _folders.FirstOrDefault(f => f.Id == folderId);
+            if (folder is null)
+            {
+                LogWarn($"SetFolderCollapsedAsync: folder '{folderId}' not found");
+                return;
+            }
+
+            if (folder.IsCollapsed == collapsed)
+                return;
+
+            folder.IsCollapsed = collapsed;
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task MoveFolderAsync(string folderId, int direction)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folderId);
+        if (direction is not (-1 or 1))
+            throw new ArgumentOutOfRangeException(nameof(direction), direction, "direction must be -1 or 1.");
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int idx = _folders.FindIndex(f => f.Id == folderId);
+            if (idx < 0)
+                return;
+
+            int newIdx = Math.Clamp(idx + direction, 0, _folders.Count - 1);
+            if (newIdx == idx)
+                return;
+
+            ClipboardGroupFolder folder = _folders[idx];
+            _folders.RemoveAt(idx);
+            _folders.Insert(newIdx, folder);
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task MoveGroupToFolderAsync(string groupId, string? folderId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ClipboardGroup? group = _groups.FirstOrDefault(g => g.Id == groupId);
+            if (group is null)
+            {
+                LogWarn($"MoveGroupToFolderAsync: group '{groupId}' not found");
+                return;
+            }
+
+            if (folderId is { Length: > 0 } && _folders.All(f => f.Id != folderId))
+            {
+                LogWarn($"MoveGroupToFolderAsync: target folder '{folderId}' not found");
+                return;
+            }
+
+            string? normalizedFolderId = string.IsNullOrEmpty(folderId) ? null : folderId;
+            if (group.FolderId == normalizedFolderId)
+                return;
+
+            group.FolderId = normalizedFolderId;
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task MoveGroupAsync(string groupId, int direction)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        if (direction is not (-1 or 1))
+            throw new ArgumentOutOfRangeException(nameof(direction), direction, "direction must be -1 or 1.");
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int idx = _groups.FindIndex(g => g.Id == groupId);
+            if (idx < 0)
+                return;
+
+            string? folderId = _groups[idx].FolderId;
+            int siblingIdx = -1;
+            for (int i = idx + direction; i >= 0 && i < _groups.Count; i += direction)
+            {
+                if (string.Equals(_groups[i].FolderId, folderId, StringComparison.Ordinal))
+                {
+                    siblingIdx = i;
+                    break;
+                }
+            }
+
+            if (siblingIdx < 0)
+                return;
+
+            (_groups[idx], _groups[siblingIdx]) = (_groups[siblingIdx], _groups[idx]);
+            await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
         GroupsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -709,12 +951,20 @@ public sealed class ClipboardGroupService : IClipboardGroupService
 
         var file = new GroupsFileDto
         {
+            Folders = _folders.Select(f => new FolderDto
+            {
+                Id = f.Id,
+                Name = f.Name,
+                CreatedUtc = f.CreatedUtc,
+                IsCollapsed = f.IsCollapsed,
+            }).ToList(),
             Groups = _groups.Select(g => new GroupDto
             {
                 Id = g.Id,
                 Name = g.Name,
                 CreatedUtc = g.CreatedUtc,
                 EntryIds = g.EntryIds.ToList(),
+                FolderId = g.FolderId,
                 ArchivedEntries = archivedLookup.TryGetValue(g.Id, out List<ArchivedGroupEntryDto>? archived)
                     ? archived
                     : null,
@@ -885,7 +1135,16 @@ public sealed class ClipboardGroupService : IClipboardGroupService
 
     private sealed class GroupsFileDto
     {
+        public List<FolderDto> Folders { get; set; } = [];
         public List<GroupDto> Groups { get; set; } = [];
+    }
+
+    private sealed class FolderDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public DateTime CreatedUtc { get; set; }
+        public bool IsCollapsed { get; set; }
     }
 
     private sealed class GroupDto
@@ -894,6 +1153,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         public string Name { get; set; } = string.Empty;
         public DateTime CreatedUtc { get; set; }
         public List<string> EntryIds { get; set; } = [];
+        public string? FolderId { get; set; }
         public List<ArchivedGroupEntryDto>? ArchivedEntries { get; set; }
     }
 

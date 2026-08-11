@@ -28,6 +28,7 @@ public sealed class OwnerBlockerPlugin :
     public void Initialize(ICliptHost host)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
+        OwnerBlockerSettingsMigrator.MigrateLegacyRegistrySettings(host);
         _settingsStore = new OwnerBlockerSettingsStore(host);
         host.ClipboardProcessed += OnClipboardProcessed;
     }
@@ -62,6 +63,7 @@ public sealed class OwnerBlockerPlugin :
             return;
 
         OwnerBlockRules.BlockSnapshotSource(_settingsStore, processName, windowClass);
+        _tabViewModel?.RefreshBlockedOwners();
         if (BlockedProcessNames.IsBlockable(processName))
             await _host.RemoveHistoryByOwnerProcessAsync(processName!).ConfigureAwait(false);
     }
@@ -73,15 +75,25 @@ public sealed class OwnerBlockerPlugin :
     }
 
     public IReadOnlySet<string> GetBlockedProcessNames() =>
-        _settingsStore?.BlockedProcesses
-        ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ToEnabledNameSet(_settingsStore?.BlockedProcesses);
 
     public IReadOnlySet<string> GetBlockedWindowClassPrefixes() =>
-        _settingsStore?.BlockedClassPrefixes
-        ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ToEnabledNameSet(_settingsStore?.BlockedClassPrefixes);
+
+    /// <summary>
+    /// Temporarily-disabled entries are excluded — everywhere outside the Blocker tab's own list, a
+    /// disabled entry must behave as if it isn't blocked at all.
+    /// </summary>
+    private static IReadOnlySet<string> ToEnabledNameSet(IReadOnlyList<BlockedOwnerEntry>? entries) =>
+        entries is null
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(entries.Where(e => e.IsEnabled).Select(e => e.Name), StringComparer.OrdinalIgnoreCase);
 
     public bool ShowHistoryBlockButton =>
         _settingsStore?.ShowHistoryBlockButton ?? true;
+
+    public bool IsBlockableOwnerProcess(string? processName) =>
+        BlockedProcessNames.IsBlockable(processName);
 
     public object CreateViewModel(ICliptHost host)
     {

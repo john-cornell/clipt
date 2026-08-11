@@ -11,7 +11,7 @@ public sealed class ClipboardService : IClipboardService
     /// <summary>Hard ceiling for copying a single format from the clipboard (largest span <c>Marshal.Copy</c> supports).</summary>
     public const long NonImageFormatAbsoluteMaxBytes = int.MaxValue;
 
-    private const long DefaultMaxFormatCaptureBytes = 64 * 1024;
+    private const long DefaultMaxFormatCaptureBytes = NonImageFormatAbsoluteMaxBytes;
     private const long ImageMaxCaptureBytes = int.MaxValue;
 
     private readonly ISettingsService _settingsService;
