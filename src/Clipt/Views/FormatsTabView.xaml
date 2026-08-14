@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:help="clr-namespace:Clipt.Help">
 
-    <Grid Margin="8">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -12,61 +12,70 @@
 
         <TextBlock Grid.Row="0"
                    Text="{Binding TotalFormats, StringFormat='Total formats: {0}'}"
-                   Foreground="{DynamicResource AccentLightBrush}"
-                   FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8" />
+                   Foreground="{DynamicResource AccentSecondaryBrush}"
+                   FontSize="12" FontWeight="SemiBold" Margin="0,0,0,10" />
 
-        <DataGrid Grid.Row="1" ItemsSource="{Binding Formats}" CanUserSortColumns="True"
-                  SelectedItem="{Binding SelectedFormatRow}">
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                    <Setter Property="ToolTip" Value="{Binding ShortDescription}" />
-                </Style>
-            </DataGrid.RowStyle>
-            <DataGrid.Columns>
-                <DataGridTextColumn Width="120"
-                                    Binding="{Binding IdDisplay}">
-                    <DataGridTextColumn.Header>
-                        <TextBlock Text="ID"
-                                   ToolTip="{x:Static help:HelpContent.FormatIdTooltip}" />
-                    </DataGridTextColumn.Header>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Format Name" Binding="{Binding Name}" Width="220" />
-                <DataGridTextColumn Header="Size (bytes)" Binding="{Binding SizeBytes}" Width="100">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="HorizontalAlignment" Value="Right" />
-                            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Size" Binding="{Binding SizeFormatted}" Width="80" />
-                <DataGridTextColumn Width="180"
-                                    Binding="{Binding HandleHex}">
-                    <DataGridTextColumn.Header>
-                        <TextBlock Text="HGLOBAL Handle"
-                                   ToolTip="{x:Static help:HelpContent.HglobalTooltip}" />
-                    </DataGridTextColumn.Header>
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
-                            <Setter Property="FontSize" Value="11" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridCheckBoxColumn Width="70"
-                                        Binding="{Binding IsStandard, Mode=OneWay}">
-                    <DataGridCheckBoxColumn.Header>
-                        <TextBlock Text="Standard"
-                                   ToolTip="{x:Static help:HelpContent.StandardFormatTooltip}" />
-                    </DataGridCheckBoxColumn.Header>
-                </DataGridCheckBoxColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceDarkBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <DataGrid ItemsSource="{Binding Formats}" CanUserSortColumns="True"
+                      SelectedItem="{Binding SelectedFormatRow}" BorderThickness="0">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                        <Setter Property="ToolTip" Value="{Binding ShortDescription}" />
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="120"
+                                        Binding="{Binding IdDisplay}">
+                        <DataGridTextColumn.Header>
+                            <TextBlock Text="ID"
+                                       ToolTip="{x:Static help:HelpContent.FormatIdTooltip}" />
+                        </DataGridTextColumn.Header>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Format Name" Binding="{Binding Name}" Width="220" />
+                    <DataGridTextColumn Header="Size (bytes)" Binding="{Binding SizeBytes}" Width="110">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="HorizontalAlignment" Value="Right" />
+                                <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentSecondaryBrush}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Size" Binding="{Binding SizeFormatted}" Width="90" />
+                    <DataGridTextColumn Width="180"
+                                        Binding="{Binding HandleHex}">
+                        <DataGridTextColumn.Header>
+                            <TextBlock Text="HGLOBAL Handle"
+                                       ToolTip="{x:Static help:HelpContent.HglobalTooltip}" />
+                        </DataGridTextColumn.Header>
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+                                <Setter Property="FontSize" Value="11.5" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridCheckBoxColumn Width="80"
+                                            Binding="{Binding IsStandard, Mode=OneWay}">
+                        <DataGridCheckBoxColumn.Header>
+                            <TextBlock Text="Standard"
+                                       ToolTip="{x:Static help:HelpContent.StandardFormatTooltip}" />
+                        </DataGridCheckBoxColumn.Header>
+                    </DataGridCheckBoxColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
 
         <!-- Format info panel -->
-        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-                Padding="8,6" MinHeight="40" Margin="0,4,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource CardBackgroundDarkBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                CornerRadius="8"
+                Padding="12,10" MinHeight="40" Margin="0,10,0,0">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Visible" />
@@ -78,12 +87,12 @@
                 </Style>
             </Border.Style>
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource AccentLightBrush}"
+                <TextBlock DockPanel.Dock="Top" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccentSecondaryBrush}"
                            Text="{Binding SelectedFormatRow.Name}" Margin="0,0,0,4" />
                 <TextBlock Text="{Binding SelectedFormatDescription}"
                            TextWrapping="Wrap" FontSize="11.5"
-                           Foreground="{DynamicResource ForegroundBrush}" />
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
             </DockPanel>
         </Border>
     </Grid>

@@ -14,7 +14,7 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource BackgroundDarkBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -22,49 +22,70 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar -->
-        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-                Padding="12,6">
+        <!-- Top Header / Toolbar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SurfaceDarkBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,10">
             <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Content="?" IsChecked="{Binding IsHelpVisible}"
                                   ToolTip="Toggle detailed help panel for the current tab"
-                                  Width="28" Height="28" Padding="0"
-                                  FontWeight="Bold" FontSize="14"
+                                  Width="30" Height="30" Padding="0"
+                                  FontWeight="Bold" FontSize="13"
                                   VerticalAlignment="Center" Margin="0,0,12,0" />
                     <CheckBox Content="Dark Mode" IsChecked="{Binding IsDarkMode}"
-                              Foreground="{DynamicResource ForegroundBrush}"
-                              VerticalAlignment="Center" Margin="0,0,12,0" />
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              VerticalAlignment="Center" Margin="0,0,14,0" />
                     <CheckBox Content="Auto-refresh" IsChecked="{Binding AutoRefresh}"
                               ToolTip="{x:Static help:HelpContent.AutoRefreshTooltip}"
-                              Foreground="{DynamicResource ForegroundBrush}"
-                              VerticalAlignment="Center" Margin="0,0,12,0" />
-                    <Button Content="Refresh Now" Command="{Binding RefreshCommand}" />
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                            Content="Refresh Now"
+                            Command="{Binding RefreshCommand}"
+                            Padding="14,6" FontSize="12.5" />
                 </StackPanel>
 
-                <TextBlock Text="Clipt" FontSize="16" FontWeight="Bold"
-                           Foreground="{DynamicResource AccentBrush}"
-                           VerticalAlignment="Center" />
+                <!-- Brand Header -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="28" Height="28" CornerRadius="6" Background="{DynamicResource AccentGradient}" Margin="0,0,10,0">
+                        <TextBlock Text="C" FontWeight="Bold" FontSize="16" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Clipt" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="Clipboard Inspector &amp; Diagnostic Tool" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,1,0,0" />
+                    </StackPanel>
+                </StackPanel>
             </DockPanel>
         </Border>
 
         <!-- Help panel -->
-        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+        <Border Grid.Row="1"
+                Background="{DynamicResource CardBackgroundDarkBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1"
                 MaxHeight="200"
                 Visibility="{Binding IsHelpVisible, Converter={StaticResource BoolToVis}}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10">
                 <ItemsControl ItemsSource="{Binding CurrentHelpEntries}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="12,4,12,4">
-                                <TextBlock Text="{Binding Term}" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource AccentBrush}" FontSize="12" />
-                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource ForegroundBrush}" FontSize="11.5"
-                                           Margin="0,2,0,0" />
-                            </StackPanel>
+                            <Border Background="{DynamicResource SurfaceDarkBrush}"
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,6"
+                                    Margin="0,0,0,6">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Term}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AccentSecondaryBrush}" FontSize="12" />
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11.5"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -72,7 +93,7 @@
         </Border>
 
         <!-- Tab area -->
-        <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex}">
+        <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex}" Margin="0">
             <TabItem Header="Text">
                 <views:TextTabView DataContext="{Binding TextTab}" />
             </TabItem>
@@ -97,16 +118,16 @@
         </TabControl>
 
         <!-- Status bar -->
-        <StatusBar Grid.Row="3">
-            <StatusBarItem Content="{Binding StatusTimestamp}" />
-            <Separator Background="#40FFFFFF" />
-            <StatusBarItem Content="{Binding StatusSequence}"
+        <StatusBar Grid.Row="3" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0">
+            <StatusBarItem Content="{Binding StatusTimestamp}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <Separator Background="{DynamicResource BorderSubtleBrush}" Margin="4,2" />
+            <StatusBarItem Content="{Binding StatusSequence}" Foreground="{DynamicResource TextSecondaryBrush}"
                            ToolTip="{x:Static help:HelpContent.SeqStatusTooltip}" />
-            <Separator Background="#40FFFFFF" />
-            <StatusBarItem Content="{Binding StatusFormats}"
+            <Separator Background="{DynamicResource BorderSubtleBrush}" Margin="4,2" />
+            <StatusBarItem Content="{Binding StatusFormats}" Foreground="{DynamicResource TextSecondaryBrush}"
                            ToolTip="{x:Static help:HelpContent.FormatsCountTooltip}" />
-            <Separator Background="#40FFFFFF" />
-            <StatusBarItem Content="{Binding StatusOwner}"
+            <Separator Background="{DynamicResource BorderSubtleBrush}" Margin="4,2" />
+            <StatusBarItem Content="{Binding StatusOwner}" Foreground="{DynamicResource TextSecondaryBrush}"
                            ToolTip="{x:Static help:HelpContent.OwnerStatusTooltip}" />
         </StatusBar>
     </Grid>

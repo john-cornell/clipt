@@ -59,4 +59,7 @@ public interface ISettingsService
     /// <summary>Collapse state of the Groups tab's Ungrouped section (not tied to any one folder).</summary>
     bool LoadGroupsUngroupedCollapsed();
     void SaveGroupsUngroupedCollapsed(bool collapsed);
+
+    (double Width, double Height) LoadTrayPopupSize();
+    void SaveTrayPopupSize(double width, double height);
 }

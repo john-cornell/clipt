@@ -3,24 +3,31 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:help="clr-namespace:Clipt.Help">
     <UserControl.Resources>
+        <Style x:Key="StatCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,0,8,6" />
+        </Style>
         <Style x:Key="NativeLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource ForegroundDimBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Margin" Value="0,0,6,0" />
         </Style>
         <Style x:Key="NativeValue" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentSecondaryBrush}" />
             <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,24,0" />
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="8">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -29,70 +36,84 @@
         </Grid.RowDefinitions>
 
         <!-- Global info -->
-        <WrapPanel Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock Style="{StaticResource NativeLabel}" Text="Clipboard Owner:"
-                       ToolTip="{x:Static help:HelpContent.ClipboardOwnerTooltip}" />
-            <TextBlock Style="{StaticResource NativeValue}" Text="{Binding ClipboardOwner}" />
-            <TextBlock Style="{StaticResource NativeLabel}" Text="Sequence #:"
-                       ToolTip="{x:Static help:HelpContent.SequenceNumberTooltip}" />
-            <TextBlock Style="{StaticResource NativeValue}" Text="{Binding SequenceNumber}" />
+        <WrapPanel Grid.Row="0" Margin="0,0,0,6">
+            <Border Style="{StaticResource StatCard}" ToolTip="{x:Static help:HelpContent.ClipboardOwnerTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource NativeLabel}" Text="Clipboard Owner:" />
+                    <TextBlock Style="{StaticResource NativeValue}" Text="{Binding ClipboardOwner}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}" ToolTip="{x:Static help:HelpContent.SequenceNumberTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource NativeLabel}" Text="Sequence #:" />
+                    <TextBlock Style="{StaticResource NativeValue}" Text="{Binding SequenceNumber}" />
+                </StackPanel>
+            </Border>
         </WrapPanel>
 
         <!-- Format selector -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Style="{StaticResource NativeLabel}" Text="Inspect Format:" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Style="{StaticResource NativeLabel}" Text="Inspect Format:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox ItemsSource="{Binding AvailableFormats}"
                       SelectedItem="{Binding SelectedFormat}"
-                      MinWidth="300" />
+                      MinWidth="320" />
         </StackPanel>
 
         <!-- Memory details -->
-        <WrapPanel Grid.Row="2" Margin="0,0,0,4">
-            <TextBlock Style="{StaticResource NativeLabel}" Text="HGLOBAL Handle:"
-                       ToolTip="{x:Static help:HelpContent.HglobalTooltip}" />
-            <TextBlock Style="{StaticResource NativeValue}" Text="{Binding HandleHex}" />
-        </WrapPanel>
-
-        <WrapPanel Grid.Row="3" Margin="0,0,0,4">
-            <TextBlock Style="{StaticResource NativeLabel}" Text="GlobalLock Pointer:"
-                       ToolTip="{x:Static help:HelpContent.GlobalLockTooltip}" />
-            <TextBlock Style="{StaticResource NativeValue}" Text="{Binding LockPointerHex}" />
-            <TextBlock Style="{StaticResource NativeLabel}" Text="GlobalSize:"
-                       ToolTip="{x:Static help:HelpContent.GlobalSizeTooltip}" />
-            <TextBlock Style="{StaticResource NativeValue}" Text="{Binding GlobalSizeDisplay}" />
+        <WrapPanel Grid.Row="2" Margin="0,0,0,6">
+            <Border Style="{StaticResource StatCard}" ToolTip="{x:Static help:HelpContent.HglobalTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource NativeLabel}" Text="HGLOBAL Handle:" />
+                    <TextBlock Style="{StaticResource NativeValue}" Text="{Binding HandleHex}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}" ToolTip="{x:Static help:HelpContent.GlobalLockTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource NativeLabel}" Text="GlobalLock Pointer:" />
+                    <TextBlock Style="{StaticResource NativeValue}" Text="{Binding LockPointerHex}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}" ToolTip="{x:Static help:HelpContent.GlobalSizeTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource NativeLabel}" Text="GlobalSize:" />
+                    <TextBlock Style="{StaticResource NativeValue}" Text="{Binding GlobalSizeDisplay}" />
+                </StackPanel>
+            </Border>
         </WrapPanel>
 
         <!-- Raw memory caption + step controls -->
-        <StackPanel Grid.Row="4" Margin="0,8,0,4">
+        <StackPanel Grid.Row="3" Margin="0,4,0,8">
             <TextBlock Text="{Binding RawMemoryCaption}"
-                       Foreground="{DynamicResource ForegroundDimBrush}"
+                       Foreground="{DynamicResource TextMutedBrush}"
                        FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"
                        ToolTip="{x:Static help:HelpContent.RawMemoryTooltip}" />
-            <TextBlock Text="RAW MEMORY — HEX"
-                       Foreground="{DynamicResource AccentLightBrush}"
-                       FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <WrapPanel Orientation="Horizontal">
-                <Button Content="256" Margin="0,0,4,4" Padding="8,2" FontSize="10"
-                        Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="0" />
-                <Button Content="1K" Margin="0,0,4,4" Padding="8,2" FontSize="10"
-                        Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="1" />
-                <Button Content="4K" Margin="0,0,4,4" Padding="8,2" FontSize="10"
-                        Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="2" />
-                <Button Content="16K" Margin="0,0,4,4" Padding="8,2" FontSize="10"
-                        Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="3" />
-                <Button Content="Full" Margin="0,0,4,4" Padding="8,2" FontSize="10"
-                        Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="4" />
-                <Button Content="◀" Margin="8,0,4,4" Padding="8,2" FontSize="10"
-                        ToolTip="Smaller preview"
-                        Command="{Binding RetreatRawMemoryByteStepCommand}" />
-                <Button Content="▶" Margin="0,0,0,4" Padding="8,2" FontSize="10"
-                        ToolTip="Larger preview"
-                        Command="{Binding AdvanceRawMemoryByteStepCommand}" />
-            </WrapPanel>
+            <DockPanel Margin="0,0,0,6">
+                <TextBlock DockPanel.Dock="Left" Text="RAW MEMORY — HEX"
+                           Foreground="{DynamicResource AccentSecondaryBrush}"
+                           FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="256" Margin="0,0,4,0" Padding="8,2" FontSize="10.5"
+                            Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="0" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="1K" Margin="0,0,4,0" Padding="8,2" FontSize="10.5"
+                            Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="1" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="4K" Margin="0,0,4,0" Padding="8,2" FontSize="10.5"
+                            Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="2" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="16K" Margin="0,0,4,0" Padding="8,2" FontSize="10.5"
+                            Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="3" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Full" Margin="0,0,4,0" Padding="8,2" FontSize="10.5"
+                            Command="{Binding SetRawMemoryByteStepCommand}" CommandParameter="4" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="◀" Margin="6,0,4,0" Padding="8,2" FontSize="10.5"
+                            ToolTip="Smaller preview"
+                            Command="{Binding RetreatRawMemoryByteStepCommand}" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="▶" Margin="0,0,0,0" Padding="8,2" FontSize="10.5"
+                            ToolTip="Larger preview"
+                            Command="{Binding AdvanceRawMemoryByteStepCommand}" />
+                </WrapPanel>
+            </DockPanel>
         </StackPanel>
 
         <!-- Hex dump -->
-        <TextBox Grid.Row="5"
+        <TextBox Grid.Row="4"
                  Text="{Binding MemoryHexDump, Mode=OneWay}"
                  Style="{DynamicResource MonoText}"
                  AcceptsReturn="True" />

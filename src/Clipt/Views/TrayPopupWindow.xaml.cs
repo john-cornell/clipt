@@ -14,13 +14,26 @@ public partial class TrayPopupWindow : Window
     private const string PluginsTabHeader = "Plugins";
 
     private DateTime _lastHiddenUtc = DateTime.MinValue;
+    private readonly ISettingsService? _settingsService;
 
-    public TrayPopupWindow(TrayPopupViewModel viewModel)
+    public TrayPopupWindow(TrayPopupViewModel viewModel, ISettingsService? settingsService = null)
     {
+        _settingsService = settingsService;
         InitializeComponent();
         DataContext = viewModel;
         TitleText.Text = $"Clipt {MainWindow.GetAppVersion()}";
 
+        if (_settingsService is not null)
+        {
+            var (savedWidth, savedHeight) = _settingsService.LoadTrayPopupSize();
+            if (savedWidth >= MinWidth && savedHeight >= MinHeight)
+            {
+                Width = savedWidth;
+                Height = savedHeight;
+            }
+        }
+
+        SizeChanged += OnSizeChanged;
         Deactivated += OnDeactivated;
 
         SubscribeToHistoryTab(viewModel.HistoryTab);
@@ -46,6 +59,14 @@ public partial class TrayPopupWindow : Window
             if (e.PropertyName == nameof(TrayPopupViewModel.ShowPluginsTab))
                 UpdateOptionalTabVisibility();
         };
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (IsLoaded && WindowState == WindowState.Normal)
+        {
+            _settingsService?.SaveTrayPopupSize(ActualWidth, ActualHeight);
+        }
     }
 
     private void SyncPluginTrayTabs()
@@ -235,15 +256,15 @@ public partial class TrayPopupWindow : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 1)
+        if (e.ClickCount == 1 && e.LeftButton == MouseButtonState.Pressed)
             DragMove();
     }
 
     public void ShowNearTray()
     {
         var workArea = SystemParameters.WorkArea;
-        Left = workArea.Right - Width - 8;
-        Top = workArea.Bottom - Height - 8;
+        Left = Math.Max(workArea.Left + 8, workArea.Right - Width - 8);
+        Top = Math.Max(workArea.Top + 8, workArea.Bottom - Height - 8);
         Show();
         Activate();
     }

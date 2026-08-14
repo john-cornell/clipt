@@ -659,9 +659,48 @@ public sealed class SettingsService : ISettingsService
         catch (UnauthorizedAccessException) { }
     }
 
+    private const string TrayPopupWidthValueName = "TrayPopupWidth";
+    private const string TrayPopupHeightValueName = "TrayPopupHeight";
+    private const double DefaultTrayPopupWidth = 460;
+    private const double DefaultTrayPopupHeight = 520;
+
     public bool LoadGroupsUngroupedCollapsed() => LoadBoolSetting(GroupsUngroupedCollapsedValueName, defaultValue: false);
 
     public void SaveGroupsUngroupedCollapsed(bool collapsed) => SaveBoolSetting(GroupsUngroupedCollapsedValueName, collapsed);
+
+    public (double Width, double Height) LoadTrayPopupSize()
+    {
+        double width = DefaultTrayPopupWidth;
+        double height = DefaultTrayPopupHeight;
+
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            if (key?.GetValue(TrayPopupWidthValueName) is int w && w >= 360 && w <= 1600)
+                width = w;
+            if (key?.GetValue(TrayPopupHeightValueName) is int h && h >= 360 && h <= 1400)
+                height = h;
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return (width, height);
+    }
+
+    public void SaveTrayPopupSize(double width, double height)
+    {
+        if (width < 360 || height < 360)
+            return;
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key.SetValue(TrayPopupWidthValueName, (int)Math.Round(width), RegistryValueKind.DWord);
+            key.SetValue(TrayPopupHeightValueName, (int)Math.Round(height), RegistryValueKind.DWord);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 
     private static bool LoadBoolSetting(string valueName, bool defaultValue)
     {

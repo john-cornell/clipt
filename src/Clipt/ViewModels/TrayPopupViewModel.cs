@@ -130,12 +130,6 @@ public sealed partial class TrayPopupViewModel : ObservableObject
     {
         TrayTabShowMenuItems.Clear();
 
-        TrayTabShowMenuItems.Add(new TrayTabShowMenuItem(
-            this,
-            "Plugins",
-            pluginId: null,
-            ShowPluginsTab));
-
         foreach (PluginTrayTabItem tab in PluginTrayTabs)
         {
             TrayTabShowMenuItems.Add(new TrayTabShowMenuItem(
@@ -144,6 +138,12 @@ public sealed partial class TrayPopupViewModel : ObservableObject
                 tab.PluginId,
                 IsOptionalTrayTabVisible(tab.PluginId)));
         }
+
+        TrayTabShowMenuItems.Add(new TrayTabShowMenuItem(
+            this,
+            "Plugins",
+            pluginId: null,
+            ShowPluginsTab));
 
         SyncTrayShowTabsMenu();
         TrayTabShowMenuItemsChanged?.Invoke(this, EventArgs.Empty);

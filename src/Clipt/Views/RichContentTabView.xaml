@@ -7,7 +7,7 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
     </UserControl.Resources>
 
-    <Grid Margin="8">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -18,8 +18,8 @@
 
         <!-- HTML Headers -->
         <TextBlock Grid.Row="0" Text="HTML FORMAT — HEADERS"
-                   Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
-                   FontWeight="SemiBold" Margin="0,0,0,4"
+                   Foreground="{DynamicResource AccentSecondaryBrush}" FontSize="11"
+                   FontWeight="SemiBold" Margin="0,0,0,6"
                    ToolTip="{x:Static help:HelpContent.HtmlHeadersTooltip}"
                    Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}" />
         <TextBox Grid.Row="1"
@@ -30,11 +30,11 @@
                  Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}" />
 
         <!-- HTML Source -->
-        <DockPanel Grid.Row="2" Margin="0,8,0,0"
+        <DockPanel Grid.Row="2" Margin="0,10,0,0"
                    Visibility="{Binding HasHtml, Converter={StaticResource BoolToVis}}">
             <TextBlock DockPanel.Dock="Top" Text="HTML SOURCE"
-                       Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
-                       FontWeight="SemiBold" Margin="0,0,0,4"
+                       Foreground="{DynamicResource AccentSecondaryBrush}" FontSize="11"
+                       FontWeight="SemiBold" Margin="0,0,0,6"
                        ToolTip="{x:Static help:HelpContent.HtmlFormatTooltip}" />
             <TextBox Text="{Binding HtmlSource, Mode=OneWay}"
                      Style="{DynamicResource MonoText}"
@@ -44,8 +44,8 @@
 
         <!-- RTF Source -->
         <TextBlock Grid.Row="3" Text="RTF SOURCE"
-                   Foreground="{DynamicResource AccentLightBrush}" FontSize="11"
-                   FontWeight="SemiBold" Margin="0,8,0,4"
+                   Foreground="{DynamicResource AccentSecondaryBrush}" FontSize="11"
+                   FontWeight="SemiBold" Margin="0,10,0,6"
                    ToolTip="{x:Static help:HelpContent.RtfTooltip}"
                    Visibility="{Binding HasRtf, Converter={StaticResource BoolToVis}}" />
         <TextBox Grid.Row="4"
@@ -56,7 +56,7 @@
 
         <!-- No content -->
         <TextBlock Grid.Row="2" Text="No HTML or RTF data on clipboard"
-                   Foreground="{DynamicResource ForegroundDimBrush}"
+                   Foreground="{DynamicResource TextMutedBrush}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontSize="14">
             <TextBlock.Style>
