@@ -616,6 +616,267 @@ public class ClipboardGroupServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveGroupAsync_PopulatesEntriesWithFullMetadata()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("id1", name: "My Clip", summary: "hello world", blobText: "payload");
+
+        await svc.SaveGroupAsync("G", new[] { "id1" });
+
+        Assert.Single(svc.Groups[0].Entries);
+        ArchivedGroupEntryInfo entry = svc.Groups[0].Entries[0];
+        Assert.Equal(svc.Groups[0].EntryIds[0], entry.Id);
+        Assert.Equal("My Clip", entry.Name);
+        Assert.Equal("hello world", entry.Summary);
+        Assert.Equal(ContentType.Text, entry.ContentType);
+        Assert.Equal(7, entry.DataSizeBytes);
+    }
+
+    [Fact]
+    public async Task LoadAsync_RoundTripsEntriesMetadata()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a", name: "Alpha clip", summary: "alpha summary");
+        await svc.SaveGroupAsync("One", new[] { "a" });
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+
+        Assert.Single(svc2.Groups[0].Entries);
+        Assert.Equal("Alpha clip", svc2.Groups[0].Entries[0].Name);
+        Assert.Equal("alpha summary", svc2.Groups[0].Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task RenameGroupEntryAsync_UpdatesNameAndPersists()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a", name: "Original");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+        string entryId = svc.Groups[0].EntryIds[0];
+
+        await svc.RenameGroupEntryAsync(groupId, entryId, "Renamed");
+
+        Assert.Equal("Renamed", svc.Groups[0].Entries[0].Name);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Equal("Renamed", svc2.Groups[0].Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task RenameGroupEntryAsync_DoesNotAffectOtherEntriesInGroup()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a", name: "First", summary: "first-summary");
+        await SeedHistoryEntryAsync("b", name: "Second", summary: "second-summary");
+        await svc.SaveGroupAsync("G", new[] { "a", "b" });
+        string groupId = svc.Groups[0].Id;
+        string firstEntryId = svc.Groups[0].EntryIds[0];
+
+        await svc.RenameGroupEntryAsync(groupId, firstEntryId, "Renamed First");
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        ArchivedGroupEntryInfo second = svc2.Groups[0].Entries[1];
+        Assert.Equal("Second", second.Name);
+        Assert.Equal("second-summary", second.Summary);
+    }
+
+    [Fact]
+    public async Task RenameGroupEntryAsync_UnknownEntry_DoesNotThrow()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+
+        await svc.RenameGroupEntryAsync(groupId, "ghost-entry", "New name");
+
+        Assert.Equal("Clip", svc.Groups[0].Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task DeleteGroupEntryAsync_RemovesEntryAndBlobButKeepsGroup()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a", blobText: "keep-me");
+        await SeedHistoryEntryAsync("b", blobText: "delete-me");
+        await svc.SaveGroupAsync("G", new[] { "a", "b" });
+        string groupId = svc.Groups[0].Id;
+        string keepId = svc.Groups[0].EntryIds[0];
+        string deleteId = svc.Groups[0].EntryIds[1];
+
+        await svc.DeleteGroupEntryAsync(groupId, deleteId);
+
+        Assert.Single(svc.Groups);
+        Assert.Single(svc.Groups[0].EntryIds);
+        Assert.Equal(keepId, svc.Groups[0].EntryIds[0]);
+        Assert.False(File.Exists(Path.Combine(_tempDir, "groups", groupId, "blobs", deleteId + ".bin")));
+        Assert.True(File.Exists(Path.Combine(_tempDir, "groups", groupId, "blobs", keepId + ".bin")));
+    }
+
+    [Fact]
+    public async Task DeleteGroupEntryAsync_LastEntry_DeletesWholeGroupAndArchive()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+        string entryId = svc.Groups[0].EntryIds[0];
+
+        await svc.DeleteGroupEntryAsync(groupId, entryId);
+
+        Assert.Empty(svc.Groups);
+        Assert.False(Directory.Exists(Path.Combine(_tempDir, "groups", groupId)));
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Empty(svc2.Groups);
+    }
+
+    [Fact]
+    public async Task DeleteGroupEntryAsync_UnknownEntry_DoesNotThrowOrChangeGroup()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+
+        await svc.DeleteGroupEntryAsync(groupId, "ghost-entry");
+
+        Assert.Single(svc.Groups[0].EntryIds);
+    }
+
+    [Fact]
+    public async Task DeleteGroupEntryAsync_UnknownGroup_DoesNotThrow()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        await svc.DeleteGroupEntryAsync("no-such-group", "no-such-entry");
+    }
+
+    [Fact]
+    public async Task MoveGroupEntryAsync_ReordersEntryIdsAndEntries()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a", name: "First");
+        await SeedHistoryEntryAsync("b", name: "Second");
+        await svc.SaveGroupAsync("G", new[] { "a", "b" });
+        string groupId = svc.Groups[0].Id;
+        string firstId = svc.Groups[0].EntryIds[0];
+        string secondId = svc.Groups[0].EntryIds[1];
+
+        await svc.MoveGroupEntryAsync(groupId, secondId, -1);
+
+        Assert.Equal(secondId, svc.Groups[0].EntryIds[0]);
+        Assert.Equal(firstId, svc.Groups[0].EntryIds[1]);
+        Assert.Equal("Second", svc.Groups[0].Entries[0].Name);
+        Assert.Equal("First", svc.Groups[0].Entries[1].Name);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Equal(secondId, svc2.Groups[0].EntryIds[0]);
+        Assert.Equal("Second", svc2.Groups[0].Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task MoveGroupEntryAsync_AtTopBoundary_NoOp()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await SeedHistoryEntryAsync("b");
+        await svc.SaveGroupAsync("G", new[] { "a", "b" });
+        string groupId = svc.Groups[0].Id;
+        string firstId = svc.Groups[0].EntryIds[0];
+
+        await svc.MoveGroupEntryAsync(groupId, firstId, -1);
+
+        Assert.Equal(firstId, svc.Groups[0].EntryIds[0]);
+    }
+
+    [Fact]
+    public async Task MoveGroupEntryAsync_AtBottomBoundary_NoOp()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await SeedHistoryEntryAsync("b");
+        await svc.SaveGroupAsync("G", new[] { "a", "b" });
+        string groupId = svc.Groups[0].Id;
+        string lastId = svc.Groups[0].EntryIds[1];
+
+        await svc.MoveGroupEntryAsync(groupId, lastId, +1);
+
+        Assert.Equal(lastId, svc.Groups[0].EntryIds[1]);
+    }
+
+    [Fact]
+    public async Task MoveGroupEntryAsync_UnknownEntry_DoesNotThrow()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+
+        await svc.MoveGroupEntryAsync(groupId, "ghost-entry", +1);
+    }
+
+    [Fact]
+    public async Task MoveGroupEntryAsync_InvalidDirection_Throws()
+    {
+        var svc = CreateService();
+        await SeedHistoryEntryAsync("a");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+        string entryId = svc.Groups[0].EntryIds[0];
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => svc.MoveGroupEntryAsync(groupId, entryId, 2));
+    }
+
+    [Fact]
+    public async Task AddEntriesToGroupAsync_PreservesFolderId()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("a");
+        await SeedHistoryEntryAsync("b");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        await svc.CreateFolderAsync("Work");
+        string groupId = svc.Groups[0].Id;
+        string folderId = svc.Folders[0].Id;
+        await svc.MoveGroupToFolderAsync(groupId, folderId);
+
+        await svc.AddEntriesToGroupAsync(groupId, new[] { "b" });
+
+        Assert.Equal(folderId, svc.Groups[0].FolderId);
+        Assert.Equal(2, svc.Groups[0].EntryIds.Count);
+
+        var svc2 = CreateService();
+        await svc2.LoadAsync();
+        Assert.Equal(folderId, svc2.Groups[0].FolderId);
+    }
+
+    [Fact]
+    public async Task AddEntriesToGroupAsync_AppendsToEntriesMetadata()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("a", name: "First");
+        await SeedHistoryEntryAsync("b", name: "Second");
+        await svc.SaveGroupAsync("G", new[] { "a" });
+        string groupId = svc.Groups[0].Id;
+
+        await svc.AddEntriesToGroupAsync(groupId, new[] { "b" });
+
+        Assert.Equal(2, svc.Groups[0].Entries.Count);
+        Assert.Equal("First", svc.Groups[0].Entries[0].Name);
+        Assert.Equal("Second", svc.Groups[0].Entries[1].Name);
+    }
+
+    [Fact]
     public async Task LoadAsync_OldFormatFileWithoutFolders_LoadsGroupsAsUngrouped()
     {
         string groupsPath = Path.Combine(_tempDir, "groups.json");

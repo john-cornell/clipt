@@ -32,6 +32,19 @@ public class GroupsTabViewModelTests
         _settingsMock.Setup(s => s.LoadGroupsUngroupedCollapsed()).Returns(false);
     }
 
+    private static ArchivedGroupEntryInfo CreateArchivedEntryInfo(string id, string name = "Clip") => new(
+        Id: id,
+        SourceEntryId: id,
+        Name: name,
+        TimestampUtc: DateTime.UtcNow,
+        SequenceNumber: 1,
+        OwnerProcess: "test",
+        OwnerPid: 1,
+        Summary: name,
+        ContentType: ContentType.Text,
+        DataSizeBytes: 100,
+        ContentHash: "abc");
+
     private GroupsTabViewModel CreateVm()
     {
         return new GroupsTabViewModel(
@@ -384,4 +397,170 @@ public class GroupsTabViewModelTests
         Assert.NotNull(second.MoveUpCommand);
         Assert.Null(second.MoveDownCommand);
     }
+
+    [Fact]
+    public void Refresh_GroupWithEntries_PopulatesEntryDisplayItems()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1", "e2" },
+                Entries = new[]
+                {
+                    CreateArchivedEntryInfo("e1", "First clip"),
+                    CreateArchivedEntryInfo("e2", "Second clip"),
+                },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        GroupDisplayItem group = vm.Sections[0].Groups[0];
+        Assert.Equal(2, group.Entries.Count);
+        Assert.Equal("First clip", group.Entries[0].Name);
+        Assert.Equal("Second clip", group.Entries[1].Name);
+        Assert.False(group.IsExpanded);
+        Assert.Null(group.Entries[0].MoveUpCommand);
+        Assert.NotNull(group.Entries[0].MoveDownCommand);
+        Assert.NotNull(group.Entries[1].MoveUpCommand);
+        Assert.Null(group.Entries[1].MoveDownCommand);
+    }
+
+    [Fact]
+    public void Refresh_GroupEntry_DetailTextComposesContentTypeAndFormattedSize()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1", "e2", "e3" },
+                Entries = new[]
+                {
+                    CreateArchivedEntryInfo("e1") with { DataSizeBytes = 512 },
+                    CreateArchivedEntryInfo("e2") with { DataSizeBytes = 2048 },
+                    CreateArchivedEntryInfo("e3") with { ContentType = ContentType.Image, DataSizeBytes = 3 * 1024 * 1024 },
+                },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        var entries = vm.Sections[0].Groups[0].Entries;
+        Assert.Equal("Text · 512 B", entries[0].DetailText);
+        Assert.Equal("Text · 2 KB", entries[1].DetailText);
+        Assert.Equal("Image · 3 MB", entries[2].DetailText);
+    }
+
+    [Fact]
+    public async Task GroupEntry_RenameCommand_CallsGroupService()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1" },
+                Entries = new[] { CreateArchivedEntryInfo("e1") },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+        _groupMock.Setup(g => g.RenameGroupEntryAsync("g1", "e1", "New name")).Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.Sections[0].Groups[0].Entries[0].RenameCommand.ExecuteAsync("New name");
+
+        _groupMock.Verify(s => s.RenameGroupEntryAsync("g1", "e1", "New name"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GroupEntry_DeleteCommand_CallsGroupService()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1" },
+                Entries = new[] { CreateArchivedEntryInfo("e1") },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+        _groupMock.Setup(g => g.DeleteGroupEntryAsync("g1", "e1")).Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.Sections[0].Groups[0].Entries[0].DeleteCommand.ExecuteAsync(null);
+
+        _groupMock.Verify(s => s.DeleteGroupEntryAsync("g1", "e1"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GroupEntry_MoveDownCommand_CallsGroupServiceWithPositiveDirection()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1", "e2" },
+                Entries = new[] { CreateArchivedEntryInfo("e1"), CreateArchivedEntryInfo("e2") },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+        _groupMock.Setup(g => g.MoveGroupEntryAsync("g1", "e1", +1)).Returns(Task.CompletedTask);
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.Sections[0].Groups[0].Entries[0].MoveDownCommand!.ExecuteAsync(null);
+
+        _groupMock.Verify(s => s.MoveGroupEntryAsync("g1", "e1", +1), Times.Once);
+    }
+
+    [Fact]
+    public void AnyGroupEditing_TrueWhenGroupEntryIsEditing()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1" },
+                Entries = new[] { CreateArchivedEntryInfo("e1") },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        Assert.False(vm.AnyGroupEditing);
+
+        vm.Sections[0].Groups[0].Entries[0].IsEditing = true;
+
+        Assert.True(vm.AnyGroupEditing);
+    }
+
 }

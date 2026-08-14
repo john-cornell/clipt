@@ -12,13 +12,14 @@ Each **CliptSetup.exe** link points at a file attached to that version’s [GitH
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
-| **1.14.15** | 2026-06-04 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.15/CliptSetup.exe) | **Add to group** plugin: select history items and add them to an existing saved group; **enable/disable plugins** via checkbox in Plugins tab (persisted); **Show tabs** menu now lists Plugins first then plugin-added tabs; new `ICliptHistoryActionPlugin` interface and `Clipt.Plugins.SaveToGroup` project |
+| **1.14.21** | 2026-08-14 | [**CliptSetup.exe**](https://github.com/john-cornell/clipt/releases/download/v1.14.21/CliptSetup.exe) | Groups tab: expand a group to see, rename, delete, and reorder its individual saved clips; group/clip name tooltips now show the full (untruncated) name plus a **Click to rename** line; removed the experimental name-column resize splitter (name column is auto-width again, keeping the delete/move-to-folder buttons always visible) |
 
 <details>
 <summary><strong>Previous releases</strong> (click to expand)</summary>
 
 | Version | Date | Installer | Notes |
 |---------|------|-----------|-------|
+| 1.14.15 | 2026-06-04 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.15/CliptSetup.exe) | **Add to group** plugin: select history items and add them to an existing saved group; **enable/disable plugins** via checkbox in Plugins tab (persisted); **Show tabs** menu now lists Plugins first then plugin-added tabs; new `ICliptHistoryActionPlugin` interface and `Clipt.Plugins.SaveToGroup` project |
 | 1.14.13 | 2026-06-02 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.13/CliptSetup.exe) | Fix collapsed startup/tray crash (Owner Blocker on UI thread); history type label left + owner footer spans full width; tray left-click and taskbar button restore popup/full window |
 | 1.14.9 | 2026-06-02 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.9/CliptSetup.exe) | History list: content type label (**Text** / **Image** / **Files**) left-aligned before thumbnail or summary |
 | 1.14.8 | 2026-06-01 | [CliptSetup.exe](https://github.com/john-cornell/clipt/releases/download/v1.14.8/CliptSetup.exe) | Tray popup **≡** options on title bar (Show tabs submenu, Save group, Reorder, Long text, Clear); dynamic **Show tabs** for all plugin tabs + **Plugins**; plugin-driven **Block** button on History (right-aligned, toggle in Blocker tab); startup/DI fixes from 1.14.4–1.14.7 |

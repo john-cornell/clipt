@@ -47,5 +47,20 @@ public interface IClipboardGroupService
     /// <summary>Reorders a group among its current folder/Ungrouped siblings only. direction: -1/+1. No-op at a boundary or unknown id.</summary>
     Task MoveGroupAsync(string groupId, int direction);
 
+    /// <summary>Renames one archived clip within a group (metadata only — does not touch its blob).</summary>
+    Task RenameGroupEntryAsync(string groupId, string entryId, string newName);
+
+    /// <summary>
+    /// Removes one archived clip from a group and deletes its blob file. If this empties the group,
+    /// deletes the whole group (and its archive folder) instead of leaving a 0-item group behind.
+    /// </summary>
+    Task DeleteGroupEntryAsync(string groupId, string entryId);
+
+    /// <summary>
+    /// Reorders a clip within its group. direction: -1 toward index 0, +1 toward the end. No-op at a
+    /// boundary or unknown id. Changes restore order/content, since restore uses <see cref="ClipboardGroup.EntryIds"/> order.
+    /// </summary>
+    Task MoveGroupEntryAsync(string groupId, string entryId, int direction);
+
     event EventHandler? GroupsChanged;
 }

@@ -410,6 +410,62 @@ public partial class TrayPopupWindow : Window
         }
     }
 
+    private void GroupExpandToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupDisplayItem item })
+            item.IsExpanded = !item.IsExpanded;
+    }
+
+    private void GroupItemName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupEntryDisplayItem item })
+        {
+            item.IsEditing = true;
+            e.Handled = true;
+        }
+    }
+
+    private void GroupItemNameEdit_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.Visibility == Visibility.Visible)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                tb.Focus();
+                tb.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    private void CommitGroupItemNameEdit(GroupEntryDisplayItem item)
+    {
+        item.IsEditing = false;
+        item.RenameCommand?.Execute(item.Name);
+    }
+
+    private void GroupItemNameEdit_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GroupEntryDisplayItem item })
+            CommitGroupItemNameEdit(item);
+    }
+
+    private void GroupItemNameEdit_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: GroupEntryDisplayItem item })
+            return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitGroupItemNameEdit(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsEditing = false;
+            e.Handled = true;
+        }
+    }
+
     private void GroupSectionName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: GroupSectionDisplayItem { IsFolder: true } section })

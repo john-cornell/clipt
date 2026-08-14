@@ -96,11 +96,11 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                         continue;
 
                     string name = string.IsNullOrWhiteSpace(dto.Name) ? "Untitled" : dto.Name.Trim();
-                    List<string> ids = dto.ArchivedEntries is { Count: > 0 }
-                        ? dto.ArchivedEntries
-                            .Where(static a => !string.IsNullOrWhiteSpace(a.Id))
-                            .Select(static a => a.Id)
-                            .ToList()
+                    List<ArchivedGroupEntryDto> validArchived = dto.ArchivedEntries is { Count: > 0 }
+                        ? dto.ArchivedEntries.Where(static a => !string.IsNullOrWhiteSpace(a.Id)).ToList()
+                        : [];
+                    List<string> ids = validArchived.Count > 0
+                        ? validArchived.Select(static a => a.Id).ToList()
                         : dto.EntryIds?.Where(static id => !string.IsNullOrWhiteSpace(id)).ToList() ?? [];
                     if (ids.Count == 0)
                         continue;
@@ -112,6 +112,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                         CreatedUtc = dto.CreatedUtc == default ? DateTime.UtcNow : dto.CreatedUtc,
                         EntryIds = ids,
                         FolderId = dto.FolderId is { Length: > 0 } fid && validFolderIds.Contains(fid) ? fid : null,
+                        Entries = validArchived.Count > 0 ? validArchived.Select(ToEntryInfo).ToList() : [],
                     });
                 }
 
@@ -167,6 +168,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
             Name = trimmedName,
             CreatedUtc = DateTime.UtcNow,
             EntryIds = archivedEntries.Select(static x => x.Id).ToList(),
+            Entries = archivedEntries.Select(ToEntryInfo).ToList(),
         };
 
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -289,7 +291,9 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                 Id = group.Id,
                 Name = group.Name,
                 CreatedUtc = group.CreatedUtc,
+                FolderId = group.FolderId,
                 EntryIds = [..group.EntryIds, ..newArchived.Select(static x => x.Id)],
+                Entries = [..group.Entries, ..newArchived.Select(ToEntryInfo)],
             };
 
             GroupsFileDto? snapshot = await ReadGroupsFileSnapshotAsync(CancellationToken.None).ConfigureAwait(false);
@@ -521,6 +525,188 @@ public sealed class ClipboardGroupService : IClipboardGroupService
 
             (_groups[idx], _groups[siblingIdx]) = (_groups[siblingIdx], _groups[idx]);
             await WriteGroupsFileAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task RenameGroupEntryAsync(string groupId, string entryId, string newName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentException.ThrowIfNullOrEmpty(entryId);
+        ArgumentNullException.ThrowIfNull(newName);
+
+        string trimmed = newName.Trim();
+        if (trimmed.Length == 0)
+            return;
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int groupIdx = _groups.FindIndex(g => g.Id == groupId);
+            if (groupIdx < 0)
+            {
+                LogWarn($"RenameGroupEntryAsync: group '{groupId}' not found");
+                return;
+            }
+
+            ClipboardGroup group = _groups[groupIdx];
+            if (!group.EntryIds.Contains(entryId))
+            {
+                LogWarn($"RenameGroupEntryAsync: entry '{entryId}' not found in group '{groupId}'");
+                return;
+            }
+
+            List<ArchivedGroupEntryInfo> entries = group.Entries.ToList();
+            int entryIdx = entries.FindIndex(e => e.Id == entryId);
+            if (entryIdx < 0)
+            {
+                LogWarn($"RenameGroupEntryAsync: entry '{entryId}' exists in group '{groupId}' but has no archived metadata to rename");
+                return;
+            }
+
+            entries[entryIdx] = entries[entryIdx] with { Name = trimmed };
+
+            _groups[groupIdx] = new ClipboardGroup
+            {
+                Id = group.Id,
+                Name = group.Name,
+                CreatedUtc = group.CreatedUtc,
+                FolderId = group.FolderId,
+                EntryIds = group.EntryIds,
+                Entries = entries,
+            };
+
+            await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal)
+            {
+                [groupId] = entries.Select(ToArchivedDto).ToList(),
+            }).ConfigureAwait(false);
+            LogDebug($"RenameGroupEntryAsync: renamed entry '{entryId}' in group '{groupId}' to '{trimmed}'");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task DeleteGroupEntryAsync(string groupId, string entryId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentException.ThrowIfNullOrEmpty(entryId);
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int groupIdx = _groups.FindIndex(g => g.Id == groupId);
+            if (groupIdx < 0)
+            {
+                LogWarn($"DeleteGroupEntryAsync: group '{groupId}' not found");
+                return;
+            }
+
+            ClipboardGroup group = _groups[groupIdx];
+            if (!group.EntryIds.Contains(entryId))
+            {
+                LogWarn($"DeleteGroupEntryAsync: entry '{entryId}' not found in group '{groupId}'");
+                return;
+            }
+
+            List<string> remainingIds = group.EntryIds.Where(id => id != entryId).ToList();
+            List<ArchivedGroupEntryInfo> remainingEntries = group.Entries.Where(e => e.Id != entryId).ToList();
+
+            if (remainingIds.Count == 0)
+            {
+                _groups.RemoveAt(groupIdx);
+                DeleteGroupArchiveQuietly(groupId);
+                await WriteGroupsFileAsync().ConfigureAwait(false);
+                LogDebug($"DeleteGroupEntryAsync: removed last entry from group '{groupId}', deleted the group");
+            }
+            else
+            {
+                DeleteGroupEntryBlobQuietly(groupId, entryId);
+
+                _groups[groupIdx] = new ClipboardGroup
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    CreatedUtc = group.CreatedUtc,
+                    FolderId = group.FolderId,
+                    EntryIds = remainingIds,
+                    Entries = remainingEntries,
+                };
+
+                await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal)
+                {
+                    [groupId] = remainingEntries.Select(ToArchivedDto).ToList(),
+                }).ConfigureAwait(false);
+                LogDebug($"DeleteGroupEntryAsync: removed entry '{entryId}' from group '{groupId}'");
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task MoveGroupEntryAsync(string groupId, string entryId, int direction)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentException.ThrowIfNullOrEmpty(entryId);
+        if (direction is not (-1 or 1))
+            throw new ArgumentOutOfRangeException(nameof(direction), direction, "direction must be -1 or 1.");
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            int groupIdx = _groups.FindIndex(g => g.Id == groupId);
+            if (groupIdx < 0)
+            {
+                LogWarn($"MoveGroupEntryAsync: group '{groupId}' not found");
+                return;
+            }
+
+            ClipboardGroup group = _groups[groupIdx];
+            List<string> ids = group.EntryIds.ToList();
+            List<ArchivedGroupEntryInfo> entries = group.Entries.ToList();
+
+            int idx = ids.FindIndex(id => id == entryId);
+            if (idx < 0)
+            {
+                LogWarn($"MoveGroupEntryAsync: entry '{entryId}' not found in group '{groupId}'");
+                return;
+            }
+
+            int newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= ids.Count)
+                return;
+
+            (ids[idx], ids[newIdx]) = (ids[newIdx], ids[idx]);
+            if (entries.Count == ids.Count)
+                (entries[idx], entries[newIdx]) = (entries[newIdx], entries[idx]);
+
+            _groups[groupIdx] = new ClipboardGroup
+            {
+                Id = group.Id,
+                Name = group.Name,
+                CreatedUtc = group.CreatedUtc,
+                FolderId = group.FolderId,
+                EntryIds = ids,
+                Entries = entries,
+            };
+
+            await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal)
+            {
+                [groupId] = entries.Select(ToArchivedDto).ToList(),
+            }).ConfigureAwait(false);
+            LogDebug($"MoveGroupEntryAsync: moved entry '{entryId}' in group '{groupId}' by {direction}");
         }
         finally
         {
@@ -810,6 +996,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                         Name = name,
                         CreatedUtc = created,
                         EntryIds = newArchived.Select(x => x.Id).ToList(),
+                        Entries = newArchived.Select(ToEntryInfo).ToList(),
                     };
 
                     _groups.Insert(0, group);
@@ -897,6 +1084,35 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         ContentType = a.ContentType,
         DataSizeBytes = a.DataSizeBytes,
         ContentHash = a.ContentHash,
+    };
+
+    /// <summary>Full field parity with the private DTO so rename/delete/reorder round-trips lose nothing for a group's other entries.</summary>
+    private static ArchivedGroupEntryInfo ToEntryInfo(ArchivedGroupEntryDto a) => new(
+        Id: a.Id,
+        SourceEntryId: a.SourceEntryId,
+        Name: a.Name,
+        TimestampUtc: a.TimestampUtc,
+        SequenceNumber: a.SequenceNumber,
+        OwnerProcess: a.OwnerProcess,
+        OwnerPid: a.OwnerPid,
+        Summary: a.Summary,
+        ContentType: a.ContentType,
+        DataSizeBytes: a.DataSizeBytes,
+        ContentHash: a.ContentHash);
+
+    private static ArchivedGroupEntryDto ToArchivedDto(ArchivedGroupEntryInfo e) => new()
+    {
+        Id = e.Id,
+        SourceEntryId = e.SourceEntryId,
+        Name = e.Name,
+        TimestampUtc = e.TimestampUtc,
+        SequenceNumber = e.SequenceNumber,
+        OwnerProcess = e.OwnerProcess,
+        OwnerPid = e.OwnerPid,
+        Summary = e.Summary,
+        ContentType = e.ContentType,
+        DataSizeBytes = e.DataSizeBytes,
+        ContentHash = e.ContentHash,
     };
 
     private static string GetAssemblyVersionString()
@@ -1098,6 +1314,24 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         }
         catch (UnauthorizedAccessException)
         {
+        }
+    }
+
+    private void DeleteGroupEntryBlobQuietly(string groupId, string entryId)
+    {
+        try
+        {
+            string blobPath = Path.Combine(_groupArchiveRootDirectory, groupId, "blobs", entryId + ".bin");
+            if (File.Exists(blobPath))
+                File.Delete(blobPath);
+        }
+        catch (IOException ex)
+        {
+            LogWarn($"DeleteGroupEntryBlobQuietly: failed to delete blob for entry '{entryId}' in group '{groupId}' — {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            LogWarn($"DeleteGroupEntryBlobQuietly: access denied deleting blob for entry '{entryId}' in group '{groupId}' — {ex.Message}");
         }
     }
 

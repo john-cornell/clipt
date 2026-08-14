@@ -74,7 +74,11 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         {
             oldSection.PropertyChanged -= OnSectionPropertyChanged;
             foreach (GroupDisplayItem oldGroup in oldSection.Groups)
+            {
                 oldGroup.PropertyChanged -= OnGroupDisplayPropertyChanged;
+                foreach (GroupEntryDisplayItem oldEntry in oldGroup.Entries)
+                    oldEntry.PropertyChanged -= OnGroupEntryPropertyChanged;
+            }
         }
 
         Sections.Clear();
@@ -182,6 +186,32 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                     : null,
             };
             item.PropertyChanged += OnGroupDisplayPropertyChanged;
+
+            for (int j = 0; j < g.Entries.Count; j++)
+            {
+                ArchivedGroupEntryInfo entryInfo = g.Entries[j];
+                string entryId = entryInfo.Id;
+                bool isFirstEntry = j == 0;
+                bool isLastEntry = j == g.Entries.Count - 1;
+                var entryItem = new GroupEntryDisplayItem
+                {
+                    Id = entryId,
+                    Name = entryInfo.Name,
+                    DetailText = $"{entryInfo.ContentType} · {FormatSize(entryInfo.DataSizeBytes)}",
+                    RelativeTime = HistoryTabViewModel.FormatRelativeTime(entryInfo.TimestampUtc),
+                    RenameCommand = new AsyncRelayCommand<string>(newName => _groupService.RenameGroupEntryAsync(gid, entryId, newName!)),
+                    DeleteCommand = new AsyncRelayCommand(() => _groupService.DeleteGroupEntryAsync(gid, entryId)),
+                    MoveUpCommand = isFirstEntry
+                        ? null
+                        : new AsyncRelayCommand(() => _groupService.MoveGroupEntryAsync(gid, entryId, -1)),
+                    MoveDownCommand = isLastEntry
+                        ? null
+                        : new AsyncRelayCommand(() => _groupService.MoveGroupEntryAsync(gid, entryId, +1)),
+                };
+                entryItem.PropertyChanged += OnGroupEntryPropertyChanged;
+                item.Entries.Add(entryItem);
+            }
+
             section.Groups.Add(item);
         }
 
@@ -208,6 +238,12 @@ public sealed partial class GroupsTabViewModel : ObservableObject
             NotifyPinStateMayHaveChanged();
     }
 
+    private void OnGroupEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GroupEntryDisplayItem.IsEditing))
+            NotifyPinStateMayHaveChanged();
+    }
+
     private void OnSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(GroupSectionDisplayItem.IsEditing))
@@ -215,10 +251,25 @@ public sealed partial class GroupsTabViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Tray popup uses this to avoid closing while a group or folder name is being edited.
+    /// Tray popup uses this to avoid closing while a group, folder, or in-group clip name is being edited.
     /// </summary>
     public bool AnyGroupEditing =>
-        Sections.Any(static s => s.IsEditing) || Sections.SelectMany(static s => s.Groups).Any(static i => i.IsEditing);
+        Sections.Any(static s => s.IsEditing)
+        || Sections.SelectMany(static s => s.Groups).Any(static i => i.IsEditing)
+        || Sections.SelectMany(static s => s.Groups).SelectMany(static g => g.Entries).Any(static e => e.IsEditing);
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+
+        double kb = bytes / 1024.0;
+        if (kb < 1024)
+            return $"{kb:0.#} KB";
+
+        double mb = kb / 1024.0;
+        return $"{mb:0.#} MB";
+    }
 
     private void NotifyPinStateMayHaveChanged()
     {
@@ -415,6 +466,10 @@ public sealed partial class GroupDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _isEditing;
 
+    /// <summary>Whether this group's clip list (<see cref="Entries"/>) is shown. Pure UI state — not persisted, unlike folder/Ungrouped collapse.</summary>
+    [ObservableProperty]
+    private bool _isExpanded;
+
     public required IAsyncRelayCommand<string> RenameCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }
     public required IAsyncRelayCommand<GroupRestoreMode> RestoreCommand { get; init; }
@@ -427,6 +482,33 @@ public sealed partial class GroupDisplayItem : ObservableObject
     public required IAsyncRelayCommand MoveToNewFolderCommand { get; init; }
 
     /// <summary>Non-null only in Custom sort mode, and only when not already at the boundary of its section.</summary>
+    public IAsyncRelayCommand? MoveUpCommand { get; init; }
+    public IAsyncRelayCommand? MoveDownCommand { get; init; }
+
+    /// <summary>The clips saved inside this group, shown when <see cref="IsExpanded"/> is true.</summary>
+    public ObservableCollection<GroupEntryDisplayItem> Entries { get; } = [];
+}
+
+/// <summary>One archived clip inside a saved group, as shown in a group row's expand panel.</summary>
+public sealed partial class GroupEntryDisplayItem : ObservableObject
+{
+    public required string Id { get; init; }
+
+    [ObservableProperty]
+    private string _name = string.Empty;
+
+    /// <summary>e.g. "Text · 1.2 KB".</summary>
+    public required string DetailText { get; init; }
+
+    public required string RelativeTime { get; init; }
+
+    [ObservableProperty]
+    private bool _isEditing;
+
+    public required IAsyncRelayCommand<string> RenameCommand { get; init; }
+    public required IAsyncRelayCommand DeleteCommand { get; init; }
+
+    /// <summary>Non-null except at the boundary of the group's clip list.</summary>
     public IAsyncRelayCommand? MoveUpCommand { get; init; }
     public IAsyncRelayCommand? MoveDownCommand { get; init; }
 }
