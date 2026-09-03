@@ -330,7 +330,10 @@ public class OwnerBlockerPluginTests
 
         public string? GetTopHistoryEntryId() => null;
 
-        public Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds) =>
+        public Task SaveGroupAsync(
+            string name,
+            IReadOnlyList<string> historyEntryIds,
+            IReadOnlyDictionary<string, string>? entryNameOverrides = null) =>
             Task.CompletedTask;
     }
 }

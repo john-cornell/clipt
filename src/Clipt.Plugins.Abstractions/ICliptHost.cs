@@ -27,5 +27,13 @@ public interface ICliptHost
     /// <summary>Id of the most recent history entry, or null when history is empty.</summary>
     string? GetTopHistoryEntryId();
 
-    Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds);
+    /// <summary>
+    /// <paramref name="entryNameOverrides"/> optionally maps a history entry id (from
+    /// <paramref name="historyEntryIds"/>) to the name its archived clip should get, instead of
+    /// inheriting the history entry's own name (e.g. raw clipboard text).
+    /// </summary>
+    Task SaveGroupAsync(
+        string name,
+        IReadOnlyList<string> historyEntryIds,
+        IReadOnlyDictionary<string, string>? entryNameOverrides = null);
 }

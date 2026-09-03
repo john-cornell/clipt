@@ -273,6 +273,38 @@ public class GroupsTabViewModelTests
     }
 
     [Fact]
+    public async Task EntryRestoreCommand_RestoresOnlyThatEntry_AddToTop()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1", "e2" },
+                Entries = new List<ArchivedGroupEntryInfo>
+                {
+                    CreateArchivedEntryInfo("e1"),
+                    CreateArchivedEntryInfo("e2"),
+                },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+
+        await vm.Sections[0].Groups[0].Entries[0].RestoreCommand.ExecuteAsync(null);
+
+        _historyMock.Verify(
+            h => h.RestoreGroupAsync(
+                It.Is<IReadOnlyList<string>>(ids => ids.Count == 1 && ids[0] == "e1"),
+                GroupRestoreMode.AddToTop),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task DeleteCommand_CallsGroupService()
     {
         _groupMock.Setup(g => g.DeleteGroupAsync(It.IsAny<string>())).Returns(Task.CompletedTask);

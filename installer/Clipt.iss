@@ -5,7 +5,7 @@
 ; Plugin DLLs are built into src\Clipt\bin\Release\net8.0-windows\Plugins\ and installed to {app}\Plugins
 
 #define MyAppName "Clipt"
-#define MyAppVersion "1.15.1"
+#define MyAppVersion "1.15.2"
 #define MyAppPublisher "Clipt"
 #define MyAppExeName "Clipt.exe"
 

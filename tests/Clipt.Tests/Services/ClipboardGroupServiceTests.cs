@@ -634,6 +634,30 @@ public class ClipboardGroupServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveGroupAsync_WithEntryNameOverride_UsesOverrideInsteadOfSourceName()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("id1", name: "hunter2", summary: "hunter2");
+
+        await svc.SaveGroupAsync("passwords", new[] { "id1" }, new Dictionary<string, string> { ["id1"] = "Password" });
+
+        Assert.Equal("Password", svc.Groups[0].Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task SaveGroupAsync_EntryNameOverrideForUnrelatedId_DoesNotAffectRequestedEntry()
+    {
+        var svc = CreateService();
+        await svc.LoadAsync();
+        await SeedHistoryEntryAsync("id1", name: "My Clip", summary: "hello world");
+
+        await svc.SaveGroupAsync("G", new[] { "id1" }, new Dictionary<string, string> { ["other-id"] = "Password" });
+
+        Assert.Equal("My Clip", svc.Groups[0].Entries[0].Name);
+    }
+
+    [Fact]
     public async Task LoadAsync_RoundTripsEntriesMetadata()
     {
         var svc = CreateService();

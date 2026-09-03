@@ -11,7 +11,14 @@ public interface IClipboardGroupService
 
     Task LoadAsync();
 
-    Task SaveGroupAsync(string name, IReadOnlyList<string> entryIds);
+    /// <summary>
+    /// <paramref name="entryNameOverrides"/> optionally maps a source history entry id to the name the
+    /// archived clip should get, instead of inheriting the history entry's own name (e.g. raw clipboard text).
+    /// </summary>
+    Task SaveGroupAsync(
+        string name,
+        IReadOnlyList<string> entryIds,
+        IReadOnlyDictionary<string, string>? entryNameOverrides = null);
 
     Task RenameGroupAsync(string groupId, string newName);
 

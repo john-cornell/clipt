@@ -47,6 +47,6 @@ public sealed class PasswordGroupPlugin : ICliptHistoryActionPlugin
             return Task.CompletedTask;
 
         string groupName = $"password {DateTime.Now:yyyy-MM-dd}";
-        return host.SaveGroupAsync(groupName, [topId]);
+        return host.SaveGroupAsync(groupName, [topId], new Dictionary<string, string> { [topId] = "Password" });
     }
 }

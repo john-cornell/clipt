@@ -1094,8 +1094,8 @@
 
                                                                 <TextBlock Grid.Column="2"
                                                                            Text="{Binding Name}"
-                                                                           FontSize="11" FontWeight="SemiBold"
-                                                                           Foreground="{DynamicResource ForegroundBrush}"
+                                                                           FontSize="11" FontWeight="Bold"
+                                                                           Foreground="{DynamicResource AccentPrimaryBrush}"
                                                                            TextTrimming="CharacterEllipsis"
                                                                            Margin="0,0,6,2" Cursor="Hand"
                                                                            MinWidth="80"
@@ -1185,6 +1185,7 @@
                                                                                 <ColumnDefinition Width="Auto" />
                                                                                 <ColumnDefinition Width="Auto" />
                                                                                 <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="Auto" />
                                                                             </Grid.ColumnDefinitions>
 
                                                                             <StackPanel Grid.Column="0" Orientation="Horizontal"
@@ -1256,7 +1257,13 @@
                                                                                        VerticalAlignment="Center"
                                                                                        Margin="0,0,8,0" />
 
-                                                                            <Button Grid.Column="4" Content="X" FontSize="9"
+                                                                            <Button Grid.Column="4" Content="Restore" FontSize="9"
+                                                                                    Padding="5,0" Margin="0,0,4,0"
+                                                                                    ToolTip="Restore just this clip to the top of history (and the clipboard)"
+                                                                                    Command="{Binding RestoreCommand}"
+                                                                                    VerticalAlignment="Center" />
+
+                                                                            <Button Grid.Column="5" Content="X" FontSize="9"
                                                                                     Padding="5,0" ToolTip="Remove this clip from the group"
                                                                                     Command="{Binding DeleteCommand}"
                                                                                     VerticalAlignment="Center" />

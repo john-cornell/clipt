@@ -201,6 +201,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                     RelativeTime = HistoryTabViewModel.FormatRelativeTime(entryInfo.TimestampUtc),
                     RenameCommand = new AsyncRelayCommand<string>(newName => _groupService.RenameGroupEntryAsync(gid, entryId, newName!)),
                     DeleteCommand = new AsyncRelayCommand(() => _groupService.DeleteGroupEntryAsync(gid, entryId)),
+                    RestoreCommand = new AsyncRelayCommand(() => RestoreEntryIdsAsync([entryId], GroupRestoreMode.AddToTop)),
                     MoveUpCommand = isFirstEntry
                         ? null
                         : new AsyncRelayCommand(() => _groupService.MoveGroupEntryAsync(gid, entryId, -1)),
@@ -350,7 +351,13 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         if (g is null)
             return;
 
-        await _historyService.RestoreGroupAsync(g.EntryIds, mode).ConfigureAwait(false);
+        await RestoreEntryIdsAsync(g.EntryIds, mode).ConfigureAwait(false);
+    }
+
+    /// <summary>Restores the given archived-group entry id(s) back into history, then sets the clipboard to the new top entry.</summary>
+    private async Task RestoreEntryIdsAsync(IReadOnlyList<string> entryIds, GroupRestoreMode mode)
+    {
+        await _historyService.RestoreGroupAsync(entryIds, mode).ConfigureAwait(false);
 
         if (_historyService.Entries.Count == 0)
             return;
@@ -507,6 +514,9 @@ public sealed partial class GroupEntryDisplayItem : ObservableObject
 
     public required IAsyncRelayCommand<string> RenameCommand { get; init; }
     public required IAsyncRelayCommand DeleteCommand { get; init; }
+
+    /// <summary>Restores just this one clip to the top of history (and the live clipboard) — does not touch the rest of history.</summary>
+    public required IAsyncRelayCommand RestoreCommand { get; init; }
 
     /// <summary>Non-null except at the boundary of the group's clip list.</summary>
     public IAsyncRelayCommand? MoveUpCommand { get; init; }

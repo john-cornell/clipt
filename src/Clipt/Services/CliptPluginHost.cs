@@ -192,8 +192,11 @@ public sealed class CliptPluginHost : ICliptPluginHost
             return entries.Count > 0 ? entries[0].Id : null;
         }
 
-        public Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds) =>
-            _parent._groupService.Value.SaveGroupAsync(name, historyEntryIds);
+        public Task SaveGroupAsync(
+            string name,
+            IReadOnlyList<string> historyEntryIds,
+            IReadOnlyDictionary<string, string>? entryNameOverrides = null) =>
+            _parent._groupService.Value.SaveGroupAsync(name, historyEntryIds, entryNameOverrides);
 
         public Task BlockOwnerAsync(string? processName, string? windowClass) =>
             _parent.BlockOwnerAsync(processName, windowClass);

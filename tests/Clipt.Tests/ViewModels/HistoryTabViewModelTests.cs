@@ -1384,7 +1384,10 @@ public class HistoryTabViewModelTests
     public async Task ConfirmSaveGroupAsync_InvokesGroupServiceWithOrderedIds()
     {
         _groupMock
-            .Setup(g => g.SaveGroupAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
+            .Setup(g => g.SaveGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>()))
             .Returns(Task.CompletedTask);
 
         var entries = new List<ClipboardHistoryEntry>
@@ -1407,7 +1410,8 @@ public class HistoryTabViewModelTests
         _groupMock.Verify(
             g => g.SaveGroupAsync(
                 "Pack",
-                It.Is<IReadOnlyList<string>>(ids => ids.Count == 2 && ids[0] == "a" && ids[1] == "b")),
+                It.Is<IReadOnlyList<string>>(ids => ids.Count == 2 && ids[0] == "a" && ids[1] == "b"),
+                It.IsAny<IReadOnlyDictionary<string, string>>()),
             Times.Once);
     }
 

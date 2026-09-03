@@ -44,6 +44,8 @@ public class PasswordGroupPluginTests
 
         Assert.Equal(expectedName, host.LastSavedGroupName);
         Assert.Equal(["top-entry"], host.LastSavedEntryIds);
+        Assert.NotNull(host.LastEntryNameOverrides);
+        Assert.Equal("Password", host.LastEntryNameOverrides!["top-entry"]);
     }
 
     [Fact]
@@ -66,6 +68,8 @@ public class PasswordGroupPluginTests
         public string? LastSavedGroupName { get; private set; }
 
         public IReadOnlyList<string>? LastSavedEntryIds { get; private set; }
+
+        public IReadOnlyDictionary<string, string>? LastEntryNameOverrides { get; private set; }
 
         public event EventHandler<CliptPluginClipboardEventArgs>? ClipboardProcessed;
 
@@ -92,10 +96,14 @@ public class PasswordGroupPluginTests
 
         public string? GetTopHistoryEntryId() => TopHistoryEntryId;
 
-        public Task SaveGroupAsync(string name, IReadOnlyList<string> historyEntryIds)
+        public Task SaveGroupAsync(
+            string name,
+            IReadOnlyList<string> historyEntryIds,
+            IReadOnlyDictionary<string, string>? entryNameOverrides = null)
         {
             LastSavedGroupName = name;
             LastSavedEntryIds = historyEntryIds.ToArray();
+            LastEntryNameOverrides = entryNameOverrides;
             return Task.CompletedTask;
         }
     }

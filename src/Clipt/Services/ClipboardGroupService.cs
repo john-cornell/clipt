@@ -129,7 +129,10 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         }
     }
 
-    public async Task SaveGroupAsync(string name, IReadOnlyList<string> entryIds)
+    public async Task SaveGroupAsync(
+        string name,
+        IReadOnlyList<string> entryIds,
+        IReadOnlyDictionary<string, string>? entryNameOverrides = null)
     {
         ArgumentNullException.ThrowIfNull(entryIds);
         string trimmedName = (name ?? string.Empty).Trim();
@@ -153,7 +156,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
 
         LogDebug($"SaveGroupAsync: building archive for '{trimmedName}' with {ordered.Count} source entry ID(s)");
 
-        var archivedEntries = await BuildArchivedEntriesAsync(ordered).ConfigureAwait(false);
+        var archivedEntries = await BuildArchivedEntriesAsync(ordered, entryNameOverrides).ConfigureAwait(false);
         if (archivedEntries.Count == 0)
         {
             LogWarn($"SaveGroupAsync: could not resolve any entries from index.json for group '{trimmedName}' " +
@@ -1199,7 +1202,9 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         return Path.Combine(localAppData, "Clipt", "History");
     }
 
-    private async Task<List<ArchivedGroupEntryDto>> BuildArchivedEntriesAsync(IReadOnlyList<string> sourceEntryIds)
+    private async Task<List<ArchivedGroupEntryDto>> BuildArchivedEntriesAsync(
+        IReadOnlyList<string> sourceEntryIds,
+        IReadOnlyDictionary<string, string>? entryNameOverrides = null)
     {
         List<HistoryIndexEntryDto>? historyEntries = await ReadHistoryEntriesByIdAsync().ConfigureAwait(false);
         if (historyEntries is null || historyEntries.Count == 0)
@@ -1230,11 +1235,17 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                 continue;
             }
 
+            string? nameOverride = entryNameOverrides is not null
+                && entryNameOverrides.TryGetValue(sourceId, out string? overrideValue)
+                && !string.IsNullOrWhiteSpace(overrideValue)
+                    ? overrideValue.Trim()
+                    : null;
+
             result.Add(new ArchivedGroupEntryDto
             {
                 Id = Guid.NewGuid().ToString("N"),
                 SourceEntryId = sourceId,
-                Name = source.Name ?? "Clip",
+                Name = nameOverride ?? source.Name ?? "Clip",
                 TimestampUtc = source.TimestampUtc,
                 SequenceNumber = source.SequenceNumber,
                 OwnerProcess = source.OwnerProcess ?? "(unknown)",
