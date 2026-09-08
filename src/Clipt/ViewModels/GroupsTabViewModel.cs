@@ -70,6 +70,9 @@ public sealed partial class GroupsTabViewModel : ObservableObject
 
     public void Refresh()
     {
+        var expandedGroupIds = new HashSet<string>(
+            Sections.SelectMany(static s => s.Groups).Where(static g => g.IsExpanded).Select(static g => g.Id));
+
         foreach (GroupSectionDisplayItem oldSection in Sections)
         {
             oldSection.PropertyChanged -= OnSectionPropertyChanged;
@@ -103,7 +106,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
             isCollapsed: _settingsService.LoadGroupsUngroupedCollapsed(),
             groupsInSection: groups.Where(static g => g.FolderId is null),
             folderIndex: -1,
-            folderCount: 0));
+            folderCount: 0,
+            expandedGroupIds: expandedGroupIds));
 
         for (int i = 0; i < folders.Count; i++)
         {
@@ -114,7 +118,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                 isCollapsed: folder.IsCollapsed,
                 groupsInSection: groups.Where(g => g.FolderId == folder.Id),
                 folderIndex: i,
-                folderCount: folders.Count);
+                folderCount: folders.Count,
+                expandedGroupIds: expandedGroupIds);
 
             if (folder.Id == _pendingEditFolderId)
             {
@@ -134,7 +139,8 @@ public sealed partial class GroupsTabViewModel : ObservableObject
         bool isCollapsed,
         IEnumerable<ClipboardGroup> groupsInSection,
         int folderIndex,
-        int folderCount)
+        int folderCount,
+        HashSet<string> expandedGroupIds)
     {
         List<ClipboardGroup> ordered = SortGroups(groupsInSection.ToList());
 
@@ -172,6 +178,7 @@ public sealed partial class GroupsTabViewModel : ObservableObject
                 Name = g.Name,
                 ItemCountText = g.EntryIds.Count == 1 ? "1 item" : $"{g.EntryIds.Count} items",
                 RelativeTime = HistoryTabViewModel.FormatRelativeTime(g.CreatedUtc),
+                IsExpanded = expandedGroupIds.Contains(gid),
                 RenameCommand = new AsyncRelayCommand<string>(newName => RenameGroupAsync(gid, newName!)),
                 DeleteCommand = new AsyncRelayCommand(() => DeleteGroupAsync(gid)),
                 RestoreCommand = new AsyncRelayCommand<GroupRestoreMode>(mode => RestoreGroupForIdAsync(gid, mode)),
@@ -473,7 +480,11 @@ public sealed partial class GroupDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _isEditing;
 
-    /// <summary>Whether this group's clip list (<see cref="Entries"/>) is shown. Pure UI state — not persisted, unlike folder/Ungrouped collapse.</summary>
+    /// <summary>
+    /// Whether this group's clip list (<see cref="Entries"/>) is shown. Not saved to disk, unlike
+    /// folder/Ungrouped collapse, but <see cref="GroupsTabViewModel.Refresh"/> carries it across rebuilds
+    /// (by group id) so entry moves/renames/deletes don't visually close an open group.
+    /// </summary>
     [ObservableProperty]
     private bool _isExpanded;
 

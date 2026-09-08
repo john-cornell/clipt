@@ -305,6 +305,37 @@ public class GroupsTabViewModelTests
     }
 
     [Fact]
+    public void Refresh_PreservesIsExpanded_ForGroupsThatWereOpen()
+    {
+        var groups = new List<ClipboardGroup>
+        {
+            new()
+            {
+                Id = "g1",
+                Name = "G",
+                CreatedUtc = DateTime.UtcNow,
+                EntryIds = new[] { "e1", "e2" },
+                Entries = new List<ArchivedGroupEntryInfo>
+                {
+                    CreateArchivedEntryInfo("e1"),
+                    CreateArchivedEntryInfo("e2"),
+                },
+            },
+        };
+        _groupMock.Setup(g => g.Groups).Returns(groups.AsReadOnly());
+
+        var vm = CreateVm();
+        vm.Refresh();
+        vm.Sections[0].Groups[0].IsExpanded = true;
+
+        // Simulates the GroupsChanged rebuild that MoveGroupEntryAsync/RenameGroupEntryAsync/etc. trigger —
+        // Refresh() replaces every GroupDisplayItem, so IsExpanded must be carried over by group id.
+        vm.Refresh();
+
+        Assert.True(vm.Sections[0].Groups[0].IsExpanded);
+    }
+
+    [Fact]
     public async Task DeleteCommand_CallsGroupService()
     {
         _groupMock.Setup(g => g.DeleteGroupAsync(It.IsAny<string>())).Returns(Task.CompletedTask);
