@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from . import db as db_module
 from .auth import require_auth
-from .models import GroupUpsertRequest, GroupUpsertResponse, KdfParamsResponse
+from .models import GroupDeleteRequest, GroupUpsertRequest, GroupUpsertResponse, KdfParamsResponse
 
 ARGON2_TIME_COST = 3
 ARGON2_MEMORY_COST_KIB = 65536
@@ -81,6 +81,31 @@ def upsert_group(
         "ciphertext = excluded.ciphertext, version = excluded.version, "
         "updated_at = excluded.updated_at, deleted = 0",
         (group_id, ciphertext, new_version, _now_iso()),
+    )
+    conn.execute("COMMIT")
+    return GroupUpsertResponse(id=group_id, version=new_version)
+
+
+@app.delete("/groups/{group_id}", response_model=GroupUpsertResponse, dependencies=[Depends(require_auth)])
+def delete_group(
+    group_id: str, body: GroupDeleteRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> GroupUpsertResponse:
+    conn.execute("BEGIN IMMEDIATE")
+    row = conn.execute("SELECT version FROM groups WHERE id = ?", (group_id,)).fetchone()
+
+    if row is None:
+        conn.execute("ROLLBACK")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found.")
+
+    current_version = row[0]
+    if current_version != body.based_on_version:
+        conn.execute("ROLLBACK")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Version mismatch.")
+
+    new_version = db_module.allocate_version(conn)
+    conn.execute(
+        "UPDATE groups SET deleted = 1, version = ?, updated_at = ? WHERE id = ?",
+        (new_version, _now_iso(), group_id),
     )
     conn.execute("COMMIT")
     return GroupUpsertResponse(id=group_id, version=new_version)
