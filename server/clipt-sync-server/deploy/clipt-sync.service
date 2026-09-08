@@ -1,0 +1,18 @@
+[Unit]
+Description=Clipt group sync API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clipt-sync-server
+Environment=CLIPT_SYNC_TOKEN=REPLACE_WITH_GENERATED_TOKEN
+Environment=CLIPT_SYNC_DB_PATH=/home/ubuntu/clipt-sync-server/clipt_sync.db
+ExecStart=/home/ubuntu/clipt-sync-server/.venv/bin/gunicorn app.main:app \
+    --workers 1 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8100
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

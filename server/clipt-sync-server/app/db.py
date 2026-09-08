@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 SCHEMA = """
@@ -26,7 +27,8 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path or "clipt_sync.db", timeout=5, isolation_level=None)
+    resolved_path = db_path or os.environ.get("CLIPT_SYNC_DB_PATH") or "clipt_sync.db"
+    conn = sqlite3.connect(resolved_path, timeout=5, isolation_level=None)
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
