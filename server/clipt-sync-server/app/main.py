@@ -7,7 +7,14 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from . import db as db_module
 from .auth import require_auth
-from .models import GroupDeleteRequest, GroupUpsertRequest, GroupUpsertResponse, KdfParamsResponse
+from .models import (
+    GroupDeleteRequest,
+    GroupRecord,
+    GroupsPullResponse,
+    GroupUpsertRequest,
+    GroupUpsertResponse,
+    KdfParamsResponse,
+)
 
 ARGON2_TIME_COST = 3
 ARGON2_MEMORY_COST_KIB = 65536
@@ -84,6 +91,31 @@ def upsert_group(
     )
     conn.execute("COMMIT")
     return GroupUpsertResponse(id=group_id, version=new_version)
+
+
+@app.get("/groups", response_model=GroupsPullResponse, dependencies=[Depends(require_auth)])
+def pull_groups(since: int = 0, conn: sqlite3.Connection = Depends(get_db)) -> GroupsPullResponse:
+    rows = conn.execute(
+        "SELECT id, ciphertext, version, updated_at, deleted FROM groups "
+        "WHERE version > ? ORDER BY version ASC",
+        (since,),
+    ).fetchall()
+
+    groups = [
+        GroupRecord(
+            id=row[0],
+            ciphertext=None if row[4] else base64.b64encode(row[1]).decode("ascii"),
+            version=row[2],
+            updated_at=row[3],
+            deleted=bool(row[4]),
+        )
+        for row in rows
+    ]
+
+    meta_row = conn.execute("SELECT next_version FROM sync_meta WHERE id = 1").fetchone()
+    latest_version = (meta_row[0] - 1) if meta_row else 0
+
+    return GroupsPullResponse(groups=groups, latest_version=latest_version)
 
 
 @app.delete("/groups/{group_id}", response_model=GroupUpsertResponse, dependencies=[Depends(require_auth)])
