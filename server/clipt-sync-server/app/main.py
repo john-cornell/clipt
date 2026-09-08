@@ -3,11 +3,11 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 
 from . import db as db_module
 from .auth import require_auth
-from .models import KdfParamsResponse
+from .models import GroupUpsertRequest, GroupUpsertResponse, KdfParamsResponse
 
 ARGON2_TIME_COST = 3
 ARGON2_MEMORY_COST_KIB = 65536
@@ -59,3 +59,28 @@ def get_kdf(conn: sqlite3.Connection = Depends(get_db)) -> KdfParamsResponse:
         argon2_memory_cost_kib=row[2],
         argon2_parallelism=row[3],
     )
+
+
+@app.put("/groups/{group_id}", response_model=GroupUpsertResponse, dependencies=[Depends(require_auth)])
+def upsert_group(
+    group_id: str, body: GroupUpsertRequest, conn: sqlite3.Connection = Depends(get_db)
+) -> GroupUpsertResponse:
+    conn.execute("BEGIN IMMEDIATE")
+    row = conn.execute("SELECT version FROM groups WHERE id = ?", (group_id,)).fetchone()
+    current_version = row[0] if row is not None else 0
+
+    if current_version != body.based_on_version:
+        conn.execute("ROLLBACK")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Version mismatch.")
+
+    new_version = db_module.allocate_version(conn)
+    ciphertext = base64.b64decode(body.ciphertext)
+    conn.execute(
+        "INSERT INTO groups (id, ciphertext, version, updated_at, deleted) VALUES (?, ?, ?, ?, 0) "
+        "ON CONFLICT(id) DO UPDATE SET "
+        "ciphertext = excluded.ciphertext, version = excluded.version, "
+        "updated_at = excluded.updated_at, deleted = 0",
+        (group_id, ciphertext, new_version, _now_iso()),
+    )
+    conn.execute("COMMIT")
+    return GroupUpsertResponse(id=group_id, version=new_version)
