@@ -944,4 +944,90 @@ public class ClipboardGroupServiceTests : IDisposable
         Assert.Null(svc.Groups[0].FolderId);
         Assert.Equal("Legacy", svc.Groups[0].Name);
     }
+
+    [Fact]
+    public async Task ApplyRemoteGroupAsync_NewGroup_CreatesGroupAndWritesBlobs()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+
+        var entries = new List<ArchivedGroupEntryInfo>
+        {
+            new(Id: "e1", SourceEntryId: "", Name: "Clip", TimestampUtc: DateTime.UtcNow,
+                SequenceNumber: 0, OwnerProcess: "(synced)", OwnerPid: 0, Summary: "Clip",
+                ContentType: ContentType.Text, DataSizeBytes: 3, ContentHash: "x"),
+        };
+        var blobs = new Dictionary<string, byte[]> { ["e1"] = [1, 2, 3] };
+
+        await service.ApplyRemoteGroupAsync("g1", "Synced Group", null, DateTime.UtcNow, entries, blobs);
+
+        ClipboardGroup group = Assert.Single(service.Groups);
+        Assert.Equal("g1", group.Id);
+        Assert.Equal("Synced Group", group.Name);
+        string blobPath = Path.Combine(_tempDir, "groups", "g1", "blobs", "e1.bin");
+        Assert.True(File.Exists(blobPath));
+        Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(blobPath));
+    }
+
+    [Fact]
+    public async Task ApplyRemoteGroupAsync_ExistingGroupId_OverwritesInPlace()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        var entries = new List<ArchivedGroupEntryInfo>
+        {
+            new(Id: "e1", SourceEntryId: "", Name: "Original", TimestampUtc: DateTime.UtcNow,
+                SequenceNumber: 0, OwnerProcess: "(synced)", OwnerPid: 0, Summary: "Original",
+                ContentType: ContentType.Text, DataSizeBytes: 1, ContentHash: "x"),
+        };
+        await service.ApplyRemoteGroupAsync("g1", "Original Name", null, DateTime.UtcNow, entries, new Dictionary<string, byte[]> { ["e1"] = [1] });
+
+        var updatedEntries = new List<ArchivedGroupEntryInfo>
+        {
+            new(Id: "e1", SourceEntryId: "", Name: "Updated", TimestampUtc: DateTime.UtcNow,
+                SequenceNumber: 0, OwnerProcess: "(synced)", OwnerPid: 0, Summary: "Updated",
+                ContentType: ContentType.Text, DataSizeBytes: 1, ContentHash: "y"),
+        };
+        await service.ApplyRemoteGroupAsync("g1", "Updated Name", null, DateTime.UtcNow, updatedEntries, new Dictionary<string, byte[]> { ["e1"] = [2] });
+
+        ClipboardGroup group = Assert.Single(service.Groups);
+        Assert.Equal("Updated Name", group.Name);
+        Assert.Equal("Updated", group.Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task ApplyRemoteGroupAsync_UnknownFolderId_FallsBackToUngrouped()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        var entries = new List<ArchivedGroupEntryInfo>
+        {
+            new(Id: "e1", SourceEntryId: "", Name: "Clip", TimestampUtc: DateTime.UtcNow,
+                SequenceNumber: 0, OwnerProcess: "(synced)", OwnerPid: 0, Summary: "Clip",
+                ContentType: ContentType.Text, DataSizeBytes: 1, ContentHash: "x"),
+        };
+
+        await service.ApplyRemoteGroupAsync("g1", "Synced Group", "unknown-folder-id", DateTime.UtcNow, entries, new Dictionary<string, byte[]> { ["e1"] = [1] });
+
+        Assert.Null(service.Groups[0].FolderId);
+    }
+
+    [Fact]
+    public async Task ApplyRemoteGroupAsync_RaisesGroupsChanged()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        bool raised = false;
+        service.GroupsChanged += (_, _) => raised = true;
+        var entries = new List<ArchivedGroupEntryInfo>
+        {
+            new(Id: "e1", SourceEntryId: "", Name: "Clip", TimestampUtc: DateTime.UtcNow,
+                SequenceNumber: 0, OwnerProcess: "(synced)", OwnerPid: 0, Summary: "Clip",
+                ContentType: ContentType.Text, DataSizeBytes: 1, ContentHash: "x"),
+        };
+
+        await service.ApplyRemoteGroupAsync("g1", "Synced Group", null, DateTime.UtcNow, entries, new Dictionary<string, byte[]> { ["e1"] = [1] });
+
+        Assert.True(raised);
+    }
 }

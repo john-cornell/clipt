@@ -69,5 +69,21 @@ public interface IClipboardGroupService
     /// </summary>
     Task MoveGroupEntryAsync(string groupId, string entryId, int direction);
 
+    /// <summary>
+    /// Upserts a group by id from externally-provided content (name, folder, entries, blob bytes) rather
+    /// than resolving entries from the live history index — used only by group sync to materialize a group
+    /// pulled from the server. Overwrites any existing local group with the same id. If <paramref name="folderId"/>
+    /// doesn't match a folder that exists locally, the group is filed under Ungrouped instead (folders
+    /// themselves are not synced — only a group's own content and its folder assignment, when that folder
+    /// happens to already exist on this device).
+    /// </summary>
+    Task ApplyRemoteGroupAsync(
+        string groupId,
+        string name,
+        string? folderId,
+        DateTime createdUtc,
+        IReadOnlyList<ArchivedGroupEntryInfo> entries,
+        IReadOnlyDictionary<string, byte[]> entryBlobs);
+
     event EventHandler? GroupsChanged;
 }

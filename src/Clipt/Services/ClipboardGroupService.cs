@@ -719,6 +719,63 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         GroupsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public async Task ApplyRemoteGroupAsync(
+        string groupId,
+        string name,
+        string? folderId,
+        DateTime createdUtc,
+        IReadOnlyList<ArchivedGroupEntryInfo> entries,
+        IReadOnlyDictionary<string, byte[]> entryBlobs)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(entryBlobs);
+
+        string trimmedName = string.IsNullOrWhiteSpace(name) ? "Untitled" : name.Trim();
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            string? resolvedFolderId = folderId is { Length: > 0 } && _folders.Any(f => f.Id == folderId)
+                ? folderId
+                : null;
+
+            string blobRoot = Path.Combine(_groupArchiveRootDirectory, groupId, "blobs");
+            Directory.CreateDirectory(blobRoot);
+            foreach ((string entryId, byte[] blob) in entryBlobs)
+                await File.WriteAllBytesAsync(Path.Combine(blobRoot, entryId + ".bin"), blob).ConfigureAwait(false);
+
+            var group = new ClipboardGroup
+            {
+                Id = groupId,
+                Name = trimmedName,
+                CreatedUtc = createdUtc,
+                FolderId = resolvedFolderId,
+                EntryIds = entries.Select(static e => e.Id).ToList(),
+                Entries = entries,
+            };
+
+            int idx = _groups.FindIndex(g => g.Id == groupId);
+            if (idx >= 0)
+                _groups[idx] = group;
+            else
+                _groups.Insert(0, group);
+
+            await WriteGroupsFileAsync(new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal)
+            {
+                [groupId] = entries.Select(ToArchivedDto).ToList(),
+            }).ConfigureAwait(false);
+
+            LogDebug($"ApplyRemoteGroupAsync: applied synced group '{groupId}' ({entries.Count} entry(ies))");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        GroupsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task<GroupPackageOperationResult> ExportGroupToPackageAsync(
         string groupId,
         string packageFilePath,
