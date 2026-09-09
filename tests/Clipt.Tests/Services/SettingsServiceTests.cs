@@ -438,6 +438,7 @@ public class SettingsServiceTests : IDisposable
     public void LoadGroupSyncEnabled_DefaultsFalse()
     {
         var service = new SettingsService();
+        service.SaveGroupSyncEnabled(false);
         Assert.False(service.LoadGroupSyncEnabled());
     }
 

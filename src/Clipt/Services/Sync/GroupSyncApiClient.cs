@@ -9,24 +9,37 @@ namespace Clipt.Services.Sync;
 public sealed class GroupSyncApiClient : IGroupSyncApiClient
 {
     private readonly HttpClient _httpClient;
+    private Uri? _baseAddress;
+    private string? _bearerToken;
 
     public GroupSyncApiClient(HttpClient httpClient)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     }
 
+    /// <summary>
+    /// Safe to call repeatedly (e.g. Enable, then later Unlock, in the same running app). Never touches
+    /// <see cref="HttpClient.BaseAddress"/>/<see cref="HttpClient.DefaultRequestHeaders"/> — .NET forbids
+    /// changing those on an <see cref="HttpClient"/> that has already sent a request, and this client is a
+    /// long-lived DI singleton that may well have already sent one by the time Configure is called again.
+    /// Every request instead builds its own absolute URI against the stored base address and attaches its
+    /// own per-request Authorization header.
+    /// </summary>
     public void Configure(Uri baseAddress, string bearerToken)
     {
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentException.ThrowIfNullOrEmpty(bearerToken);
 
-        _httpClient.BaseAddress = baseAddress;
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        _baseAddress = baseAddress;
+        _bearerToken = bearerToken;
     }
 
     public async Task<GroupSyncKdfParams> GetKdfAsync(CancellationToken cancellationToken = default)
     {
-        KdfResponseDto dto = await _httpClient.GetFromJsonAsync<KdfResponseDto>("kdf", cancellationToken).ConfigureAwait(false)
+        HttpResponseMessage response = await SendAsync(HttpMethod.Get, "kdf", content: null, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        KdfResponseDto dto = await response.Content.ReadFromJsonAsync<KdfResponseDto>(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Server returned an empty /kdf response.");
 
         return new GroupSyncKdfParams(
@@ -35,9 +48,11 @@ public sealed class GroupSyncApiClient : IGroupSyncApiClient
 
     public async Task<GroupSyncPullResult> PullGroupsAsync(long since, CancellationToken cancellationToken = default)
     {
-        PullResponseDto dto = await _httpClient
-            .GetFromJsonAsync<PullResponseDto>($"groups?since={since}", cancellationToken)
-            .ConfigureAwait(false)
+        HttpResponseMessage response = await SendAsync(
+            HttpMethod.Get, $"groups?since={since}", content: null, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        PullResponseDto dto = await response.Content.ReadFromJsonAsync<PullResponseDto>(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Server returned an empty /groups response.");
 
         List<GroupSyncPulledGroup> groups = dto.Groups
@@ -55,9 +70,8 @@ public sealed class GroupSyncApiClient : IGroupSyncApiClient
         ArgumentNullException.ThrowIfNull(ciphertext);
 
         var body = new UpsertRequestDto(Convert.ToBase64String(ciphertext), basedOnVersion);
-        HttpResponseMessage response = await _httpClient
-            .PutAsJsonAsync($"groups/{Uri.EscapeDataString(groupId)}", body, cancellationToken)
-            .ConfigureAwait(false);
+        HttpResponseMessage response = await SendAsync(
+            HttpMethod.Put, $"groups/{Uri.EscapeDataString(groupId)}", JsonContent.Create(body), cancellationToken).ConfigureAwait(false);
 
         if (response.StatusCode == HttpStatusCode.Conflict)
             throw new GroupSyncConflictException();
@@ -73,11 +87,11 @@ public sealed class GroupSyncApiClient : IGroupSyncApiClient
     {
         ArgumentException.ThrowIfNullOrEmpty(groupId);
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, $"groups/{Uri.EscapeDataString(groupId)}")
-        {
-            Content = JsonContent.Create(new DeleteRequestDto(basedOnVersion)),
-        };
-        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage response = await SendAsync(
+            HttpMethod.Delete,
+            $"groups/{Uri.EscapeDataString(groupId)}",
+            JsonContent.Create(new DeleteRequestDto(basedOnVersion)),
+            cancellationToken).ConfigureAwait(false);
 
         if (response.StatusCode == HttpStatusCode.Conflict)
             throw new GroupSyncConflictException();
@@ -86,6 +100,20 @@ public sealed class GroupSyncApiClient : IGroupSyncApiClient
         UpsertResponseDto dto = await response.Content.ReadFromJsonAsync<UpsertResponseDto>(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Server returned an empty delete response.");
         return dto.Version;
+    }
+
+    private Task<HttpResponseMessage> SendAsync(
+        HttpMethod method, string relativePath, HttpContent? content, CancellationToken cancellationToken)
+    {
+        if (_baseAddress is null || _bearerToken is null)
+            throw new InvalidOperationException("Call Configure(...) before making requests.");
+
+        var request = new HttpRequestMessage(method, new Uri(_baseAddress, relativePath))
+        {
+            Content = content,
+            Headers = { Authorization = new AuthenticationHeaderValue("Bearer", _bearerToken) },
+        };
+        return _httpClient.SendAsync(request, cancellationToken);
     }
 
     private sealed record KdfResponseDto(

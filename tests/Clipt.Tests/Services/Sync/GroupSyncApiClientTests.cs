@@ -27,35 +27,54 @@ public class GroupSyncApiClientTests
         Content = JsonContent.Create(body),
     };
 
-    [Fact]
-    public void Configure_SetsBaseAddressAndAuthorizationHeader()
+    private static object KdfBody() => new
     {
-        var handler = new StubHttpMessageHandler { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) };
+        salt = Convert.ToBase64String([1, 2, 3, 4]),
+        argon2_time_cost = 3,
+        argon2_memory_cost_kib = 65536,
+        argon2_parallelism = 4,
+    };
+
+    [Fact]
+    public async Task Configure_ThenGetKdfAsync_SendsRequestAgainstConfiguredBaseAddressAndToken()
+    {
+        var handler = new StubHttpMessageHandler { Respond = _ => JsonResponse(HttpStatusCode.OK, KdfBody()) };
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+
+        client.Configure(new Uri("https://sync.example.com/"), "my-token");
+        await client.GetKdfAsync();
+
+        Assert.Equal(new Uri("https://sync.example.com/kdf"), handler.LastRequest!.RequestUri);
+        Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
+        Assert.Equal("my-token", handler.LastRequest.Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task Configure_CalledTwiceOnSameHttpClientAfterARequestAlreadySent_DoesNotThrow()
+    {
+        // Regression test: HttpClient forbids changing BaseAddress/DefaultRequestHeaders after it has sent a
+        // request. GroupSyncApiClient must never rely on those — Configure must be callable any number of
+        // times (Enable, then later Unlock, in the same running app) against the same long-lived HttpClient.
+        var handler = new StubHttpMessageHandler { Respond = _ => JsonResponse(HttpStatusCode.OK, KdfBody()) };
         var httpClient = new HttpClient(handler);
         var client = new GroupSyncApiClient(httpClient);
 
-        client.Configure(new Uri("https://sync.example.com/"), "my-token");
+        client.Configure(new Uri("https://first.example.com/"), "first-token");
+        await client.GetKdfAsync(); // sends a real request on httpClient
 
-        Assert.Equal(new Uri("https://sync.example.com/"), httpClient.BaseAddress);
-        Assert.Equal("Bearer", httpClient.DefaultRequestHeaders.Authorization!.Scheme);
-        Assert.Equal("my-token", httpClient.DefaultRequestHeaders.Authorization!.Parameter);
+        client.Configure(new Uri("https://second.example.com/"), "second-token");
+        await client.GetKdfAsync(); // must not throw InvalidOperationException from HttpClient
+
+        Assert.Equal(new Uri("https://second.example.com/kdf"), handler.LastRequest!.RequestUri);
+        Assert.Equal("second-token", handler.LastRequest.Headers.Authorization!.Parameter);
     }
 
     [Fact]
     public async Task GetKdfAsync_ParsesResponse()
     {
-        string saltBase64 = Convert.ToBase64String([1, 2, 3, 4]);
-        var handler = new StubHttpMessageHandler
-        {
-            Respond = _ => JsonResponse(HttpStatusCode.OK, new
-            {
-                salt = saltBase64,
-                argon2_time_cost = 3,
-                argon2_memory_cost_kib = 65536,
-                argon2_parallelism = 4,
-            }),
-        };
-        var client = new GroupSyncApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://sync.example.com/") });
+        var handler = new StubHttpMessageHandler { Respond = _ => JsonResponse(HttpStatusCode.OK, KdfBody()) };
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+        client.Configure(new Uri("https://sync.example.com/"), "token");
 
         GroupSyncKdfParams result = await client.GetKdfAsync();
 
@@ -81,7 +100,8 @@ public class GroupSyncApiClientTests
                 latest_version = 6,
             }),
         };
-        var client = new GroupSyncApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://sync.example.com/") });
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+        client.Configure(new Uri("https://sync.example.com/"), "token");
 
         GroupSyncPullResult result = await client.PullGroupsAsync(since: 0);
 
@@ -100,7 +120,8 @@ public class GroupSyncApiClientTests
         {
             Respond = _ => JsonResponse(HttpStatusCode.OK, new { id = "g1", version = 7 }),
         };
-        var client = new GroupSyncApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://sync.example.com/") });
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+        client.Configure(new Uri("https://sync.example.com/"), "token");
 
         int version = await client.PushGroupAsync("g1", [1, 2, 3], basedOnVersion: 6);
 
@@ -111,7 +132,8 @@ public class GroupSyncApiClientTests
     public async Task PushGroupAsync_Conflict_ThrowsGroupSyncConflictException()
     {
         var handler = new StubHttpMessageHandler { Respond = _ => new HttpResponseMessage(HttpStatusCode.Conflict) };
-        var client = new GroupSyncApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://sync.example.com/") });
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+        client.Configure(new Uri("https://sync.example.com/"), "token");
 
         await Assert.ThrowsAsync<GroupSyncConflictException>(() => client.PushGroupAsync("g1", [1], basedOnVersion: 0));
     }
@@ -120,8 +142,18 @@ public class GroupSyncApiClientTests
     public async Task DeleteGroupAsync_Conflict_ThrowsGroupSyncConflictException()
     {
         var handler = new StubHttpMessageHandler { Respond = _ => new HttpResponseMessage(HttpStatusCode.Conflict) };
-        var client = new GroupSyncApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://sync.example.com/") });
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+        client.Configure(new Uri("https://sync.example.com/"), "token");
 
         await Assert.ThrowsAsync<GroupSyncConflictException>(() => client.DeleteGroupAsync("g1", basedOnVersion: 3));
+    }
+
+    [Fact]
+    public async Task GetKdfAsync_BeforeConfigure_ThrowsInvalidOperationException()
+    {
+        var handler = new StubHttpMessageHandler { Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) };
+        var client = new GroupSyncApiClient(new HttpClient(handler));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetKdfAsync());
     }
 }
