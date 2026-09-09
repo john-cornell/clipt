@@ -1163,6 +1163,24 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
 
     internal static ClipboardSnapshot DeserializeSnapshot(byte[] data, ClipboardHistoryEntry entry)
     {
+        return new ClipboardSnapshot
+        {
+            Timestamp = entry.TimestampUtc,
+            SequenceNumber = entry.SequenceNumber,
+            OwnerProcessName = entry.OwnerProcess,
+            OwnerProcessId = entry.OwnerPid,
+            Formats = DeserializeFormats(data),
+        };
+    }
+
+    /// <summary>
+    /// Decodes just the format list from a serialized blob, without needing the owning
+    /// <see cref="ClipboardHistoryEntry"/> metadata that <see cref="DeserializeSnapshot"/> requires.
+    /// Used where only the raw clipboard formats are needed (e.g. deriving a display summary from a
+    /// group-sync blob pulled from another device, which has no local history entry to attach).
+    /// </summary>
+    internal static ImmutableArray<ClipboardFormatInfo> DeserializeFormats(byte[] data)
+    {
         using var ms = new MemoryStream(data);
         using var reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
 
@@ -1200,14 +1218,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             });
         }
 
-        return new ClipboardSnapshot
-        {
-            Timestamp = entry.TimestampUtc,
-            SequenceNumber = entry.SequenceNumber,
-            OwnerProcessName = entry.OwnerProcess,
-            OwnerProcessId = entry.OwnerPid,
-            Formats = builder.ToImmutable(),
-        };
+        return builder.ToImmutable();
     }
 
     internal static ContentType DetermineContentType(ClipboardSnapshot snapshot)
@@ -1226,11 +1237,14 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
         return ContentType.Other;
     }
 
-    internal static string BuildSummary(ClipboardSnapshot snapshot)
+    internal static string BuildSummary(ClipboardSnapshot snapshot) => BuildSummary(snapshot.Formats);
+
+    /// <summary>Overload used where formats were decoded without an owning snapshot (see <see cref="DeserializeFormats"/>).</summary>
+    internal static string BuildSummary(ImmutableArray<ClipboardFormatInfo> formats)
     {
         const int maxSummaryLength = 80;
 
-        var unicodeFormat = snapshot.Formats
+        var unicodeFormat = formats
             .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_UNICODETEXT);
 
         if (unicodeFormat is not null && unicodeFormat.RawData.Length > 0)
@@ -1242,7 +1256,7 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             return singleLine;
         }
 
-        var hdropFormat = snapshot.Formats
+        var hdropFormat = formats
             .FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_HDROP);
 
         if (hdropFormat is not null && hdropFormat.RawData.Length >= 20)
@@ -1251,8 +1265,8 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             return FormatFileNames(names);
         }
 
-        var dibv5 = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIBV5);
-        var dib = snapshot.Formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIB);
+        var dibv5 = formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIBV5);
+        var dib = formats.FirstOrDefault(f => f.FormatId == ClipboardConstants.CF_DIB);
         ClipboardFormatInfo? imageFormat = dibv5 ?? dib;
 
         if (imageFormat is not null && imageFormat.RawData.Length >= 16)
@@ -1261,11 +1275,11 @@ public sealed class ClipboardHistoryService : IClipboardHistoryService
             return dims.Length > 0 ? dims : "Image";
         }
 
-        bool hasBitmap = snapshot.Formats.Any(f => f.FormatId == ClipboardConstants.CF_BITMAP);
+        bool hasBitmap = formats.Any(f => f.FormatId == ClipboardConstants.CF_BITMAP);
         if (hasBitmap)
             return "Image";
 
-        return $"{snapshot.Formats.Length} format(s)";
+        return $"{formats.Length} format(s)";
     }
 
     internal static string BuildDefaultName(ClipboardSnapshot snapshot, ContentType contentType)

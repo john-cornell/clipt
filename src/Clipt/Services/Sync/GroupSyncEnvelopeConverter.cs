@@ -1,6 +1,8 @@
+using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Clipt.Models;
+using Clipt.Services;
 
 namespace Clipt.Services.Sync;
 
@@ -55,6 +57,19 @@ public static class GroupSyncEnvelopeConverter
         {
             byte[] blob = Convert.FromBase64String(e.BlobBase64);
             blobs[e.Id] = blob;
+
+            // Blobs normally come from ReadEntryBlobAsync and are always a serialized snapshot, but a
+            // remote peer could in principle send something we can't decode — fall back to the title
+            // rather than aborting the whole pull for every other group.
+            string summary;
+            try
+            {
+                summary = ClipboardHistoryService.BuildSummary(ClipboardHistoryService.DeserializeFormats(blob));
+            }
+            catch (Exception ex) when (ex is EndOfStreamException or InvalidDataException)
+            {
+                summary = e.Name;
+            }
             entries.Add(new ArchivedGroupEntryInfo(
                 Id: e.Id,
                 SourceEntryId: string.Empty,
@@ -63,7 +78,7 @@ public static class GroupSyncEnvelopeConverter
                 SequenceNumber: 0,
                 OwnerProcess: "(synced)",
                 OwnerPid: 0,
-                Summary: e.Name,
+                Summary: summary,
                 ContentType: e.ContentType,
                 DataSizeBytes: blob.LongLength,
                 ContentHash: Convert.ToHexString(SHA256.HashData(blob))));

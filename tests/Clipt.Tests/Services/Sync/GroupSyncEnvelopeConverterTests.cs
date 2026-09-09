@@ -1,4 +1,8 @@
+using System.Collections.Immutable;
+using System.Text;
 using Clipt.Models;
+using Clipt.Native;
+using Clipt.Services;
 using Clipt.Services.Sync;
 
 namespace Clipt.Tests.Services.Sync;
@@ -82,6 +86,52 @@ public class GroupSyncEnvelopeConverterTests
         Assert.Equal("e1", entries[0].Id);
         Assert.Equal("Clip One", entries[0].Name);
         Assert.Equal([7, 7, 7], blobs["e1"]);
+    }
+
+    [Fact]
+    public void FromEnvelope_TextBlob_DerivesSummaryFromRealContentNotTitle()
+    {
+        // Regression test: FromEnvelope previously set Summary to the entry's title, so every synced
+        // entry displayed its title as its content preview (e.g. an entry named "Account Id" showed
+        // "Account Id" as its value in History/Groups, even though the real clipboard text — written
+        // correctly to disk — was something else entirely).
+        byte[] textBytes = Encoding.Unicode.GetBytes("the real secret value\0");
+        var snapshot = new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = textBytes.Length,
+                Memory = new MemoryInfo("0x0", "0x0", textBytes.Length, []),
+                RawData = textBytes,
+            }),
+        };
+        byte[] blob = ClipboardHistoryService.SerializeSnapshot(snapshot);
+
+        GroupSyncEnvelope envelope = GroupSyncEnvelopeConverter.ToEnvelope(
+            MakeGroup(), new Dictionary<string, byte[]> { ["e1"] = blob });
+
+        (List<ArchivedGroupEntryInfo> entries, _) = GroupSyncEnvelopeConverter.FromEnvelope(envelope);
+
+        Assert.Equal("the real secret value", entries[0].Summary);
+        Assert.NotEqual(entries[0].Name, entries[0].Summary);
+    }
+
+    [Fact]
+    public void FromEnvelope_UndecodableBlob_FallsBackToTitleForSummary()
+    {
+        GroupSyncEnvelope envelope = GroupSyncEnvelopeConverter.ToEnvelope(
+            MakeGroup(), new Dictionary<string, byte[]> { ["e1"] = [7, 7, 7] });
+
+        (List<ArchivedGroupEntryInfo> entries, _) = GroupSyncEnvelopeConverter.FromEnvelope(envelope);
+
+        Assert.Equal("Clip One", entries[0].Summary);
     }
 
     [Fact]

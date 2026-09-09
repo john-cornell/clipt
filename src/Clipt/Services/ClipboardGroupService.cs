@@ -89,6 +89,7 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                 }
 
                 var validFolderIds = new HashSet<string>(_folders.Select(static f => f.Id), StringComparer.Ordinal);
+                var repairedByGroupId = new Dictionary<string, List<ArchivedGroupEntryDto>>(StringComparer.Ordinal);
 
                 foreach (var dto in file.Groups)
                 {
@@ -105,6 +106,9 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                     if (ids.Count == 0)
                         continue;
 
+                    if (await RepairSyncedSummariesAsync(dto.Id, validArchived).ConfigureAwait(false))
+                        repairedByGroupId[dto.Id] = validArchived;
+
                     _groups.Add(new ClipboardGroup
                     {
                         Id = dto.Id,
@@ -117,6 +121,12 @@ public sealed class ClipboardGroupService : IClipboardGroupService
                 }
 
                 LogDebug($"LoadAsync: loaded {_groups.Count} group(s) and {_folders.Count} folder(s) from groups.json");
+
+                if (repairedByGroupId.Count > 0)
+                {
+                    LogDebug($"LoadAsync: repaired stale synced-entry summaries in {repairedByGroupId.Count} group(s) from their real blob content");
+                    await WriteGroupsFileAsync(repairedByGroupId).ConfigureAwait(false);
+                }
             }
             catch (JsonException ex)
             {
@@ -127,6 +137,44 @@ public sealed class ClipboardGroupService : IClipboardGroupService
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// One-time self-heal for groups that went through the group-sync "apply remote" path before the fix
+    /// for the summary bug: those entries had <see cref="ArchivedGroupEntryDto.Summary"/> written to disk
+    /// as a copy of the title instead of a decode of the real blob content. Recomputes it from the entry's
+    /// own blob file, which was always written correctly (see <see cref="GroupSyncEnvelopeConverter"/>).
+    /// </summary>
+    private async Task<bool> RepairSyncedSummariesAsync(string groupId, List<ArchivedGroupEntryDto> archivedEntries)
+    {
+        bool anyRepaired = false;
+
+        foreach (ArchivedGroupEntryDto a in archivedEntries)
+        {
+            if (a.OwnerProcess != "(synced)")
+                continue;
+
+            string blobPath = Path.Combine(_groupArchiveRootDirectory, groupId, "blobs", a.Id + ".bin");
+            if (!File.Exists(blobPath))
+                continue;
+
+            try
+            {
+                byte[] blob = await File.ReadAllBytesAsync(blobPath).ConfigureAwait(false);
+                string realSummary = ClipboardHistoryService.BuildSummary(ClipboardHistoryService.DeserializeFormats(blob));
+                if (!string.Equals(realSummary, a.Summary, StringComparison.Ordinal))
+                {
+                    a.Summary = realSummary;
+                    anyRepaired = true;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or EndOfStreamException)
+            {
+                LogWarn($"RepairSyncedSummariesAsync: could not repair entry '{a.Id}' in group '{groupId}' — {ex.Message}");
+            }
+        }
+
+        return anyRepaired;
     }
 
     public async Task SaveGroupAsync(

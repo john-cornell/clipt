@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using Clipt.Models;
+using Clipt.Native;
 using Clipt.Services;
 using Moq;
 using Xunit;
@@ -943,6 +944,78 @@ public class ClipboardGroupServiceTests : IDisposable
         Assert.Single(svc.Groups);
         Assert.Null(svc.Groups[0].FolderId);
         Assert.Equal("Legacy", svc.Groups[0].Name);
+    }
+
+    [Fact]
+    public async Task LoadAsync_SyncedEntryWithStaleTitleAsSummary_RepairsFromRealBlobContentAndPersists()
+    {
+        // Regression test: a bug in GroupSyncEnvelopeConverter.FromEnvelope (fixed alongside this) used
+        // to write the entry's title into Summary instead of decoding the real blob content, so every
+        // synced entry displayed its title as its value. LoadAsync must self-heal any groups.json written
+        // by that buggy version, using the real content already sitting correctly in the blob file.
+        byte[] realBlob = ClipboardHistoryService.SerializeSnapshot(new ClipboardSnapshot
+        {
+            Timestamp = DateTime.UtcNow,
+            SequenceNumber = 1,
+            OwnerProcessName = "test",
+            OwnerProcessId = 1,
+            Formats = System.Collections.Immutable.ImmutableArray.Create(new ClipboardFormatInfo
+            {
+                FormatId = ClipboardConstants.CF_UNICODETEXT,
+                FormatName = "CF_UNICODETEXT",
+                IsStandard = true,
+                DataSize = 0,
+                Memory = new MemoryInfo("0x0", "0x0", 0, []),
+                RawData = System.Text.Encoding.Unicode.GetBytes("the real secret value\0"),
+            }),
+        });
+
+        string blobDir = Path.Combine(_tempDir, "groups", "g1", "blobs");
+        Directory.CreateDirectory(blobDir);
+        await File.WriteAllBytesAsync(Path.Combine(blobDir, "e1.bin"), realBlob);
+
+        string groupsPath = Path.Combine(_tempDir, "groups.json");
+        var fixture = new
+        {
+            groups = new[]
+            {
+                new
+                {
+                    id = "g1",
+                    name = "Account Id",
+                    createdUtc = DateTime.UtcNow,
+                    entryIds = new[] { "e1" },
+                    archivedEntries = new[]
+                    {
+                        new
+                        {
+                            id = "e1",
+                            sourceEntryId = "",
+                            name = "Account Id",
+                            timestampUtc = DateTime.UtcNow,
+                            sequenceNumber = 0u,
+                            ownerProcess = "(synced)",
+                            ownerPid = 0,
+                            summary = "Account Id", // the bug: same as title, not the real content
+                            contentType = ContentType.Text,
+                            dataSizeBytes = (long)realBlob.Length,
+                            contentHash = "irrelevant",
+                        },
+                    },
+                },
+            },
+        };
+        await File.WriteAllTextAsync(groupsPath, JsonSerializer.Serialize(fixture, CliptJsonOptions.Shared));
+
+        var svc = CreateService();
+        await svc.LoadAsync();
+
+        Assert.Equal("the real secret value", svc.Groups[0].Entries[0].Summary);
+
+        // Repair must be persisted, not just held in memory, so a second load doesn't need to repeat it.
+        string reloaded = await File.ReadAllTextAsync(groupsPath);
+        Assert.Contains("the real secret value", reloaded);
+        Assert.DoesNotContain("\"summary\":\"Account Id\"", reloaded);
     }
 
     [Fact]
