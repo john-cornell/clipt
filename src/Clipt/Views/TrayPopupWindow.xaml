@@ -96,6 +96,9 @@
                                       IsCheckable="True"
                                       IsChecked="{Binding HistoryTab.ShowTextExpandControls, Mode=TwoWay}"
                                       ToolTip="Show More and Less under text entries when the summary may be long" />
+                            <MenuItem Header="Sync&#x2026;"
+                                      Click="SyncMenuItem_Click"
+                                      ToolTip="Set up or manage end-to-end encrypted group sync" />
                             <Separator />
                             <MenuItem Header="Clear">
                                 <MenuItem Header="Clear selected&#x2026;"

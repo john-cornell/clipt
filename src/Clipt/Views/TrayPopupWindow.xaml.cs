@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Clipt.Models;
 using Clipt.Services;
+using Clipt.Services.Sync;
 using Clipt.ViewModels;
 
 namespace Clipt.Views;
@@ -15,6 +16,7 @@ public partial class TrayPopupWindow : Window
 
     private DateTime _lastHiddenUtc = DateTime.MinValue;
     private readonly ISettingsService? _settingsService;
+    private readonly IGroupSyncService? _groupSyncService;
 
     public TrayPopupWindow(TrayPopupViewModel viewModel, ISettingsService? settingsService = null)
     {
@@ -535,6 +537,15 @@ public partial class TrayPopupWindow : Window
             section.IsEditing = false;
             e.Handled = true;
         }
+    }
+
+    private void SyncMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_groupSyncService is null)
+            return;
+
+        var dialog = new GroupSyncSetupWindow(_groupSyncService) { Owner = this };
+        dialog.ShowDialog();
     }
 
     private void MoveToFolderButton_Click(object sender, RoutedEventArgs e)
