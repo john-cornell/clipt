@@ -702,6 +702,49 @@ public sealed class SettingsService : ISettingsService
         catch (UnauthorizedAccessException) { }
     }
 
+    private const string GroupSyncServerUrlValueName = "GroupSyncServerUrl";
+    private const string GroupSyncTokenValueName = "GroupSyncToken";
+    private const string GroupSyncEnabledValueName = "GroupSyncEnabled";
+
+    public string? LoadGroupSyncServerUrl() => LoadStringSetting(GroupSyncServerUrlValueName);
+
+    public void SaveGroupSyncServerUrl(string? url) => SaveStringSetting(GroupSyncServerUrlValueName, url);
+
+    public string? LoadGroupSyncToken() => LoadStringSetting(GroupSyncTokenValueName);
+
+    public void SaveGroupSyncToken(string? token) => SaveStringSetting(GroupSyncTokenValueName, token);
+
+    public bool LoadGroupSyncEnabled() => LoadBoolSetting(GroupSyncEnabledValueName, defaultValue: false);
+
+    public void SaveGroupSyncEnabled(bool enabled) => SaveBoolSetting(GroupSyncEnabledValueName, enabled);
+
+    private static string? LoadStringSetting(string valueName)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            return key?.GetValue(valueName) as string;
+        }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+
+        return null;
+    }
+
+    private static void SaveStringSetting(string valueName, string? value)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            if (string.IsNullOrEmpty(value))
+                key.DeleteValue(valueName, throwOnMissingValue: false);
+            else
+                key.SetValue(valueName, value, RegistryValueKind.String);
+        }
+        catch (System.Security.SecurityException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     private static bool LoadBoolSetting(string valueName, bool defaultValue)
     {
         return LoadOptionalBoolSetting(valueName) ?? defaultValue;

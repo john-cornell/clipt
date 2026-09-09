@@ -410,6 +410,49 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(AppLogLevel.Off, service.LoadLogLevel());
     }
 
+    [Fact]
+    public void SaveAndLoadGroupSyncServerUrl_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveGroupSyncServerUrl("https://sync.monkeyskin.au/");
+        Assert.Equal("https://sync.monkeyskin.au/", service.LoadGroupSyncServerUrl());
+
+        service.SaveGroupSyncServerUrl(null);
+        Assert.Null(service.LoadGroupSyncServerUrl());
+    }
+
+    [Fact]
+    public void SaveAndLoadGroupSyncToken_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveGroupSyncToken("secret-token");
+        Assert.Equal("secret-token", service.LoadGroupSyncToken());
+
+        service.SaveGroupSyncToken(null);
+        Assert.Null(service.LoadGroupSyncToken());
+    }
+
+    [Fact]
+    public void LoadGroupSyncEnabled_DefaultsFalse()
+    {
+        var service = new SettingsService();
+        Assert.False(service.LoadGroupSyncEnabled());
+    }
+
+    [Fact]
+    public void SaveAndLoadGroupSyncEnabled_RoundTrips()
+    {
+        var service = new SettingsService();
+
+        service.SaveGroupSyncEnabled(true);
+        Assert.True(service.LoadGroupSyncEnabled());
+
+        service.SaveGroupSyncEnabled(false);
+        Assert.False(service.LoadGroupSyncEnabled());
+    }
+
     private void RestoreSettingsKey()
     {
         if (!_settingsKeyExisted)

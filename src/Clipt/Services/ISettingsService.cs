@@ -62,4 +62,14 @@ public interface ISettingsService
 
     (double Width, double Height) LoadTrayPopupSize();
     void SaveTrayPopupSize(double width, double height);
+
+    string? LoadGroupSyncServerUrl();
+    void SaveGroupSyncServerUrl(string? url);
+
+    /// <summary>The sync API bearer token. Distinct from the encryption passphrase, which is never persisted.</summary>
+    string? LoadGroupSyncToken();
+    void SaveGroupSyncToken(string? token);
+
+    bool LoadGroupSyncEnabled();
+    void SaveGroupSyncEnabled(bool enabled);
 }
