@@ -7,11 +7,18 @@
         ResizeMode="NoResize"
         Background="{DynamicResource BackgroundBrush}">
     <StackPanel Margin="16">
-        <TextBlock Text="Server URL" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource ForegroundDimBrush}" />
-        <TextBox x:Name="ServerUrlBox" Margin="0,0,0,10" />
+        <StackPanel x:Name="ServerUrlPanel">
+            <TextBlock Text="Server URL" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource ForegroundDimBrush}" />
+            <TextBox x:Name="ServerUrlBox" Margin="0,0,0,10" />
+        </StackPanel>
 
-        <TextBlock Text="Bearer token" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource ForegroundDimBrush}" />
-        <PasswordBox x:Name="TokenBox" Margin="0,0,0,10" />
+        <StackPanel x:Name="TokenPanel">
+            <TextBlock Text="Bearer token" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource ForegroundDimBrush}" />
+            <PasswordBox x:Name="TokenBox" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <CheckBox x:Name="ChangeServerCheckBox" Content="Use a different server or token"
+                  Margin="0,0,0,10" Checked="ChangeServerCheckBox_CheckedChanged" Unchecked="ChangeServerCheckBox_CheckedChanged" />
 
         <TextBlock Text="Passphrase" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource ForegroundDimBrush}" />
         <PasswordBox x:Name="PassphraseBox" Margin="0,0,0,10" />
