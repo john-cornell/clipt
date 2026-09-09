@@ -18,9 +18,13 @@ public partial class TrayPopupWindow : Window
     private readonly ISettingsService? _settingsService;
     private readonly IGroupSyncService? _groupSyncService;
 
-    public TrayPopupWindow(TrayPopupViewModel viewModel, ISettingsService? settingsService = null)
+    public TrayPopupWindow(
+        TrayPopupViewModel viewModel,
+        ISettingsService? settingsService = null,
+        IGroupSyncService? groupSyncService = null)
     {
         _settingsService = settingsService;
+        _groupSyncService = groupSyncService;
         InitializeComponent();
         DataContext = viewModel;
         TitleText.Text = $"Clipt {MainWindow.GetAppVersion()}";
@@ -269,6 +273,9 @@ public partial class TrayPopupWindow : Window
         Top = Math.Max(workArea.Top + 8, workArea.Bottom - Height - 8);
         Show();
         Activate();
+
+        if (_groupSyncService?.IsUnlocked == true)
+            _ = _groupSyncService.SyncNowAsync();
     }
 
     private void HistoryEntry_ToolTipOpening(object sender, ToolTipEventArgs e)

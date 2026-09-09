@@ -1,10 +1,12 @@
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using Clipt.Models;
 using Clipt.Services;
+using Clipt.Services.Sync;
 using Clipt.ViewModels;
 using Clipt.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,6 +94,16 @@ public partial class App : Application
                 ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
                 LogError("Groups load failed.", ex);
+            }
+
+            var groupSyncService = _serviceProvider!.GetRequiredService<IGroupSyncService>();
+            if (groupSyncService.IsConfigured && !groupSyncService.IsUnlocked)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var unlockDialog = new GroupSyncSetupWindow(groupSyncService);
+                    unlockDialog.ShowDialog();
+                });
             }
 
             if (_settingsService!.LoadPurgeHistoryOnStartup())
@@ -672,6 +684,19 @@ public partial class App : Application
         services.AddSingleton<ICliptPluginHost>(sp => sp.GetRequiredService<CliptPluginHost>());
         services.AddSingleton<IClipboardHistoryService, ClipboardHistoryService>();
         services.AddSingleton<IClipboardGroupService, ClipboardGroupService>();
+        services.AddSingleton<HttpClient>();
+        services.AddSingleton<IGroupSyncCrypto, GroupSyncCrypto>();
+        services.AddSingleton<IGroupSyncStateStore, GroupSyncStateStore>();
+        services.AddSingleton<IGroupEntryBlobReader, GroupEntryBlobReader>();
+        services.AddSingleton<IGroupSyncApiClient, GroupSyncApiClient>();
+        services.AddSingleton<IGroupSyncService>(sp => new GroupSyncService(
+            sp.GetRequiredService<IClipboardGroupService>(),
+            sp.GetRequiredService<IGroupSyncApiClient>(),
+            sp.GetRequiredService<IGroupSyncCrypto>(),
+            sp.GetRequiredService<IGroupSyncStateStore>(),
+            sp.GetRequiredService<IGroupEntryBlobReader>(),
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<IAppLogger>()));
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayPopupViewModel>(sp => new TrayPopupViewModel(
             sp.GetRequiredService<ISettingsService>(),
@@ -695,7 +720,10 @@ public partial class App : Application
             sp.GetRequiredService<IClipboardService>(),
             () => sp.GetRequiredService<ClipboardListenerService>().Hwnd));
         services.AddSingleton<MainWindow>();
-        services.AddSingleton<TrayPopupWindow>();
+        services.AddSingleton<TrayPopupWindow>(sp => new TrayPopupWindow(
+            sp.GetRequiredService<TrayPopupViewModel>(),
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<IGroupSyncService>()));
     }
 
     protected override void OnExit(ExitEventArgs e)
